@@ -1,0 +1,15 @@
+name = "training-timer"
+main = "src/index.js"
+compatibility_date = "2026-11-01"
+workers_dev = true
+
+[[durable_objects.bindings]]
+name = "REST_TIMER"
+class_name = "RestTimer"
+
+[[migrations]]
+tag = "v1"
+new_sqlite_classes = ["RestTimer"]
+
+[vars]
+VAPID_PUBLIC_KEY = "BBNp3N111r3Hl06kNkE5fWo5WCRQzqmlw_9f7afJTTgo0erK2NopkenjQqXLavUO6QhWLIFPLCuABTUiA__JeT8"

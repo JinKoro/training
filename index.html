@@ -16,9 +16,8 @@
   h1 { font-size:22px; margin:0 0 4px; }
   p { color:var(--muted); margin:0 0 16px; }
   label { display:block; color:var(--muted); font-size:14px; margin:12px 0 6px; }
-  select, button { width:100%; min-height:52px; border-radius:12px; border:1px solid var(--line); background:var(--card); color:var(--text); font-size:17px; padding:0 12px; }
-  button.primary { background:var(--accent); border-color:var(--accent); color:#06240f; font-weight:700; margin-top:16px; }
-  button.secondary { margin-top:10px; }
+  select, button { width:100%; min-height:52px; border-radius:12px; border:1px solid var(--line); background:var(--card); color:var(--text); font-size:17px; padding:0 12px; margin-top:10px; }
+  button.primary { background:var(--accent); border-color:var(--accent); color:#06240f; font-weight:700; }
   #clock { font-size:72px; font-weight:700; text-align:center; font-variant-numeric:tabular-nums; margin:20px 0 0; }
   #status { text-align:center; min-height:22px; margin:0; }
   #log { background:var(--card); border-radius:12px; padding:12px; font:12px/1.5 ui-monospace, Menlo, monospace; white-space:pre-wrap; overflow-wrap:anywhere; max-height:320px; overflow:auto; margin-top:16px; color:var(--muted); }
@@ -26,15 +25,10 @@
 </head>
 <body>
 <main>
-  <h1>Тест таймера</h1>
-  <p>Включи музыку, нажми «Старт», заблокируй телефон и дождись сигнала.</p>
+  <h1>Тест push-таймера</h1>
+  <p>Один раз включи уведомления. Затем включи музыку, нажми «Старт» и заблокируй телефон.</p>
 
-  <label for="mode">Способ</label>
-  <select id="mode">
-    <option value="audio-ambient">А: аудиодорожка, поверх музыки</option>
-    <option value="webaudio-ambient">Б: запланированный звук, поверх музыки</option>
-    <option value="audio-default">В: аудиодорожка, обычный режим</option>
-  </select>
+  <button id="enable" type="button">Включить уведомления</button>
 
   <label for="seconds">Время отдыха</label>
   <select id="seconds">
@@ -48,30 +42,28 @@
   <p id="status">Готов</p>
 
   <button id="start" class="primary" type="button">Старт</button>
-  <button id="stop" class="secondary" type="button">Стоп</button>
-  <button id="copy" class="secondary" type="button">Скопировать журнал</button>
+  <button id="stop" type="button">Стоп</button>
+  <button id="check" type="button">Проверить доставку</button>
+  <button id="copy" type="button">Скопировать журнал</button>
   <div id="log"></div>
 </main>
 
 <script>
-const SAMPLE_RATE = 8000;
-const BEEPS = [0, 0.4, 0.8];
-const BEEP_LENGTH = 0.25;
-const BEEP_HZ = 1000;
-const TAIL_SECONDS = 1.5;
-const LOG_KEY = 'timer-test-log';
+const WORKER_URL = 'https://training-timer.dskorotin.workers.dev';
+const VAPID_PUBLIC_KEY = 'BBNp3N111r3Hl06kNkE5fWo5WCRQzqmlw_9f7afJTTgo0erK2NopkenjQqXLavUO6QhWLIFPLCuABTUiA__JeT8';
+const LOG_KEY = 'push-timer-log';
 
 const $ = (id) => document.getElementById(id);
-let run = null;
-let tick = null;
 let lines = [];
+let tick = null;
 
 try { lines = JSON.parse(localStorage.getItem(LOG_KEY) || '[]'); } catch {}
 renderLog();
+showIdleClock();
+log(`запуск: ${window.navigator.standalone ? 'с экрана Домой' : 'вкладка браузера'}, разрешение: ${'Notification' in window ? Notification.permission : 'нет API'}`);
 
 function log(message) {
-  lines.push(`${new Date().toLocaleTimeString('ru-RU')} ${message}`);
-  lines = lines.slice(-200);
+  lines = [...lines, `${new Date().toLocaleTimeString('ru-RU')} ${message}`].slice(-200);
   try { localStorage.setItem(LOG_KEY, JSON.stringify(lines)); } catch {}
   renderLog();
 }
@@ -86,122 +78,101 @@ function formatTime(seconds) {
   return `${Math.floor(whole / 60)}:${String(whole % 60).padStart(2, '0')}`;
 }
 
-function beepSample(time) {
-  for (const start of BEEPS) {
-    const local = time - start;
-    if (local >= 0 && local < BEEP_LENGTH) {
-      const fade = Math.min(1, local / 0.005, (BEEP_LENGTH - local) / 0.005);
-      return Math.sin(2 * Math.PI * BEEP_HZ * local) * 0.9 * fade;
-    }
-  }
-  return 0;
-}
-
-function makeWav(seconds) {
-  const count = Math.floor((seconds + TAIL_SECONDS) * SAMPLE_RATE);
-  const buffer = new ArrayBuffer(44 + count * 2);
-  const view = new DataView(buffer);
-  const text = (offset, value) => [...value].forEach((c, i) => view.setUint8(offset + i, c.charCodeAt(0)));
-  text(0, 'RIFF'); view.setUint32(4, 36 + count * 2, true); text(8, 'WAVE');
-  text(12, 'fmt '); view.setUint32(16, 16, true); view.setUint16(20, 1, true); view.setUint16(22, 1, true);
-  view.setUint32(24, SAMPLE_RATE, true); view.setUint32(28, SAMPLE_RATE * 2, true);
-  view.setUint16(32, 2, true); view.setUint16(34, 16, true);
-  text(36, 'data'); view.setUint32(40, count * 2, true);
-  const firstBeep = Math.floor(seconds * SAMPLE_RATE);
-  for (let i = firstBeep; i < count; i++) {
-    view.setInt16(44 + i * 2, beepSample((i - firstBeep) / SAMPLE_RATE) * 32767, true);
-  }
-  return new Blob([buffer], { type: 'audio/wav' });
-}
-
-function setSession(type) {
-  if (!('audioSession' in navigator)) { log('audioSession не поддерживается'); return; }
-  try { navigator.audioSession.type = type; log(`audioSession=${type}`); }
-  catch (error) { log(`audioSession ошибка: ${error.message}`); }
-}
-
-function startAudio(current) {
-  const url = URL.createObjectURL(makeWav(current.seconds));
-  const audio = new Audio(url);
-  current.cleanup = () => { audio.pause(); URL.revokeObjectURL(url); };
-  ['pause', 'waiting', 'stalled', 'error'].forEach((name) => {
-    audio.addEventListener(name, () => { if (run === current) log(`audio: ${name}, позиция ${audio.currentTime.toFixed(1)} с`); });
-  });
-  audio.addEventListener('ended', () => finish(current, 'audio ended'));
-  audio.play().then(() => log('audio: воспроизведение началось')).catch((error) => log(`audio.play ошибка: ${error.message}`));
-}
-
-function startWebAudio(current) {
-  const Context = window.AudioContext || window.webkitAudioContext;
-  const context = new Context();
-  current.cleanup = () => { context.close().catch(() => {}); };
-  context.onstatechange = () => { if (run === current) log(`webaudio: ${context.state}`); };
-  context.resume();
-  const startAt = context.currentTime + current.seconds;
-  BEEPS.forEach((offset, index) => {
-    const oscillator = context.createOscillator();
-    const gain = context.createGain();
-    oscillator.frequency.value = BEEP_HZ;
-    gain.gain.value = 0.9;
-    oscillator.connect(gain).connect(context.destination);
-    oscillator.start(startAt + offset);
-    oscillator.stop(startAt + offset + BEEP_LENGTH);
-    if (index === BEEPS.length - 1) oscillator.onended = () => finish(current, 'webaudio ended');
-  });
-}
-
-function setMediaInfo() {
-  if (!('mediaSession' in navigator)) return;
-  navigator.mediaSession.metadata = new MediaMetadata({ title: 'Отдых', artist: 'Таймер' });
-}
-
-function finish(current, reason) {
-  if (run !== current) return;
-  const elapsed = (Date.now() - current.startedAt) / 1000;
-  log(`ГОТОВО (${reason}): прошло ${elapsed.toFixed(1)} с, план ${current.seconds} с`);
-  clear('Сигнал');
-}
-
-function clear(status) {
-  if (!run) return;
-  run.cleanup?.();
-  run = null;
-  clearInterval(tick);
-  setSession('auto');
-  $('status').textContent = status;
-  showIdleClock();
-}
-
 function showIdleClock() {
   $('clock').textContent = formatTime(Number($('seconds').value));
 }
 
-function start() {
-  if (run) clear('Перезапуск');
-  const mode = $('mode').value;
-  const seconds = Number($('seconds').value);
-  const current = { mode, seconds, startedAt: Date.now() };
-  run = current;
-  log(`СТАРТ ${mode}, ${seconds} с`);
-  setSession(mode === 'audio-default' ? 'playback' : 'ambient');
-  setMediaInfo();
-  if (mode === 'webaudio-ambient') startWebAudio(current); else startAudio(current);
-  $('status').textContent = 'Идёт отдых';
-  tick = setInterval(() => {
-    const left = seconds - (Date.now() - current.startedAt) / 1000;
-    $('clock').textContent = formatTime(left);
-  }, 250);
+function keyBytes(value) {
+  const base64 = value.replaceAll('-', '+').replaceAll('_', '/');
+  return Uint8Array.from(atob(base64), (char) => char.charCodeAt(0));
 }
 
-$('start').addEventListener('click', start);
-$('stop').addEventListener('click', () => { if (run) { log('СТОП'); clear('Остановлено'); } });
-$('seconds').addEventListener('change', () => { if (!run) showIdleClock(); });
+async function registration() {
+  await navigator.serviceWorker.register('sw.js');
+  return navigator.serviceWorker.ready;
+}
+
+async function enable() {
+  if (!('Notification' in window) || !('serviceWorker' in navigator)) {
+    throw new Error('Открой приложение с экрана Домой');
+  }
+  const permission = await Notification.requestPermission();
+  log(`разрешение: ${permission}`);
+  if (permission !== 'granted') throw new Error('Уведомления не разрешены');
+  const worker = await registration();
+  const subscription = await worker.pushManager.getSubscription()
+    || await worker.pushManager.subscribe({ userVisibleOnly: true, applicationServerKey: keyBytes(VAPID_PUBLIC_KEY) });
+  log(`подписка: ${new URL(subscription.endpoint).hostname}`);
+  return subscription;
+}
+
+async function currentEndpoint() {
+  const worker = await registration();
+  const subscription = await worker.pushManager.getSubscription();
+  if (!subscription) throw new Error('Сначала включи уведомления');
+  return subscription.endpoint;
+}
+
+async function callWorker(path, body) {
+  let response;
+  try {
+    response = await fetch(`${WORKER_URL}${path}`, {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify(body),
+    });
+  } catch (error) {
+    throw new Error(`сервис недоступен: ${error.message}`);
+  }
+  const data = await response.json().catch(() => ({}));
+  if (!response.ok) throw new Error(`сервис ответил ${response.status}: ${JSON.stringify(data)}`);
+  return data;
+}
+
+function action(handler) {
+  return async () => {
+    try { await handler(); }
+    catch (error) { log(`ОШИБКА ${error.message}`); $('status').textContent = 'Ошибка, смотри журнал'; }
+  };
+}
+
+$('enable').addEventListener('click', action(async () => {
+  await enable();
+  $('status').textContent = 'Уведомления включены';
+}));
+
+$('start').addEventListener('click', action(async () => {
+  const seconds = Number($('seconds').value);
+  const endpoint = await currentEndpoint();
+  await callWorker('/start', { endpoint, seconds });
+  const startedAt = Date.now();
+  log(`СТАРТ ${seconds} с`);
+  $('status').textContent = 'Идёт отдых, можно блокировать';
+  clearInterval(tick);
+  tick = setInterval(() => {
+    const left = seconds - (Date.now() - startedAt) / 1000;
+    $('clock').textContent = formatTime(left);
+    if (left <= 0) { clearInterval(tick); $('status').textContent = 'Время вышло'; }
+  }, 250);
+}));
+
+$('stop').addEventListener('click', action(async () => {
+  await callWorker('/stop', { endpoint: await currentEndpoint() });
+  clearInterval(tick);
+  showIdleClock();
+  log('СТОП');
+  $('status').textContent = 'Остановлено';
+}));
+
+$('check').addEventListener('click', action(async () => {
+  log(`доставка: ${JSON.stringify(await callWorker('/status', { endpoint: await currentEndpoint() }))}`);
+}));
+
+$('seconds').addEventListener('change', () => { if (!tick) showIdleClock(); });
 $('copy').addEventListener('click', async () => {
   try { await navigator.clipboard.writeText(lines.join('\n')); $('status').textContent = 'Журнал скопирован'; }
   catch { $('status').textContent = 'Не удалось скопировать'; }
 });
-document.addEventListener('visibilitychange', () => log(`экран: ${document.visibilityState}`));
-window.addEventListener('pagehide', () => log('pagehide'));
 </script>
 </body>
 </html>
