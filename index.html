@@ -1,0 +1,207 @@
+<!doctype html>
+<html lang="ru">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+<meta name="apple-mobile-web-app-capable" content="yes">
+<meta name="apple-mobile-web-app-status-bar-style" content="black">
+<meta name="apple-mobile-web-app-title" content="Таймер">
+<link rel="manifest" href="manifest.webmanifest">
+<title>Тест таймера</title>
+<style>
+  :root { color-scheme: dark; --bg:#111418; --card:#1c2128; --text:#f2f4f7; --muted:#9aa4b2; --accent:#4ade80; --line:#2d343e; }
+  * { box-sizing:border-box; }
+  body { margin:0; padding:max(16px, env(safe-area-inset-top)) 16px 32px; background:var(--bg); color:var(--text); font:16px/1.4 -apple-system, system-ui, sans-serif; }
+  main { max-width:520px; margin:0 auto; }
+  h1 { font-size:22px; margin:0 0 4px; }
+  p { color:var(--muted); margin:0 0 16px; }
+  label { display:block; color:var(--muted); font-size:14px; margin:12px 0 6px; }
+  select, button { width:100%; min-height:52px; border-radius:12px; border:1px solid var(--line); background:var(--card); color:var(--text); font-size:17px; padding:0 12px; }
+  button.primary { background:var(--accent); border-color:var(--accent); color:#06240f; font-weight:700; margin-top:16px; }
+  button.secondary { margin-top:10px; }
+  #clock { font-size:72px; font-weight:700; text-align:center; font-variant-numeric:tabular-nums; margin:20px 0 0; }
+  #status { text-align:center; min-height:22px; margin:0; }
+  #log { background:var(--card); border-radius:12px; padding:12px; font:12px/1.5 ui-monospace, Menlo, monospace; white-space:pre-wrap; overflow-wrap:anywhere; max-height:320px; overflow:auto; margin-top:16px; color:var(--muted); }
+</style>
+</head>
+<body>
+<main>
+  <h1>Тест таймера</h1>
+  <p>Включи музыку, нажми «Старт», заблокируй телефон и дождись сигнала.</p>
+
+  <label for="mode">Способ</label>
+  <select id="mode">
+    <option value="audio-ambient">А: аудиодорожка, поверх музыки</option>
+    <option value="webaudio-ambient">Б: запланированный звук, поверх музыки</option>
+    <option value="audio-default">В: аудиодорожка, обычный режим</option>
+  </select>
+
+  <label for="seconds">Время отдыха</label>
+  <select id="seconds">
+    <option value="15">15 секунд</option>
+    <option value="30" selected>30 секунд</option>
+    <option value="60">1 минута</option>
+    <option value="180">3 минуты</option>
+  </select>
+
+  <div id="clock">0:30</div>
+  <p id="status">Готов</p>
+
+  <button id="start" class="primary" type="button">Старт</button>
+  <button id="stop" class="secondary" type="button">Стоп</button>
+  <button id="copy" class="secondary" type="button">Скопировать журнал</button>
+  <div id="log"></div>
+</main>
+
+<script>
+const SAMPLE_RATE = 8000;
+const BEEPS = [0, 0.4, 0.8];
+const BEEP_LENGTH = 0.25;
+const BEEP_HZ = 1000;
+const TAIL_SECONDS = 1.5;
+const LOG_KEY = 'timer-test-log';
+
+const $ = (id) => document.getElementById(id);
+let run = null;
+let tick = null;
+let lines = [];
+
+try { lines = JSON.parse(localStorage.getItem(LOG_KEY) || '[]'); } catch {}
+renderLog();
+
+function log(message) {
+  lines.push(`${new Date().toLocaleTimeString('ru-RU')} ${message}`);
+  lines = lines.slice(-200);
+  try { localStorage.setItem(LOG_KEY, JSON.stringify(lines)); } catch {}
+  renderLog();
+}
+
+function renderLog() {
+  $('log').textContent = lines.join('\n') || 'Журнал пуст';
+  $('log').scrollTop = $('log').scrollHeight;
+}
+
+function formatTime(seconds) {
+  const whole = Math.max(0, Math.ceil(seconds));
+  return `${Math.floor(whole / 60)}:${String(whole % 60).padStart(2, '0')}`;
+}
+
+function beepSample(time) {
+  for (const start of BEEPS) {
+    const local = time - start;
+    if (local >= 0 && local < BEEP_LENGTH) {
+      const fade = Math.min(1, local / 0.005, (BEEP_LENGTH - local) / 0.005);
+      return Math.sin(2 * Math.PI * BEEP_HZ * local) * 0.9 * fade;
+    }
+  }
+  return 0;
+}
+
+function makeWav(seconds) {
+  const count = Math.floor((seconds + TAIL_SECONDS) * SAMPLE_RATE);
+  const buffer = new ArrayBuffer(44 + count * 2);
+  const view = new DataView(buffer);
+  const text = (offset, value) => [...value].forEach((c, i) => view.setUint8(offset + i, c.charCodeAt(0)));
+  text(0, 'RIFF'); view.setUint32(4, 36 + count * 2, true); text(8, 'WAVE');
+  text(12, 'fmt '); view.setUint32(16, 16, true); view.setUint16(20, 1, true); view.setUint16(22, 1, true);
+  view.setUint32(24, SAMPLE_RATE, true); view.setUint32(28, SAMPLE_RATE * 2, true);
+  view.setUint16(32, 2, true); view.setUint16(34, 16, true);
+  text(36, 'data'); view.setUint32(40, count * 2, true);
+  const firstBeep = Math.floor(seconds * SAMPLE_RATE);
+  for (let i = firstBeep; i < count; i++) {
+    view.setInt16(44 + i * 2, beepSample((i - firstBeep) / SAMPLE_RATE) * 32767, true);
+  }
+  return new Blob([buffer], { type: 'audio/wav' });
+}
+
+function setSession(type) {
+  if (!('audioSession' in navigator)) { log('audioSession не поддерживается'); return; }
+  try { navigator.audioSession.type = type; log(`audioSession=${type}`); }
+  catch (error) { log(`audioSession ошибка: ${error.message}`); }
+}
+
+function startAudio(current) {
+  const url = URL.createObjectURL(makeWav(current.seconds));
+  const audio = new Audio(url);
+  current.cleanup = () => { audio.pause(); URL.revokeObjectURL(url); };
+  ['pause', 'waiting', 'stalled', 'error'].forEach((name) => {
+    audio.addEventListener(name, () => { if (run === current) log(`audio: ${name}, позиция ${audio.currentTime.toFixed(1)} с`); });
+  });
+  audio.addEventListener('ended', () => finish(current, 'audio ended'));
+  audio.play().then(() => log('audio: воспроизведение началось')).catch((error) => log(`audio.play ошибка: ${error.message}`));
+}
+
+function startWebAudio(current) {
+  const Context = window.AudioContext || window.webkitAudioContext;
+  const context = new Context();
+  current.cleanup = () => { context.close().catch(() => {}); };
+  context.onstatechange = () => { if (run === current) log(`webaudio: ${context.state}`); };
+  context.resume();
+  const startAt = context.currentTime + current.seconds;
+  BEEPS.forEach((offset, index) => {
+    const oscillator = context.createOscillator();
+    const gain = context.createGain();
+    oscillator.frequency.value = BEEP_HZ;
+    gain.gain.value = 0.9;
+    oscillator.connect(gain).connect(context.destination);
+    oscillator.start(startAt + offset);
+    oscillator.stop(startAt + offset + BEEP_LENGTH);
+    if (index === BEEPS.length - 1) oscillator.onended = () => finish(current, 'webaudio ended');
+  });
+}
+
+function setMediaInfo() {
+  if (!('mediaSession' in navigator)) return;
+  navigator.mediaSession.metadata = new MediaMetadata({ title: 'Отдых', artist: 'Таймер' });
+}
+
+function finish(current, reason) {
+  if (run !== current) return;
+  const elapsed = (Date.now() - current.startedAt) / 1000;
+  log(`ГОТОВО (${reason}): прошло ${elapsed.toFixed(1)} с, план ${current.seconds} с`);
+  clear('Сигнал');
+}
+
+function clear(status) {
+  if (!run) return;
+  run.cleanup?.();
+  run = null;
+  clearInterval(tick);
+  setSession('auto');
+  $('status').textContent = status;
+  showIdleClock();
+}
+
+function showIdleClock() {
+  $('clock').textContent = formatTime(Number($('seconds').value));
+}
+
+function start() {
+  if (run) clear('Перезапуск');
+  const mode = $('mode').value;
+  const seconds = Number($('seconds').value);
+  const current = { mode, seconds, startedAt: Date.now() };
+  run = current;
+  log(`СТАРТ ${mode}, ${seconds} с`);
+  setSession(mode === 'audio-default' ? 'playback' : 'ambient');
+  setMediaInfo();
+  if (mode === 'webaudio-ambient') startWebAudio(current); else startAudio(current);
+  $('status').textContent = 'Идёт отдых';
+  tick = setInterval(() => {
+    const left = seconds - (Date.now() - current.startedAt) / 1000;
+    $('clock').textContent = formatTime(left);
+  }, 250);
+}
+
+$('start').addEventListener('click', start);
+$('stop').addEventListener('click', () => { if (run) { log('СТОП'); clear('Остановлено'); } });
+$('seconds').addEventListener('change', () => { if (!run) showIdleClock(); });
+$('copy').addEventListener('click', async () => {
+  try { await navigator.clipboard.writeText(lines.join('\n')); $('status').textContent = 'Журнал скопирован'; }
+  catch { $('status').textContent = 'Не удалось скопировать'; }
+});
+document.addEventListener('visibilitychange', () => log(`экран: ${document.visibilityState}`));
+window.addEventListener('pagehide', () => log('pagehide'));
+</script>
+</body>
+</html>
