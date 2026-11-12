@@ -10,12 +10,10 @@ import './styles.css';
  */
 function syncAppHeight() {
   const standalone = (navigator as Navigator & { standalone?: boolean }).standalone === true || matchMedia('(display-mode: standalone)').matches;
-  let h = window.innerHeight;
-  if (standalone) {
-    const portrait = matchMedia('(orientation: portrait)').matches;
-    h = Math.max(h, portrait ? Math.max(screen.width, screen.height) : Math.min(screen.width, screen.height));
-  }
-  document.documentElement.style.setProperty('--app-h', `${h}px`);
+  // The installed app on this iPhone does not get the bottom strip of the screen: sizing to the screen pushed the
+  // tab bar under it. Use the real window height; `standalone` is kept for the debug readout.
+  void standalone;
+  document.documentElement.style.setProperty('--app-h', `${window.innerHeight}px`);
 }
 syncAppHeight();
 for (const ev of ['resize', 'orientationchange', 'pageshow']) window.addEventListener(ev, () => { syncAppHeight(); setTimeout(syncAppHeight, 300); });
