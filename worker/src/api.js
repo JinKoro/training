@@ -6,7 +6,6 @@ import { EMAIL_RE, arr, day, isDay, macros, num, oneOf, str } from './validate.j
 
 const MEALS = ['breakfast', 'lunch', 'snack', 'dinner'];
 const FOOD_ICONS = ['oat', 'eggs', 'buckwheat', 'chicken', 'curd', 'salmon', 'dish'];
-const EX_KINDS = ['bench', 'pulldown', 'legext', 'legcurl', 'press', 'curl', 'legpress', 'hyper', 'squat', 'lunge', 'carry'];
 const MUSCLES = ['chest', 'shoulders', 'biceps', 'forearms', 'abs', 'quads', 'calves', 'traps', 'reardelts', 'lats', 'triceps', 'lowerback', 'glutes', 'hamstrings'];
 const GROUPS = ['legs', 'back', 'chest', 'shoulders', 'arms', 'abs', 'cardio'];
 
@@ -102,7 +101,7 @@ function exerciseFields(body) {
   return {
     name: str(body.name, 'name', { min: 2, max: 80 }),
     type: oneOf(body.type ?? 'weight_reps', 'type', ['weight_reps', 'time']),
-    kind: body.kind == null ? null : oneOf(body.kind, 'kind', EX_KINDS),
+    kind: body.kind == null ? null : (/^[a-z]{2,20}$/.test(body.kind) ? body.kind : fail(400, 'invalid_option', 'kind')),
     group_key: oneOf(body.group, 'group', GROUPS),
     subtitle: str(body.subtitle ?? '', 'subtitle', { max: 120, optional: true }),
     primary_muscles: JSON.stringify(primary),
@@ -208,7 +207,7 @@ function workoutExercisesInput(body) {
     position: i,
     exerciseId: e.exerciseId == null ? null : num(e.exerciseId, 'exercises', { min: 1, int: true }),
     name: str(e.name, 'exercises', { min: 1, max: 120 }),
-    kind: e.kind == null ? null : oneOf(e.kind, 'exercises', EX_KINDS),
+    kind: e.kind == null || !/^[a-z]{2,20}$/.test(e.kind) ? null : e.kind,
     muscles: str(e.muscles ?? '', 'exercises', { max: 200, optional: true }),
     type: oneOf(e.type ?? 'weight_reps', 'exercises', ['weight_reps', 'time']),
     rest: num(e.rest ?? 120, 'exercises', { min: 0, max: 900, int: true }),

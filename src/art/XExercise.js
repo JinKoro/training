@@ -1,3 +1,5 @@
+import { MORE_KINDS, MORE_LABELS } from './XExerciseMore.js';
+
 // Verbatim port of design/project/XExercise.dc.html (hi-fi design). Template holes {{x}} became ${x}.
 // Original <script type="text/x-dc"> logic is kept at the bottom as a comment for reference.
 
@@ -81,11 +83,14 @@ export const EXERCISE_KINDS = {
 
 // Full SVG (size px square, viewBox 72x72, rounded tile radius = round(size/5)).
 export function exerciseSvg({ kind = 'bench', phase = 'end', size = 72, theme = 'dark' } = {}) {
-  const c = EXERCISE_COLORS[theme], K = EXERCISE_KINDS[kind];
+  const c = EXERCISE_COLORS[theme], K = EXERCISE_KINDS[kind] ?? MORE_KINDS[kind];
+  const pre = K.pre ?? (() => ''), post = K.post ?? (() => '');
   const v = { equip: c.equip, muscle: c.muscle, cable: phase === 'start' ? 8 : 15 };
-  const label = EXERCISE_LABELS[kind] + (phase === 'start' ? ', начало' : ', конец');
+  const label = (EXERCISE_LABELS[kind] ?? MORE_LABELS[kind]) + (phase === 'start' ? ', начало' : ', конец');
   return `<svg width="${size}" height="${size}" viewBox="0 0 72 72" role="img" aria-label="${label}" style="display:block;border-radius:${Math.round(size/5)}px;background:${c.bg}">`
     + `<line x1="6" y1="64" x2="66" y2="64" stroke="${c.floor}" stroke-width="2" stroke-linecap="round"></line>`
     + `<g fill="none" stroke="${c.ink}" stroke-width="3.5" stroke-linecap="round" stroke-linejoin="round">`
-    + K.pre(v) + K[phase](v) + K.post(v) + `</g></svg>`;
+    + pre(v) + K[phase](v) + post(v) + `</g></svg>`;
 }
+
+export const ALL_KINDS = [...Object.keys(EXERCISE_KINDS), ...Object.keys(MORE_KINDS)];

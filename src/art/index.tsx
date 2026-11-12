@@ -1,11 +1,11 @@
-import { exerciseSvg, EXERCISE_LABELS } from './XExercise.js';
+import { exerciseSvg, ALL_KINDS } from './XExercise.js';
 import { foodSvg } from './XFood.js';
 import { musclesSvgs } from './XMuscles.js';
 import { logoSvg, TAB_ICONS, SIDEBAR_ITEMS, LOGOUT_ICON_D } from './shellIcons.js';
 import { useTheme } from '../lib/theme';
 
 export { TAB_ICONS, SIDEBAR_ITEMS, LOGOUT_ICON_D };
-export const KINDS = Object.keys(EXERCISE_LABELS) as string[];
+export const KINDS = ALL_KINDS as string[];
 
 const Raw = ({ html, className, style }: { html: string; className?: string; style?: React.CSSProperties }) => (
   <span className={className} style={{ display: 'inline-flex', flex: 'none', ...style }} dangerouslySetInnerHTML={{ __html: html }} />
