@@ -42,7 +42,10 @@ export function MealChips({ value, onChange }: { value: Meal[]; onChange: (v: Me
 
 const PLUS: React.CSSProperties = { width: 36, height: 36, borderRadius: 18, border: '2px solid var(--acc)', color: 'var(--acc)', display: 'inline-flex', alignItems: 'center', justifyContent: 'center', fontWeight: 800, fontSize: 18, flex: 'none' };
 
-/** A food row: tap opens the weight screen, "+" adds it right away with the given grams. */
+/**
+ * A food row. Tapping it, or its "+", opens the weight/amount screen. Only rows that pass onAdd (Recent) add
+ * right away with the amount eaten last time.
+ */
 function ItemRow({ it, href, sub, onAdd }: { it: FoodItem; href: string; sub?: string; onAdd?: () => void }) {
   return (
     <div className="row a-in" style={{ minHeight: 56, gap: 12 }}>
@@ -50,7 +53,7 @@ function ItemRow({ it, href, sub, onAdd }: { it: FoodItem; href: string; sub?: s
         <FoodArt kind={it.icon} size={44} />
         <div className="grow" style={{ minWidth: 0 }}><b>{it.name}</b><div className="sub ell">{sub ?? subtitle(it)}</div></div>
       </a>
-      {onAdd ? <button aria-label={`Добавить ${it.name}`} onClick={onAdd} style={PLUS}>+</button> : null}
+      {onAdd ? <button aria-label={`Добавить ${it.name}`} onClick={onAdd} style={PLUS}>+</button> : <a href={href} aria-label={`Выбрать вес: ${it.name}`} style={PLUS}>+</a>}
     </div>
   );
 }
@@ -87,7 +90,6 @@ function AddPanel({ date: d, meal: m }: { date: string; meal: Meal }) {
       toast(`${it.name} — ${MEAL_IN[m]}`);
     } catch (e) { toast(errText(e)); }
   };
-  const defGrams = (it: FoodItem) => it.lastGrams ?? it.portionG ?? 100;
   const newProduct = `#/food/${d}/new-product/${m}/${encodeURIComponent(s ? `name:${s}` : '-')}`;
 
   let body: React.ReactNode;
@@ -96,7 +98,7 @@ function AddPanel({ date: d, meal: m }: { date: string; meal: Meal }) {
     const found = lib.data && dishes.data ? [...dishes.data.dishes.filter((x) => x.name.toLowerCase().includes(low)), ...(s.length >= 2 ? lib.data.products : [])] : undefined;
     body = !found ? <Skeleton n={4} /> : (
       <div className="col" style={{ gap: 4 }}>
-        {found.map((it) => <ItemRow key={`${it.type}${it.id}`} it={it} href={itemHref(it)} sub={`${subtitle(it)}${it.type === 'product' && it.base === false ? ' · добавлен пользователем' : ''}`} onAdd={quick(it, defGrams(it))} />)}
+        {found.map((it) => <ItemRow key={`${it.type}${it.id}`} it={it} href={itemHref(it)} sub={`${subtitle(it)}${it.type === 'product' && it.base === false ? ' · добавлен пользователем' : ''}`} />)}
         {!found.length ? <span className="muted" style={{ padding: '12px 0' }}>Ничего не нашлось</span> : null}
         <a className="link" href={newProduct} style={{ minHeight: 44, display: 'flex', alignItems: 'center' }}>{found.length ? 'Нет нужного? Добавить продукт ›' : 'Не нашли? Добавить продукт ›'}</a>
       </div>
@@ -122,7 +124,7 @@ function AddPanel({ date: d, meal: m }: { date: string; meal: Meal }) {
               {list.map((e) => {
                 const it = entryItem(e);
                 const sub = `${gramsText({ ...(it ?? { portionName: e.portionName, portionG: e.portionG }) } as FoodItem, e.grams)} · ${fmt(kcalAt(e, e.grams))} ккал`;
-                return it ? <ItemRow key={e.id} it={it} href={itemHref(it)} sub={sub} onAdd={quick(it, e.grams)} /> : null;
+                return it ? <ItemRow key={e.id} it={it} href={itemHref(it)} sub={sub} /> : null;
               })}
             </div>
           );
@@ -132,7 +134,7 @@ function AddPanel({ date: d, meal: m }: { date: string; meal: Meal }) {
   } else if (tab === 'library') {
     body = !lib.data ? <Skeleton n={5} /> : (
       <div className="col" style={{ gap: 4 }}>
-        {lib.data.products.map((it) => <ItemRow key={it.id} it={it} href={itemHref(it)} onAdd={quick(it, defGrams(it))} />)}
+        {lib.data.products.map((it) => <ItemRow key={it.id} it={it} href={itemHref(it)} />)}
         <div className="card col" style={{ marginTop: 10, gap: 6, alignItems: 'flex-start' }}>
           <b style={{ fontWeight: 700 }}>Остальные продукты, в том числе добавленные другими, ищи через поиск.</b>
           <button className="link" style={{ minHeight: 36 }} onClick={() => { searchRef.current?.querySelector('input')?.focus(); searchRef.current?.scrollIntoView({ block: 'center' }); }}>Найти в поиске ›</button>
@@ -143,7 +145,7 @@ function AddPanel({ date: d, meal: m }: { date: string; meal: Meal }) {
     const list = dishes.data?.dishes.filter((x) => !x.meals || x.meals.includes(m));
     body = !list ? <Skeleton n={3} /> : (
       <div className="col" style={{ gap: 4 }}>
-        {list.map((it) => <ItemRow key={it.id} it={it} href={itemHref(it)} onAdd={quick(it, defGrams(it))} />)}
+        {list.map((it) => <ItemRow key={it.id} it={it} href={itemHref(it)} />)}
         {!list.length ? <span className="muted" style={{ padding: '12px 0' }}>Для {MEAL_GEN[m]} блюд пока нет</span> : null}
         <a className="link" href={`#/food/${d}/dish/${m}`} style={{ minHeight: 44, display: 'flex', alignItems: 'center' }}>+ Новое блюдо</a>
       </div>
