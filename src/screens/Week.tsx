@@ -1,7 +1,7 @@
 import { useMemo, useRef, useState } from 'react';
 import { useApp } from '../app-context';
 import { activeProgram, dayTitle, fmt, kcal, MEAL_RU, MEALS, weekRange, workoutStats, type DayInfo } from '../lib/calc';
-import { addDays, dayMonth, diffDays, plural, today, WD_CAP, WD_LONG, WD_SHORT, weekDays, weekStart } from '../lib/dates';
+import { addDays, dayMonth, diffDays, plural, today, WD_CAP, WD_SHORT, weekDays, weekStart } from '../lib/dates';
 import { useDays } from '../lib/hooks';
 import { go } from '../lib/router';
 import type { Macros } from '../lib/types';
@@ -38,12 +38,12 @@ export function WeekScreen({ offset }: { offset: number }) {
 
   const left = (
     <>
-      <WeekHeader start={start} offset={offset} todayIdx={todayIdx} selected={selected} onOffset={setOffset} onToday={() => { if (offset) setOffset(0); else setSel(todayIdx); }} />
+      <WeekHeader start={start} offset={offset} onOffset={setOffset} />
       <Budget days={ds} offset={offset} />
       <Bars days={ds} selected={selected} onSelect={setSel} />
     </>
   );
-  const right = <DayPanel d={ds[selected]} />;
+  const right = <DayPanel d={ds[selected]} onToday={() => { if (offset) setOffset(0); else setSel(todayIdx); }} />;
   return (
     <Screen title="Неделя">
       <div
@@ -62,19 +62,11 @@ export function WeekScreen({ offset }: { offset: number }) {
   );
 }
 
-function WeekHeader({ start, offset, todayIdx, selected, onOffset, onToday }: { start: string; offset: number; todayIdx: number; selected: number; onOffset: (o: number) => void; onToday: () => void }) {
-  const t = today();
-  const pressed = offset === 0 && selected === todayIdx;
+function WeekHeader({ start, offset, onOffset }: { start: string; offset: number; onOffset: (o: number) => void }) {
   return (
     <div className="row" style={{ gap: 8 }}>
       <button className="icon-btn" aria-label="Предыдущая неделя" onClick={() => onOffset(offset - 1)}>‹</button>
-      <div className="grow col" style={{ alignItems: 'center', gap: 4 }}>
-        <b>{weekRange(start)}</b>
-        <button onClick={onToday} aria-pressed={pressed} style={{
-          height: 26, padding: '0 10px', borderRadius: 13, border: '1px solid var(--acc)', fontSize: 13, fontWeight: 800,
-          background: pressed ? 'var(--acc)' : 'transparent', color: pressed ? 'var(--onAcc)' : 'var(--acc)',
-        }}>{offset === 0 ? `Сегодня, ${WD_LONG[(new Date().getDay() + 6) % 7]}` : `К сегодня · ${WD_LONG[diffDays(t, weekStart(t))]}`}</button>
-      </div>
+      <b className="grow" style={{ textAlign: 'center', fontSize: 17, whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis', minWidth: 0 }}>{weekRange(start)}</b>
       <button className="icon-btn" aria-label="Следующая неделя" onClick={() => onOffset(offset + 1)}>›</button>
       <a className="icon-btn" aria-label="Календарь" href={`#/calendar/${start}`}><Icon d="M4 6h16v14H4zM4 10h16M8 3v4M16 3v4" size={20} /></a>
     </div>
@@ -227,12 +219,15 @@ export function WorkoutCard({ d, calendar }: { d: DayInfo; calendar?: boolean })
   );
 }
 
-function DayPanel({ d }: { d: DayInfo }) {
+function DayPanel({ d, onToday }: { d: DayInfo; onToday: () => void }) {
   return (
     <>
-      <div>
-        <div className="display" style={{ fontSize: 17 }}>{d.isToday ? `Сегодня, ${dayMonth(d.date)}` : `${WD_CAP[diffDays(d.date, weekStart(d.date))]}, ${dayMonth(d.date)}`}</div>
-        <div className="muted" style={{ fontSize: 14, fontWeight: 700 }}>{d.isTraining ? 'День тренировки' : 'День отдыха'}</div>
+      <div className="between" style={{ gap: 8 }}>
+        <div style={{ minWidth: 0 }}>
+          <div className="display ell" style={{ fontSize: 17 }}>{d.isToday ? `Сегодня, ${dayMonth(d.date)}` : `${WD_CAP[diffDays(d.date, weekStart(d.date))]}, ${dayMonth(d.date)}`}</div>
+          <div className="muted" style={{ fontSize: 14, fontWeight: 700 }}>{d.isTraining ? 'День тренировки' : 'День отдыха'}</div>
+        </div>
+        {!d.isToday ? <button onClick={onToday} style={{ flex: 'none', border: '1px solid var(--track)', color: 'var(--acc)', borderRadius: 999, padding: '6px 12px', fontWeight: 800, fontSize: 14 }}>К сегодня</button> : null}
       </div>
       <a href={`#/food/${d.date}`} style={{ display: 'block' }}><FoodCard d={d} /></a>
       <WorkoutCard d={d} />
