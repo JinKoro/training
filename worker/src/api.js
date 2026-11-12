@@ -8,7 +8,7 @@ const MEALS = ['breakfast', 'lunch', 'snack', 'dinner'];
 const FOOD_ICONS = ['oat', 'eggs', 'buckwheat', 'chicken', 'curd', 'salmon', 'dish'];
 const EX_KINDS = ['bench', 'pulldown', 'legext', 'legcurl', 'press', 'curl', 'legpress', 'hyper', 'squat', 'lunge', 'carry'];
 const MUSCLES = ['chest', 'shoulders', 'biceps', 'forearms', 'abs', 'quads', 'calves', 'traps', 'reardelts', 'lats', 'triceps', 'lowerback', 'glutes', 'hamstrings'];
-const GROUPS = ['legs', 'back', 'chest', 'shoulders', 'arms', 'abs'];
+const GROUPS = ['legs', 'back', 'chest', 'shoulders', 'arms', 'abs', 'cardio'];
 
 const parse = (s, fallback) => { try { return JSON.parse(s); } catch { return fallback; } };
 
@@ -537,7 +537,7 @@ export async function handleApi(request, env, path) {
       const { results } = q
         ? await env.DB.prepare("SELECT * FROM products WHERE name LIKE ? ESCAPE '\\' ORDER BY name COLLATE NOCASE LIMIT 50")
           .bind(`%${q.replace(/[\\%_]/g, (c) => `\\${c}`)}%`).all()
-        : await env.DB.prepare('SELECT * FROM products ORDER BY name COLLATE NOCASE LIMIT 50 OFFSET ?').bind(offset).all();
+        : await env.DB.prepare('SELECT * FROM products ORDER BY name COLLATE NOCASE LIMIT 1000 OFFSET ?').bind(offset).all();
       return ok({ products: results.map(productOut) });
     }
     if (seg.length === 1 && method === 'POST') {

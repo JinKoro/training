@@ -4,7 +4,7 @@ import { exerciseSubtitle } from '../lib/calc';
 import type { Exercise } from '../lib/types';
 import { ExerciseArt } from '../art';
 
-export const GROUP_CHIPS: [string, string | null][] = [['Все', null], ['Ноги', 'legs'], ['Спина', 'back'], ['Грудь', 'chest'], ['Плечи', 'shoulders'], ['Руки', 'arms'], ['Пресс', 'abs'], ['Мои', 'own']];
+export const GROUP_CHIPS: [string, string | null][] = [['Все', null], ['Ноги', 'legs'], ['Спина', 'back'], ['Грудь', 'chest'], ['Плечи', 'shoulders'], ['Руки', 'arms'], ['Пресс', 'abs'], ['Кардио', 'cardio'], ['Мои', 'own']];
 
 export function filterExercises(list: Exercise[], group: string | null, q: string) {
   const s = q.trim().toLowerCase();

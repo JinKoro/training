@@ -79,7 +79,7 @@ export function setWeights(kg: string, sets: number): (number | null)[] {
 export const showKg = (n: number | null | undefined) => (n == null ? '—' : String(Math.round(n * 100) / 100).replace('.', ','));
 export const mmss = (t: number) => `${Math.floor(t / 60)}:${String(Math.max(0, t) % 60).padStart(2, '0')}`;
 
-const GROUP_RU: Record<string, string> = { legs: 'Ноги', back: 'Спина', chest: 'Грудь', shoulders: 'Плечи', arms: 'Руки', abs: 'Пресс' };
+const GROUP_RU: Record<string, string> = { legs: 'Ноги', back: 'Спина', chest: 'Грудь', shoulders: 'Плечи', arms: 'Руки', abs: 'Пресс', cardio: 'Кардио' };
 export const MUSCLE_RU: Record<string, string> = {
   chest: 'грудь', shoulders: 'плечи', biceps: 'бицепс', forearms: 'предплечья', abs: 'пресс', quads: 'квадрицепс', calves: 'икры',
   traps: 'трапеции', reardelts: 'задние дельты', lats: 'широчайшие', triceps: 'трицепс', lowerback: 'поясница', glutes: 'ягодицы', hamstrings: 'бицепс бедра',
