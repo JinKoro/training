@@ -203,6 +203,38 @@ function ProductForm({ barcode: initialBarcode, onSaved, compact, onScan }: { ba
   const [f, setF] = useState({ barcode: initialBarcode ?? '', name: '', p: '', fat: '', c: '', pn: '', pg: '' });
   const [dup, setDup] = useState<FoodItem | null>(null);
   const [busy, setBusy] = useState(false);
+  // Where the prefilled numbers came from, so the user knows to double-check them.
+  const [source, setSource] = useState<string | null>(null);
+  const [ocr, setOcr] = useState<number | null>(null);
+  const fileRef = useRef<HTMLInputElement>(null);
+  const fill = (v: { name?: string | null; protein: number | null; fat: number | null; carbs: number | null }) => setF((x) => ({
+    ...x,
+    name: v.name && !x.name.trim() ? v.name : x.name,
+    p: v.protein !== null ? String(v.protein).replace('.', ',') : x.p,
+    fat: v.fat !== null ? String(v.fat).replace('.', ',') : x.fat,
+    c: v.carbs !== null ? String(v.carbs).replace('.', ',') : x.c,
+  }));
+  useEffect(() => {
+    if (!initialBarcode) return;
+    let alive = true;
+    api<{ product: { name: string | null; protein: number | null; fat: number | null; carbs: number | null } | null }>('GET', `/products/lookup?barcode=${initialBarcode}`)
+      .then((r) => { if (alive && r.product) { fill(r.product); setSource('Заполнено из базы Open Food Facts — проверь цифры с упаковкой'); } })
+      .catch(() => {});
+    return () => { alive = false; };
+  }, [initialBarcode]); // eslint-disable-line react-hooks/exhaustive-deps
+  const onPhoto = async (e: React.ChangeEvent<HTMLInputElement>) => {
+    const file = e.target.files?.[0];
+    e.target.value = '';
+    if (!file) return;
+    setOcr(0); setSource(null);
+    try {
+      const { readLabel } = await import('../lib/label');
+      const r = await readLabel(file, setOcr);
+      const got = [r.protein, r.fat, r.carbs].filter((v) => v !== null).length;
+      if (!got) setSource('Не получилось прочитать БЖУ. Сфоткай таблицу ближе и ровнее, без бликов');
+      else { fill(r); setSource(got === 3 ? 'Прочитано с этикетки — проверь цифры' : 'Прочитано не всё — допиши недостающее'); }
+    } catch { setSource('Не получилось распознать фото'); } finally { setOcr(null); }
+  };
   const set = (k: keyof typeof f) => (e: React.ChangeEvent<HTMLInputElement>) => { setF((x) => ({ ...x, [k]: e.target.value })); if (k === 'barcode') setDup(null); };
   const okMacro = (s: string) => s.trim() !== '' && /^\d{1,3}([.,]\d)?$/.test(s.trim()) && n(s) <= 100;
   const errs = {
@@ -258,7 +290,14 @@ function ProductForm({ barcode: initialBarcode, onSaved, compact, onScan }: { ba
         <label htmlFor="pn-name">Название</label>
         <input id="pn-name" className="input" value={f.name} onChange={set('name')} maxLength={80} style={{ height: compact ? 44 : 50, borderRadius: 12 }} />
       </div>
-      <span style={{ fontWeight: 700 }}>На 100 г, как на упаковке</span>
+      <div className="between" style={{ gap: 8 }}>
+        <span style={{ fontWeight: 700 }}>На 100 г, как на упаковке</span>
+        <button type="button" className="btn small outline" disabled={ocr !== null} onClick={() => fileRef.current?.click()} style={{ height: 38, flex: 'none' }}>
+          {ocr === null ? 'Сфоткать этикетку' : ocr ? `Читаю… ${ocr}%` : 'Загружаю…'}
+        </button>
+        <input ref={fileRef} type="file" accept="image/*" capture="environment" onChange={onPhoto} style={{ display: 'none' }} />
+      </div>
+      {source ? <span className="muted" style={{ fontSize: 14 }}>{source}</span> : null}
       <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 8 }}>
         <div className="field">
           <span className="sub" style={{ fontSize: 13 }}>Калории</span>

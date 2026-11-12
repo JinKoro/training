@@ -537,6 +537,12 @@ export async function handleApi(request, env, path) {
 
   // --- food: products, dishes, diary ---
   if (seg[0] === 'products') {
+    // Barcode not in our library yet: ask Open Food Facts so the new-product form can be prefilled.
+    if (seg[1] === 'lookup' && method === 'GET') {
+      const code = new URL(request.url).searchParams.get('barcode') ?? '';
+      if (!/^(\d{8}|\d{12,14})$/.test(code)) fail(400, 'invalid_barcode', 'barcode');
+      return ok({ product: await openFoodFacts(code) });
+    }
     if (seg.length === 1 && method === 'GET') {
       const url = new URL(request.url);
       const barcode = url.searchParams.get('barcode');
@@ -715,4 +721,28 @@ export async function handleApi(request, env, path) {
   }
 
   fail(404, 'not_found');
+}
+
+/** Per-100 g macros and a name from Open Food Facts, or null when unknown or incomplete. */
+async function openFoodFacts(code) {
+  try {
+    const res = await fetch(`https://world.openfoodfacts.org/api/v2/product/${code}.json?fields=product_name,product_name_ru,brands,nutriments`, {
+      headers: { 'User-Agent': 'Podhod/1.0 (personal workout and food diary)' },
+      cf: { cacheTtl: 86400 },
+    });
+    if (!res.ok) return null;
+    const j = await res.json();
+    const p = j?.product;
+    if (j?.status !== 1 || !p) return null;
+    const n = p.nutriments ?? {};
+    const g = (v) => (typeof v === 'number' && Number.isFinite(v) && v >= 0 && v <= 100 ? Math.round(v * 10) / 10 : typeof v === 'string' && v.trim() !== '' ? g(Number(v.replace(',', '.'))) : null);
+    const protein = g(n.proteins_100g), fat = g(n.fat_100g), carbs = g(n.carbohydrates_100g);
+    const name = String(p.product_name_ru || p.product_name || '').trim();
+    const brand = String(p.brands || '').split(',')[0].trim();
+    const full = (brand && name && !name.toLowerCase().includes(brand.toLowerCase()) ? `${name} ${brand}` : name).slice(0, 80);
+    if (!full && protein === null && fat === null && carbs === null) return null;
+    return { name: full || null, protein, fat, carbs };
+  } catch {
+    return null;
+  }
 }
