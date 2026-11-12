@@ -1,9 +1,12 @@
 import { durationMin, showKg, workoutStats } from '../lib/calc';
 import { dayMonth, diffDays, WD_CAP, weekStart } from '../lib/dates';
-import { useQuery } from '../lib/query';
+import { useState } from 'react';
+import { api } from '../lib/api';
+import { invalidate, useQuery } from '../lib/query';
+import { go } from '../lib/router';
 import type { Workout } from '../lib/types';
 import { useApp } from '../app-context';
-import { ErrorBox, Skeleton } from '../ui';
+import { ErrorBox, Sheet, Skeleton, errText, toast } from '../ui';
 
 export function SummaryBody({ w, back, cta }: { w: Workout; back?: string; cta?: { text: string; onClick: () => void } }) {
   const s = workoutStats(w);
@@ -70,12 +73,31 @@ export function SummaryBody({ w, back, cta }: { w: Workout; back?: string; cta?:
 export function SummaryScreen({ id, back }: { id: number; back?: string }) {
   const { wide } = useApp();
   const q = useQuery<{ workout: Workout }>(`/workouts/${id}`);
+  const [confirm, setConfirm] = useState(false);
+  const [busy, setBusy] = useState(false);
+  // Deleting frees the program day again, so the day screen offers to train it anew.
+  const remove = async (date: string) => {
+    if (busy) return;
+    setBusy(true);
+    try { await api('DELETE', `/workouts/${id}`); invalidate('/workouts'); toast('Тренировка удалена'); go('day', date); }
+    catch (e) { toast(errText(e)); setBusy(false); }
+  };
   const backHref = back === 'week' ? '#/week' : back === 'calendar' ? '#/calendar' : back === 'workouts' ? `#/workouts/${id}` : '#/log';
   if (q.error) return <div className="page"><ErrorBox error={q.error} retry={q.reload} /></div>;
   if (!q.data) return <div className="page"><Skeleton n={4} /></div>;
   return (
     <div style={{ maxWidth: wide ? 760 : 640, margin: wide ? 0 : '0 auto', width: '100%' }}>
       <SummaryBody w={q.data.workout} back={backHref} />
+      <div className="col" style={{ padding: '0 16px 32px', gap: 4, alignItems: 'center' }}>
+        <a className="link" href={`#/workout-edit/${id}`} style={{ minHeight: 44, display: 'flex', alignItems: 'center' }}>Изменить</a>
+        <button className="warn-link" onClick={() => setConfirm(true)}>Удалить тренировку</button>
+      </div>
+      <Sheet open={confirm} onClose={() => setConfirm(false)} label="Удалить тренировку">
+        <b className="display" style={{ fontSize: 20 }}>Удалить тренировку?</b>
+        <span className="muted">{q.data.workout.title}</span>
+        <button className="btn" disabled={busy} style={{ background: 'var(--warn)', color: '#fff' }} onClick={() => void remove(q.data!.workout.date)}>Удалить</button>
+        <button className="btn outline" onClick={() => setConfirm(false)}>Отмена</button>
+      </Sheet>
     </div>
   );
 }
