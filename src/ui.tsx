@@ -129,3 +129,21 @@ export const errText = (e: unknown) => {
   if (code === 'network') return 'Нет связи с сервером';
   return 'Не получилось сохранить';
 };
+
+/**
+ * Number field that is exactly as wide as its text, followed by a unit ("г", "шт"). A hidden copy of the value
+ * sizes the grid cell the input sits in, so nothing is clipped and there is no empty space on any device.
+ */
+export function AmountInput({ value, onChange, unit, size, label }: { value: string; onChange: (v: string) => void; unit: string; size: number; label: string }) {
+  const font: React.CSSProperties = { fontFamily: 'var(--display)', fontWeight: 800, fontSize: size, lineHeight: 1.1, letterSpacing: 0 };
+  return (
+    <span style={{ display: 'inline-flex', alignItems: 'baseline', gap: Math.round(size * 0.18) }}>
+      <span style={{ display: 'inline-grid' }}>
+        <span aria-hidden="true" style={{ ...font, gridArea: '1 / 1', visibility: 'hidden', whiteSpace: 'pre', padding: '0 1px' }}>{value || '0'}</span>
+        <input aria-label={label} inputMode="numeric" size={1} value={value} onChange={(e) => onChange(e.target.value.replace(/\D/g, '').slice(0, 4))}
+          style={{ ...font, gridArea: '1 / 1', width: '100%', minWidth: 0, padding: 0, margin: 0, border: 0, background: 'none', outline: 'none', color: 'var(--ink)', textAlign: 'center' }} />
+      </span>
+      <b style={{ ...font, fontSize: Math.round(size * 0.55) }}>{unit}</b>
+    </span>
+  );
+}

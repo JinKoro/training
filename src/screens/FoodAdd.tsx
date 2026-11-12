@@ -7,7 +7,7 @@ import { invalidate, useQuery } from '../lib/query';
 import { go } from '../lib/router';
 import type { Entry, FoodItem, Meal } from '../lib/types';
 import { FoodArt, Icon } from '../art';
-import { ErrorBox, Screen, Sheet, Skeleton, errText, toast } from '../ui';
+import { AmountInput, ErrorBox, Screen, Sheet, Skeleton, errText, toast } from '../ui';
 import { SearchInput } from './ExercisePicker';
 import { Tiles } from './Food';
 
@@ -252,13 +252,11 @@ export function ItemScreen({ date, type, id, meal }: { date?: string; type: 'pro
         <span className="muted" style={{ fontWeight: 700 }}>Сколько граммов</span>
         <div className="row" style={{ gap: 16 }}>
           <button aria-label="Меньше" onClick={() => setGrams(String(Math.max(0, g - step)))} style={{ width: 52, height: 52, borderRadius: 26, background: 'var(--card)', fontSize: 22, fontWeight: 800 }}>−</button>
-          {piece ? (
-            <span className="row" style={{ gap: 6, alignItems: 'baseline' }}>
-              <input aria-label="Штук" inputMode="numeric" value={fmtG(g / piece)} onChange={(e) => { const k = Number(e.target.value.replace(/\D/g, '').slice(0, 2)) || 0; setGrams(String(Math.round(k * piece))); }}
-                className="display num" style={{ width: `${Math.max(1, fmtG(g / piece).length) + 0.6}ch`, fontSize: 46, textAlign: 'right', border: 0, background: 'none', outline: 'none', fontWeight: 800, color: 'var(--ink)', padding: 0 }} />
-              <b className="display" style={{ fontSize: 28 }}>шт</b>
-            </span>
-          ) : <input aria-label="Граммы" inputMode="numeric" value={grams} onChange={(e) => setGrams(e.target.value.replace(/\D/g, '').slice(0, 4))} className="display num" style={{ width: 140, fontSize: 46, textAlign: 'center', border: 0, background: 'none', outline: 'none', fontWeight: 800, color: 'var(--ink)' }} />}
+          <div style={{ minWidth: 140, display: 'flex', justifyContent: 'center' }}>
+            {piece
+              ? <AmountInput label="Штук" value={fmtG(g / piece)} onChange={(v) => setGrams(String(Math.round((Number(v) || 0) * piece)))} unit="шт" size={46} />
+              : <AmountInput label="Граммы" value={grams} onChange={setGrams} unit="г" size={46} />}
+          </div>
           <button aria-label="Больше" onClick={() => setGrams(String(Math.min(5000, g + step)))} style={{ width: 52, height: 52, borderRadius: 26, background: 'var(--card)', fontSize: 22, fontWeight: 800 }}>+</button>
         </div>
         <div className="row" style={{ gap: 6, flexWrap: 'wrap', justifyContent: 'center' }}>
