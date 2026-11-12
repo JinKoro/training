@@ -40,6 +40,23 @@ document.addEventListener('touchmove', (e) => {
 
 createRoot(document.getElementById('root')!).render(<StrictMode><App /></StrictMode>);
 
+/**
+ * The installed app keeps showing an old build for a while (Pages caches index.html for 10 minutes and iOS holds
+ * on to the page). On launch and on return to the app, look for a newer build and reload into it.
+ */
+async function checkForUpdate() {
+  try {
+    const html = await (await fetch(`${import.meta.env.BASE_URL}index.html`, { cache: 'no-store' })).text();
+    const latest = html.match(/assets\/index-[\w-]+\.js/)?.[0];
+    const current = [...document.scripts].map((x) => x.src).find((src) => /assets\/index-[\w-]+\.js/.test(src));
+    if (latest && current && !current.includes(latest)) location.reload();
+  } catch { /* offline: keep the current build */ }
+}
+if (import.meta.env.PROD) {
+  void checkForUpdate();
+  document.addEventListener('visibilitychange', () => { if (!document.hidden) void checkForUpdate(); });
+}
+
 if ('serviceWorker' in navigator && import.meta.env.PROD) {
   void navigator.serviceWorker.register(`${import.meta.env.BASE_URL}sw.js`);
 }
