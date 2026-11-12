@@ -77,7 +77,7 @@ function AddPanel({ date: d, meal: m }: { date: string; meal: Meal }) {
   const y = addDays(d, -1);
   const recent = useQuery<{ items: FoodItem[] }>(`/food/recent?meal=${m}&date=${d}`);
   const yday = useQuery<{ entries: Entry[] }>(tab === 'yesterday' ? `/diary?from=${y}&to=${y}` : null);
-  const lib = useQuery<{ products: FoodItem[] }>(s.length >= 2 ? `/products?q=${encodeURIComponent(s)}` : tab === 'library' ? `/products?meal=${m}` : null);
+  const lib = useQuery<{ products: FoodItem[] }>(s.length >= 2 ? `/products?q=${encodeURIComponent(s)}` : tab === 'library' ? '/products' : null);
   const dishes = useQuery<{ dishes: FoodItem[] }>('/dishes');
   const itemHref = (it: FoodItem) => `#/food/${d}/item/${it.type}/${it.id}/${m}`;
   const quick = (it: FoodItem, g: number) => async () => {
@@ -260,10 +260,12 @@ export function ItemScreen({ date, type, id, meal }: { date?: string; type: 'pro
         </div>
       </div>
       <Tiles m={m100} big />
-      <div className="col" style={{ gap: 6 }}>
-        <span className="label">Приёмы пищи</span>
-        <MealChips value={tags ?? it.meals ?? MEALS} onChange={(v) => void saveTags(v)} />
-      </div>
+      {it.type === 'dish' ? (
+        <div className="col" style={{ gap: 6 }}>
+          <span className="label">Приёмы пищи</span>
+          <MealChips value={tags ?? it.meals ?? MEALS} onChange={(v) => void saveTags(v)} />
+        </div>
+      ) : null}
       <button className="card between" style={{ borderRadius: 16, padding: '12px 14px', width: '100%' }} onClick={() => setMealSheet(true)}>
         <span style={{ fontWeight: 700 }}>Приём пищи</span><b style={{ color: 'var(--acc)' }}>{MEAL_RU[m]} ›</b>
       </button>
@@ -276,11 +278,10 @@ export function ItemScreen({ date, type, id, meal }: { date?: string; type: 'pro
   );
 }
 
-function ProductForm({ barcode: initialBarcode, name: initialName, defaultMeals, onSaved, compact, onScan }: {
-  barcode?: string; name?: string; defaultMeals?: Meal[]; onSaved: (p: FoodItem) => void; compact?: boolean; onScan?: () => void;
+function ProductForm({ barcode: initialBarcode, name: initialName, onSaved, compact, onScan }: {
+  barcode?: string; name?: string; onSaved: (p: FoodItem) => void; compact?: boolean; onScan?: () => void;
 }) {
   const [f, setF] = useState({ barcode: initialBarcode ?? '', name: initialName ?? '', p: '', fat: '', c: '', pn: '', pg: '' });
-  const [meals, setMeals] = useState<Meal[]>(defaultMeals ?? MEALS);
   const [dup, setDup] = useState<FoodItem | null>(null);
   const [busy, setBusy] = useState(false);
   // Where the prefilled numbers came from, so the user knows to double-check them.
@@ -332,7 +333,7 @@ function ProductForm({ barcode: initialBarcode, name: initialName, defaultMeals,
     try {
       const { product } = await api<{ product: FoodItem }>('POST', '/products', {
         name: f.name.trim(), barcode: f.barcode.trim() || null, protein: n(f.p), fat: n(f.fat), carbs: n(f.c),
-        portionName: f.pn.trim() || null, portionG: f.pn.trim() ? n(f.pg) : null, meals,
+        portionName: f.pn.trim() || null, portionG: f.pn.trim() ? n(f.pg) : null,
       });
       invalidate('/products', '/food/recent');
       onSaved(product);
@@ -394,7 +395,6 @@ function ProductForm({ barcode: initialBarcode, name: initialName, defaultMeals,
           <input aria-label="Граммов в порции" className="input" inputMode="numeric" placeholder="г" value={f.pg} onChange={set('pg')} style={{ height: compact ? 44 : 50, borderRadius: 12, width: 100, flex: 'none' }} aria-invalid={errs.portion} />
         </div>
       </div>
-      <div className="col" style={{ gap: 6 }}><span className="label">Приёмы пищи</span><MealChips value={meals} onChange={setMeals} /></div>
       <span className="muted" style={{ fontSize: 14 }}>Продукт попадёт в общую библиотеку и будет находиться через поиск.</span>
       <button className={compact ? 'btn small' : 'btn big'} disabled={!valid || busy} onClick={save}>{compact ? 'Сохранить в библиотеку' : 'Сохранить и выбрать вес'}</button>
     </div>
