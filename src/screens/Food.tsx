@@ -1,4 +1,4 @@
-import { useEffect, useMemo, useState } from 'react';
+import { useEffect, useMemo, useRef, useState } from 'react';
 import { useApp } from '../app-context';
 import { api } from '../lib/api';
 import { MEALS, MEAL_IN, MEAL_RU, entryMacros, fmt, fmtG, kcal, macroLine, sumMacros, weekRange } from '../lib/calc';
@@ -15,6 +15,52 @@ const COLORS = ['var(--chart)', 'var(--warn)', 'var(--good)'];
 const NAMES = ['Белки', 'Жиры', 'Углеводы'];
 const amount = (e: Entry) => (e.portions && e.portionName ? `${fmtG(e.portions)} ${e.portionName}` : `${fmtG(e.grams)} г`);
 const COPY_ICON = 'M8 8h11v11H8zM5 16V5h11';
+const TRASH_ICON = 'M4 7h16M10 11v6M14 11v6M6 7l1 13h10l1-13M9 7V4h6v3';
+
+async function deleteEntry(e: Entry) {
+  try { await api('DELETE', `/diary/${e.id}`); invalidate('/diary'); toast(`Удалено: ${e.name}`); } catch (err) { toast(errText(err)); }
+}
+
+const OPEN = 76; // width of the revealed trash button
+
+/**
+ * Row that slides left: a short swipe reveals a trash button, a long one (past half the row) deletes at once.
+ * A tap opens the entry, or closes the row when the button is showing.
+ */
+function SwipeToDelete({ children, onDelete, onTap }: { children: React.ReactNode; onDelete: () => void; onTap: () => void }) {
+  const [x, setX] = useState(0);
+  const [drag, setDrag] = useState(false);
+  const [gone, setGone] = useState(false);
+  const start = useRef<{ x: number; y: number; base: number; dir: 'h' | 'v' | null; w: number } | null>(null);
+  const moved = useRef(false);
+  const remove = () => { setGone(true); setX(-(start.current?.w ?? 400)); setTimeout(onDelete, 180); };
+  return (
+    <div style={{ position: 'relative', overflow: 'hidden', borderRadius: 12, opacity: gone ? 0 : 1, transition: 'opacity .18s' }}>
+      <button aria-label="Удалить" onClick={remove} tabIndex={x < 0 ? 0 : -1}
+        style={{ position: 'absolute', top: 0, right: 0, bottom: 0, width: Math.max(OPEN, -x), background: 'var(--warn)', color: '#fff', display: 'flex', alignItems: 'center', justifyContent: 'center' }}>
+        <Icon d={TRASH_ICON} size={22} />
+      </button>
+      <button className="row" style={{ position: 'relative', width: '100%', minHeight: 48, textAlign: 'left', background: 'var(--card)', transform: `translateX(${x}px)`, transition: drag ? 'none' : 'transform .2s ease', touchAction: 'pan-y' }}
+        onTouchStart={(ev) => { const t = ev.touches[0]; start.current = { x: t.clientX, y: t.clientY, base: x, dir: null, w: ev.currentTarget.offsetWidth }; moved.current = false; }}
+        onTouchMove={(ev) => {
+          const s = start.current; if (!s) return;
+          const t = ev.touches[0], dx = t.clientX - s.x, dy = t.clientY - s.y;
+          if (!s.dir) { if (Math.abs(dx) < 8 && Math.abs(dy) < 8) return; s.dir = Math.abs(dx) > Math.abs(dy) ? 'h' : 'v'; }
+          if (s.dir !== 'h') return;
+          moved.current = true; setDrag(true);
+          setX(Math.min(0, Math.max(-s.w, s.base + dx)));
+        }}
+        onTouchEnd={() => {
+          const s = start.current; start.current = null; setDrag(false);
+          if (!s || s.dir !== 'h') return;
+          if (-x > s.w * 0.5) remove(); else setX(-x > OPEN / 2 ? -OPEN : 0);
+        }}
+        onClick={() => { if (moved.current) { moved.current = false; return; } if (x !== 0) setX(0); else onTap(); }}>
+        {children}
+      </button>
+    </div>
+  );
+}
 
 export function FoodScreen({ date }: { date?: string }) {
   const { wide } = useApp();
@@ -162,11 +208,11 @@ export function FoodScreen({ date }: { date?: string }) {
             {list.map((e) => {
               const mm = entryMacros(e);
               return (
-                <button key={e.id} className="row" style={{ minHeight: 48, textAlign: 'left' }} onClick={() => setEdit(e)}>
+                <SwipeToDelete key={e.id} onDelete={() => deleteEntry(e)} onTap={() => setEdit(e)}>
                   <FoodArt kind={e.icon} size={40} />
                   <div className="grow"><div style={{ fontWeight: 700, fontSize: 15 }}>{e.name}</div><div className="sub">{amount(e)} · {e.dishId ? 'своё блюдо' : macroLine(mm)}</div></div>
                   <b style={{ fontSize: 15 }}>{fmt(kcal(mm))}</b>
-                </button>
+                </SwipeToDelete>
               );
             })}
             {list.length ? <a className="link" href={`#/food/${d}/dish/${m}/from-meal`} style={{ minHeight: 40, display: 'flex', alignItems: 'center', fontSize: 15 }}>Создать блюдо ›</a> : null}
