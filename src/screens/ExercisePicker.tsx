@@ -4,11 +4,18 @@ import { exerciseSubtitle } from '../lib/calc';
 import type { Exercise } from '../lib/types';
 import { ExerciseArt } from '../art';
 
-export const GROUP_CHIPS: [string, string | null][] = [['Все', null], ['Ноги', 'legs'], ['Спина', 'back'], ['Грудь', 'chest'], ['Плечи', 'shoulders'], ['Руки', 'arms'], ['Пресс', 'abs'], ['Кардио', 'cardio'], ['Мои', 'own']];
+/** Filter chips: body-part groups, plus "m:<muscle>" for a muscle (glutes are part of legs but worth their own chip). */
+export const GROUP_CHIPS: [string, string | null][] = [['Все', null], ['Ноги', 'legs'], ['Ягодицы', 'm:glutes'], ['Спина', 'back'], ['Грудь', 'chest'], ['Плечи', 'shoulders'], ['Руки', 'arms'], ['Пресс', 'abs'], ['Кардио', 'cardio'], ['Мои', 'own']];
 
 export function filterExercises(list: Exercise[], group: string | null, q: string) {
   const s = q.trim().toLowerCase();
-  return list.filter((e) => (group === null ? true : group === 'own' ? e.own : e.group === group) && (!s || e.name.toLowerCase().includes(s)));
+  const fits = (e: Exercise) => {
+    if (group === null) return true;
+    if (group === 'own') return e.own;
+    if (group.startsWith('m:')) return e.primary.includes(group.slice(2)); // main muscle only, so cardio does not flood it
+    return e.group === group;
+  };
+  return list.filter((e) => fits(e) && (!s || e.name.toLowerCase().includes(s)));
 }
 
 export function SearchInput({ value, onChange, placeholder = 'Поиск', id }: { value: string; onChange: (v: string) => void; placeholder?: string; id?: string }) {
