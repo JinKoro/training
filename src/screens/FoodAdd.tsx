@@ -381,7 +381,6 @@ function ProductForm({ barcode: initialBarcode, name: initialName, onSaved, comp
     name: f.name.trim().length < 2 || f.name.trim().length > 80,
     p: !okMacro(f.p), fat: !okMacro(f.fat), c: !okMacro(f.c) || n(f.p) + n(f.fat) + n(f.c) > 100,
     barcode: f.barcode.trim() !== '' && !/^(\d{8}|\d{12,14})$/.test(f.barcode.trim()),
-    portion: (f.pn.trim() !== '' || f.pg.trim() !== '') && !(f.pn.trim().length >= 1 && f.pn.trim().length <= 20 && n(f.pg) >= 1 && n(f.pg) <= 2000),
   };
   const valid = !Object.values(errs).some(Boolean);
   const k = okMacro(f.p) && okMacro(f.fat) && okMacro(f.c) ? kcal([n(f.p), n(f.fat), n(f.c)]) : null;
@@ -392,7 +391,6 @@ function ProductForm({ barcode: initialBarcode, name: initialName, onSaved, comp
     try {
       const { product } = await api<{ product: FoodItem }>('POST', '/products', {
         name: f.name.trim(), barcode: f.barcode.trim() || null, protein: n(f.p), fat: n(f.fat), carbs: n(f.c),
-        portionName: f.pn.trim() || null, portionG: f.pn.trim() ? n(f.pg) : null,
       });
       invalidate('/products', '/food/recent');
       onSaved(product);
@@ -431,7 +429,7 @@ function ProductForm({ barcode: initialBarcode, name: initialName, onSaved, comp
         <input id="pn-name" className="input" value={f.name} onChange={set('name')} maxLength={80} style={{ height: compact ? 44 : 50, borderRadius: 12 }} />
       </div>
       <div className="between" style={{ gap: 8 }}>
-        <span style={{ fontWeight: 700 }}>На 100 г, как на упаковке</span>
+        <span style={{ fontWeight: 700 }}>100 г</span>
         <button type="button" className="btn small outline" disabled={ocr !== null} onClick={() => fileRef.current?.click()} style={{ height: 38, flex: 'none' }}>
           {ocr === null ? 'Сфоткать этикетку' : ocr ? `Читаю… ${ocr}%` : 'Загружаю…'}
         </button>
@@ -446,13 +444,6 @@ function ProductForm({ barcode: initialBarcode, name: initialName, onSaved, comp
         {box('p', 'Белки, г', 'var(--chart)')}
         {box('fat', 'Жиры, г', 'var(--warn)')}
         {box('c', 'Углеводы, г', 'var(--good)')}
-      </div>
-      <div className="field">
-        <label htmlFor="pn-portion">Порция, <span className="muted" style={{ fontWeight: 500 }}>необязательно</span></label>
-        <div className="row" style={{ gap: 8 }}>
-          <input id="pn-portion" className="input" placeholder="шт, банка" value={f.pn} onChange={set('pn')} maxLength={20} style={{ height: compact ? 44 : 50, borderRadius: 12 }} aria-invalid={errs.portion} />
-          <input aria-label="Граммов в порции" className="input" inputMode="numeric" placeholder="г" value={f.pg} onChange={set('pg')} style={{ height: compact ? 44 : 50, borderRadius: 12, width: 100, flex: 'none' }} aria-invalid={errs.portion} />
-        </div>
       </div>
       <span className="muted" style={{ fontSize: 14 }}>Продукт попадёт в общую библиотеку и будет находиться через поиск.</span>
       <button className={compact ? 'btn small' : 'btn big'} disabled={!valid || busy} onClick={save}>{compact ? 'Сохранить в библиотеку' : 'Сохранить и выбрать вес'}</button>

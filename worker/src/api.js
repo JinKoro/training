@@ -594,8 +594,7 @@ export async function handleApi(request, env, path) {
         if (dup) return json(request, { error: 'barcode_taken', field: 'barcode', product: productOut(dup) }, 409);
       }
       const mealMask = body.meals === undefined ? 15 : maskOf(body.meals, 'meals');
-      const portionName = str(body.portionName ?? '', 'portionName', { max: 20, optional: true });
-      const portionG = portionName ? num(body.portionG, 'portionG', { min: 1, max: 2000 }) : null;
+      const portionName = null, portionG = null; // everything is per 100 g; portions were removed
       const r = await env.DB.prepare(
         `INSERT INTO products (name, barcode, protein, fat, carbs, portion_name, portion_g, icon, created_by, created_at)
          VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?) RETURNING *`,
