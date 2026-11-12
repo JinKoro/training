@@ -48,17 +48,13 @@ const CHECK_ICON = 'M5 12.5l4.5 4.5L19 7.5';
  * A food row. Tapping it, or its "+", opens the weight/amount screen. Rows that pass onAdd (Recent, Yesterday)
  * add right away; their "+" turns into an animated check for as long as the toast is shown.
  */
-function ItemRow({ it, href, sub, onAdd }: { it: FoodItem; href: string; sub?: string; onAdd?: () => Promise<boolean> }) {
-  const [done, setDone] = useState(false);
-  const timer = useRef<number>();
-  useEffect(() => () => window.clearTimeout(timer.current), []);
-  const add = async () => {
-    if (!onAdd || done) return;
-    if (await onAdd()) { setDone(true); window.clearTimeout(timer.current); timer.current = window.setTimeout(() => setDone(false), TOAST_MS); }
-  };
-  const ease = 'cubic-bezier(.22,.9,.24,1)';
+function ItemRow({ it, href, sub, onAdd, rowKey }: { it: FoodItem; href: string; sub?: string; onAdd?: () => Promise<boolean>; rowKey?: string }) {
+  useAddedStore();
+  const done = !!rowKey && (checkedUntil.get(rowKey) ?? 0) > Date.now();
+  const add = async () => { if (onAdd && !done) await onAdd(); };
+  const ease = 'cubic-bezier(.34,1.3,.5,1)'; // soft overshoot
   const glyph = (d: string, on: boolean) => (
-    <span style={{ position: 'absolute', inset: 0, display: 'flex', alignItems: 'center', justifyContent: 'center', opacity: on ? 1 : 0, transform: on ? 'scale(1) rotate(0deg)' : 'scale(.4) rotate(-90deg)', transition: `opacity .25s ${ease}, transform .35s ${ease}` }}>
+    <span style={{ position: 'absolute', inset: 0, display: 'flex', alignItems: 'center', justifyContent: 'center', opacity: on ? 1 : 0, transform: on ? 'scale(1) rotate(0deg)' : 'scale(.3) rotate(-120deg)', transition: `opacity .45s ease, transform .6s ${ease}` }}>
       <Icon d={d} size={18} />
     </span>
   );
@@ -70,13 +66,33 @@ function ItemRow({ it, href, sub, onAdd }: { it: FoodItem; href: string; sub?: s
       </a>
       {onAdd ? (
         <button aria-label={done ? `${it.name} добавлен` : `Добавить ${it.name}`} onClick={() => void add()}
-          style={{ ...PLUS, position: 'relative', background: done ? 'var(--good)' : 'transparent', borderColor: done ? 'var(--good)' : 'var(--acc)', color: done ? '#fff' : 'var(--acc)', transition: `background .25s ${ease}, border-color .25s ${ease}, color .25s ${ease}` }}>
+          style={{ ...PLUS, position: 'relative', background: done ? 'var(--good)' : 'transparent', borderColor: done ? 'var(--good)' : 'var(--acc)', color: done ? '#fff' : 'var(--acc)', transition: 'background .5s ease, border-color .5s ease, color .5s ease' }}>
           {glyph('M12 5v14M5 12h14', !done)}{glyph(CHECK_ICON, done)}
         </button>
       ) : <a href={href} onClick={() => { cameFromAdd = true; }} aria-label={`Выбрать вес: ${it.name}`} style={PLUS}>+</a>}
     </div>
   );
 }
+
+/**
+ * What was added from the add panel, kept outside the list so a list reload does not reset it:
+ * the count per day+meal (shown on the back button) and which rows show a checkmark right now.
+ */
+const addedCount = new Map<string, number>();
+const checkedUntil = new Map<string, number>();
+const subs = new Set<() => void>();
+const notify = () => subs.forEach((f) => f());
+function useAddedStore() {
+  const [, tick] = useState(0);
+  useEffect(() => { const f = () => tick((x) => x + 1); subs.add(f); return () => { subs.delete(f); }; }, []);
+}
+function markAdded(panelKey: string, rowKey?: string) {
+  addedCount.set(panelKey, (addedCount.get(panelKey) ?? 0) + 1);
+  if (rowKey) { checkedUntil.set(rowKey, Date.now() + TOAST_MS); window.setTimeout(notify, TOAST_MS + 20); }
+  notify();
+}
+/** The food day calls this: a new visit to the add panel starts counting from zero. */
+export function resetAdded() { addedCount.clear(); checkedUntil.clear(); }
 
 /** Set when the weight screen is opened from the add panel, so adding there goes back to the same list/search. */
 let cameFromAdd = false;
@@ -110,11 +126,13 @@ function AddPanel({ date: d, meal: m }: { date: string; meal: Meal }) {
   const lib = useQuery<{ products: FoodItem[] }>(s.length >= 2 ? `/products?q=${encodeURIComponent(s)}` : tab === 'library' ? '/products' : null);
   const dishes = useQuery<{ dishes: FoodItem[] }>('/dishes');
   const itemHref = (it: FoodItem) => `#/food/${d}/item/${it.type}/${it.id}/${m}`;
+  const rowKey = (it: FoodItem) => `${key}:${it.type}${it.id}`;
   const quick = (it: FoodItem, g: number) => async (): Promise<boolean> => {
     try {
       await api('POST', '/diary', { date: d, meal: m, itemType: it.type, itemId: it.id, grams: g, portions: it.portionG && Math.abs(g / it.portionG - Math.round(g / it.portionG)) < 1e-6 && Math.round(g / it.portionG) > 0 ? Math.round(g / it.portionG) : null });
       invalidate('/diary', '/food/recent');
       toast(`${it.name} — ${MEAL_IN[m]}`);
+      markAdded(key, rowKey(it));
       return true;
     } catch (e) { toast(errText(e)); return false; }
   };
@@ -134,7 +152,7 @@ function AddPanel({ date: d, meal: m }: { date: string; meal: Meal }) {
   } else if (tab === 'recent') {
     body = !recent.data ? <Skeleton n={4} /> : recent.data.items.length ? (
       <div className="col" style={{ gap: 4 }}>
-        {recent.data.items.map((it) => <ItemRow key={`${it.type}${it.id}`} it={it} href={itemHref(it)} sub={`${WHEN(it.lastDate!, d)} · ${gramsText(it, it.lastGrams!)} · ${fmt(kcalAt(it, it.lastGrams!))} ккал`} onAdd={quick(it, it.lastGrams!)} />)}
+        {recent.data.items.map((it) => <ItemRow key={`${it.type}${it.id}`} it={it} href={itemHref(it)} sub={`${WHEN(it.lastDate!, d)} · ${gramsText(it, it.lastGrams!)} · ${fmt(kcalAt(it, it.lastGrams!))} ккал`} onAdd={quick(it, it.lastGrams!)} rowKey={rowKey(it)} />)}
       </div>
     ) : <div className="empty">За последние 3 дня {MEAL_GEN_PL[m]} не было</div>;
   } else if (tab === 'yesterday') {
@@ -152,7 +170,7 @@ function AddPanel({ date: d, meal: m }: { date: string; meal: Meal }) {
               {list.map((e) => {
                 const it = entryItem(e);
                 const sub = `${gramsText({ ...(it ?? { portionName: e.portionName, portionG: e.portionG }) } as FoodItem, e.grams)} · ${fmt(kcalAt(e, e.grams))} ккал`;
-                return it ? <ItemRow key={e.id} it={it} href={itemHref(it)} sub={sub} onAdd={quick(it, e.grams)} /> : null;
+                return it ? <ItemRow key={e.id} it={it} href={itemHref(it)} sub={sub} onAdd={quick(it, e.grams)} rowKey={rowKey(it)} /> : null;
               })}
             </div>
           );
@@ -205,13 +223,26 @@ function AddPanel({ date: d, meal: m }: { date: string; meal: Meal }) {
   );
 }
 
+/** "‹ Еда" until something is added; then a check with the count of added foods that returns to the day. */
+function BackOrDone({ date, meal }: { date: string; meal: Meal }) {
+  useAddedStore();
+  const n = addedCount.get(`${date}/${meal}`) ?? 0;
+  if (!n) return <a className="link" href={`#/food/${date}`}>‹ Еда</a>;
+  return (
+    <button key="done" className="check-pop" aria-label={`Готово, добавлено: ${n}`} onClick={() => { resetAdded(); go('food', date); }}
+      style={{ display: 'inline-flex', alignItems: 'center', gap: 6, height: 36, padding: '0 12px 0 8px', borderRadius: 18, background: 'var(--good)', color: '#fff', fontWeight: 800 }}>
+      <Icon d={CHECK_ICON} size={18} /><span key={n} className="count-pop num">{n}</span>
+    </button>
+  );
+}
+
 export function AddFoodScreen({ date, meal }: { date?: string; meal?: string }) {
   const { wide } = useApp();
   const d = asDate(date), m = asMeal(meal);
   if (wide) return <DesktopAdd date={d} meal={m} />;
   return (
     <Screen className="modal">
-      <div className="between"><a className="link" href={`#/food/${d}`}>‹ Еда</a><b>{MEAL_RU[m]}</b><span style={{ width: 44 }} /></div>
+      <div className="between"><BackOrDone date={d} meal={m} /><b>{MEAL_RU[m]}</b><span style={{ width: 44 }} /></div>
       <AddPanel date={d} meal={m} />
     </Screen>
   );
@@ -265,6 +296,7 @@ export function ItemScreen({ date, type, id, meal }: { date?: string; type: 'pro
       await api('POST', '/diary', { date: d, meal: m, itemType: it.type, itemId: it.id, grams: g, portions: it.portionG && Math.abs(g / it.portionG - Math.round(g / it.portionG)) < 1e-6 && Math.round(g / it.portionG) > 0 ? Math.round(g / it.portionG) : null });
       invalidate('/diary', '/food/recent');
       toast(`${it.name} — ${MEAL_IN[m]}`);
+      markAdded(`${d}/${m}`);
       // Back to where it was picked (search, recent, library...) rather than to the day.
       if (cameFromAdd) { cameFromAdd = false; history.back(); } else go('food', d, 'add', m);
     } catch (e) { toast(errText(e)); setBusy(false); }

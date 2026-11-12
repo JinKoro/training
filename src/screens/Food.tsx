@@ -10,6 +10,7 @@ import type { Entry, FoodItem, Meal } from '../lib/types';
 import { FoodArt, Icon } from '../art';
 import { AmountInput, ErrorBox, Screen, Sheet, Skeleton, errText, toast } from '../ui';
 import { SearchInput } from './ExercisePicker';
+import { resetAdded } from './FoodAdd';
 
 const COLORS = ['var(--chart)', 'var(--warn)', 'var(--good)'];
 const NAMES = ['Белки', 'Жиры', 'Углеводы'];
@@ -28,49 +29,76 @@ const EASE = 'cubic-bezier(.22,.9,.24,1)';
 
 /**
  * Row that slides left: a short swipe reveals a trash button (it fades and grows in with the swipe), a long one
- * (past half the row) deletes at once. On delete the row slides out and its space collapses smoothly.
+ * (past half the row) deletes at once; the row then slides out and its space collapses.
+ * While the finger moves, styles are written straight to the DOM (no React re-render per frame) for smoothness.
  * A tap opens the entry, or closes the row when the button is showing.
  */
 function SwipeToDelete({ children, onDelete, onTap }: { children: React.ReactNode; onDelete: () => void; onTap: () => void }) {
-  const [x, setX] = useState(0);
-  const [drag, setDrag] = useState(false);
-  const [phase, setPhase] = useState<'idle' | 'out' | 'collapse'>('idle');
-  const [h, setH] = useState<number | null>(null);
   const wrap = useRef<HTMLDivElement>(null);
+  const row = useRef<HTMLButtonElement>(null);
+  const bin = useRef<HTMLButtonElement>(null);
+  const icon = useRef<HTMLSpanElement>(null);
+  const pos = useRef(0); // current offset, px (<= 0)
   const start = useRef<{ x: number; y: number; base: number; dir: 'h' | 'v' | null; w: number } | null>(null);
   const moved = useRef(false);
-  const remove = () => {
-    const el = wrap.current;
-    setPhase('out'); setX(-(el?.offsetWidth ?? 400));
-    setTimeout(() => { setH(el?.offsetHeight ?? 48); requestAnimationFrame(() => requestAnimationFrame(() => { setPhase('collapse'); setH(0); })); }, 220);
-    setTimeout(onDelete, 480);
+  const frame = useRef(0);
+  const target = useRef(0); // latest finger position, applied on the next animation frame
+  const busy = useRef(false);
+
+  const paint = (x: number, animate: boolean) => {
+    pos.current = x;
+    const p = Math.min(1, -x / OPEN);
+    const t = animate ? `.38s ${EASE}` : '0s';
+    if (row.current) { row.current.style.transition = `transform ${t}`; row.current.style.transform = `translate3d(${x}px,0,0)`; }
+    if (bin.current) {
+      bin.current.style.transition = `opacity ${t}, transform ${t}, width ${t}`;
+      bin.current.style.opacity = String(p);
+      bin.current.style.transform = `scale(${0.75 + 0.25 * p})`;
+      bin.current.style.width = `${Math.max(OPEN, -x - GAP)}px`;
+      bin.current.tabIndex = x < 0 ? 0 : -1;
+    }
+    if (icon.current) { icon.current.style.transition = `transform ${t}`; icon.current.style.transform = `scale(${0.5 + 0.5 * p}) rotate(${(1 - p) * -25}deg)`; }
   };
-  const p = Math.min(1, -x / OPEN); // how far the button is revealed, 0..1
+  const remove = () => {
+    if (busy.current) return;
+    busy.current = true;
+    const el = wrap.current; if (!el) return;
+    paint(-el.offsetWidth, true);
+    if (bin.current) bin.current.style.opacity = '1';
+    setTimeout(() => {
+      el.style.height = `${el.offsetHeight}px`;
+      requestAnimationFrame(() => { el.style.transition = `height .32s ${EASE}, opacity .32s ${EASE}, margin .32s ${EASE}`; el.style.height = '0px'; el.style.opacity = '0'; });
+    }, 260);
+    setTimeout(onDelete, 600);
+  };
   return (
-    <div ref={wrap} style={{ position: 'relative', overflow: 'hidden', borderRadius: 12, height: h ?? undefined, opacity: phase === 'collapse' ? 0 : 1,
-      transition: `height .26s ${EASE}, opacity .26s ${EASE}` }}>
-      <button aria-label="Удалить" onClick={remove} tabIndex={x < 0 ? 0 : -1}
-        style={{ position: 'absolute', top: 4, right: 0, bottom: 4, width: Math.max(OPEN, -x - GAP), borderRadius: 12, background: 'var(--warn)', color: '#fff', display: 'flex', alignItems: 'center', justifyContent: 'center',
-          opacity: phase === 'idle' ? p : 1, transform: `scale(${0.7 + 0.3 * p})`, transformOrigin: 'right center', transition: drag ? 'none' : `opacity .28s ${EASE}, transform .28s ${EASE}, width .28s ${EASE}` }}>
-        <span style={{ display: 'inline-flex', transform: `scale(${0.6 + 0.4 * p})`, transition: drag ? 'none' : `transform .28s ${EASE}` }}><Icon d={TRASH_ICON} size={22} /></span>
+    <div ref={wrap} style={{ position: 'relative', overflow: 'hidden', borderRadius: 12 }}>
+      <button ref={bin} aria-label="Удалить" onClick={remove} tabIndex={-1}
+        style={{ position: 'absolute', top: 4, right: 0, bottom: 4, width: OPEN, borderRadius: 12, background: 'var(--warn)', color: '#fff', display: 'flex', alignItems: 'center', justifyContent: 'center', opacity: 0, transform: 'scale(.75)', transformOrigin: 'right center', willChange: 'opacity, transform' }}>
+        <span ref={icon} style={{ display: 'inline-flex', transform: 'scale(.5)' }}><Icon d={TRASH_ICON} size={22} /></span>
       </button>
-      <button className="row" style={{ position: 'relative', width: '100%', minHeight: 48, textAlign: 'left', background: 'var(--card)', transform: `translateX(${x}px)`, transition: drag ? 'none' : `transform .3s ${EASE}`, touchAction: 'pan-y' }}
-        onTouchStart={(ev) => { if (phase !== 'idle') return; const t = ev.touches[0]; start.current = { x: t.clientX, y: t.clientY, base: x, dir: null, w: ev.currentTarget.offsetWidth }; moved.current = false; }}
+      <button ref={row} className="row" style={{ position: 'relative', width: '100%', minHeight: 48, textAlign: 'left', background: 'var(--card)', touchAction: 'pan-y', willChange: 'transform' }}
+        onTouchStart={(ev) => { if (busy.current) return; const t = ev.touches[0]; start.current = { x: t.clientX, y: t.clientY, base: pos.current, dir: null, w: ev.currentTarget.offsetWidth }; target.current = pos.current; moved.current = false; }}
         onTouchMove={(ev) => {
           const s = start.current; if (!s) return;
           const t = ev.touches[0], dx = t.clientX - s.x, dy = t.clientY - s.y;
           if (!s.dir) { if (Math.abs(dx) < 8 && Math.abs(dy) < 8) return; s.dir = Math.abs(dx) > Math.abs(dy) ? 'h' : 'v'; }
           if (s.dir !== 'h') return;
-          moved.current = true; setDrag(true);
+          moved.current = true;
           const raw = s.base + dx;
-          setX(raw > 0 ? raw * 0.2 : Math.max(-s.w, raw)); // a little rubber band to the right
+          const x = raw > 0 ? raw * 0.2 : Math.max(-s.w, raw); // a little rubber band to the right
+          target.current = x;
+          cancelAnimationFrame(frame.current);
+          frame.current = requestAnimationFrame(() => paint(target.current, false));
         }}
         onTouchEnd={() => {
-          const s = start.current; start.current = null; setDrag(false);
+          const s = start.current; start.current = null;
           if (!s || s.dir !== 'h') return;
-          if (-x > s.w * 0.5) remove(); else setX(-x > OPEN / 2 ? -(OPEN + GAP) : 0);
+          cancelAnimationFrame(frame.current);
+          const x = target.current;
+          if (-x > s.w * 0.5) remove(); else paint(-x > OPEN / 2 ? -(OPEN + GAP) : 0, true);
         }}
-        onClick={() => { if (moved.current) { moved.current = false; return; } if (x !== 0) setX(0); else onTap(); }}>
+        onClick={() => { if (moved.current) { moved.current = false; return; } if (pos.current !== 0) paint(0, true); else onTap(); }}>
         {children}
       </button>
     </div>
@@ -87,6 +115,7 @@ export function FoodScreen({ date }: { date?: string }) {
   const [copy, setCopy] = useState<Meal | null>(null);
   const [target, setTarget] = useState<Meal | null>(null);
   const [cal, setCal] = useState(false);
+  useEffect(() => { resetAdded(); }, []);
 
   if (data.error) return <Screen title="Еда"><ErrorBox error={data.error} retry={data.reload} /></Screen>;
   if (!data.days) return <Screen title="Еда"><Skeleton n={4} /></Screen>;
