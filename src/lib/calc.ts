@@ -173,7 +173,7 @@ export function workoutStats(w: Workout) {
 export const durationMin = (w: Workout) => (w.finishedAt ? Math.max(1, Math.round((w.finishedAt - w.startedAt) / 60000)) : null);
 
 // ---------- food ----------
-export const MEALS: Meal[] = ['breakfast', 'lunch', 'snack', 'dinner'];
+export const MEALS: Meal[] = ['breakfast', 'lunch', 'dinner', 'snack'];
 export const MEAL_RU: Record<Meal, string> = { breakfast: 'Завтрак', lunch: 'Обед', snack: 'Перекус', dinner: 'Ужин' };
 export const MEAL_IN: Record<Meal, string> = { breakfast: 'в завтрак', lunch: 'в обед', snack: 'в перекус', dinner: 'в ужин' };
 

@@ -1,6 +1,6 @@
 import { useMemo, useRef, useState } from 'react';
 import { useApp } from '../app-context';
-import { activeProgram, dayTitle, fmt, kcal, weekRange, workoutStats, type DayInfo } from '../lib/calc';
+import { activeProgram, dayTitle, fmt, kcal, MEAL_RU, MEALS, weekRange, workoutStats, type DayInfo } from '../lib/calc';
 import { addDays, dayMonth, diffDays, plural, today, WD_CAP, WD_LONG, WD_SHORT, weekDays, weekStart } from '../lib/dates';
 import { useDays } from '../lib/hooks';
 import { go } from '../lib/router';
@@ -165,9 +165,9 @@ export function FoodCard({ d, title, meals }: { d: DayInfo; title?: string; meal
       ))}
       {meals && d.meals && !d.isPlan ? (
         <div style={{ display: 'grid', gridTemplateColumns: 'repeat(4, 1fr)', gap: 6 }}>
-          {(['breakfast', 'lunch', 'snack', 'dinner'] as const).map((m, i) => (
+          {MEALS.map((m) => (
             <div key={m} style={{ background: 'var(--sub)', borderRadius: 10, padding: '6px 8px' }}>
-              <div className="sub" style={{ fontSize: 12, fontWeight: 800 }}>{['Завтрак', 'Обед', 'Перекус', 'Ужин'][i]}</div>
+              <div className="sub" style={{ fontSize: 12, fontWeight: 800 }}>{MEAL_RU[m]}</div>
               <b className="num" style={{ fontSize: 14 }}>{fmt(kcal(d.meals![m]))}</b>
             </div>
           ))}

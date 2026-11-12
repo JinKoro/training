@@ -1,7 +1,7 @@
 import { useEffect, useMemo, useState } from 'react';
 import { useApp } from '../app-context';
 import { api } from '../lib/api';
-import { MEALS, MEAL_IN, MEAL_RU, entryMacros, fmt, fmtG, kcal, macroLine, sumMacros } from '../lib/calc';
+import { MEALS, MEAL_IN, MEAL_RU, entryMacros, fmt, fmtG, kcal, macroLine, sumMacros, weekRange } from '../lib/calc';
 import { addDays, dayMonth, diffDays, fromDay, isDayStr, plural, today, WD_CAP, WD_SHORT, weekDays, weekStart } from '../lib/dates';
 import { useDays } from '../lib/hooks';
 import { invalidate, useQuery } from '../lib/query';
@@ -236,10 +236,13 @@ function CopySheet({ date, meal, entries, onClose }: { date: string; meal: Meal 
   const [sel, setSel] = useState<string[]>([]);
   const [mode, setMode] = useState<'append' | 'replace'>('append');
   const [busy, setBusy] = useState(false);
-  useEffect(() => { setSel([]); setMode('append'); }, [meal, date]);
+  // Week shown in the picker; selected days stay selected while switching weeks (e.g. copy Sunday into next week).
+  const [wk, setWk] = useState(() => weekStart(date));
+  useEffect(() => { setSel([]); setMode('append'); setWk(weekStart(date)); }, [meal, date]);
   if (!meal) return null;
   const t = today();
-  const days = weekDays(weekStart(date));
+  const days = weekDays(wk);
+  const canPrev = addDays(wk, -1) >= t;
   const mk = kcal(sumMacros(entries.map(entryMacros)));
   const run = async () => {
     setBusy(true);
@@ -254,6 +257,11 @@ function CopySheet({ date, meal, entries, onClose }: { date: string; meal: Meal 
     <Sheet open onClose={onClose} label="Копирование">
       <b className="display" style={{ fontSize: 22 }}>Скопировать {MEAL_RU[meal].toLowerCase()}</b>
       <span className="muted ell">{entries.map((e) => e.name).join(', ')} · {fmt(mk)} ккал</span>
+      <div className="between">
+        <button className="icon-btn" aria-label="Прошлая неделя" disabled={!canPrev} onClick={() => setWk(addDays(wk, -7))} style={{ background: 'var(--bg)', opacity: canPrev ? 1 : 0.4 }}>‹</button>
+        <b>{weekRange(wk)}</b>
+        <button className="icon-btn" aria-label="Следующая неделя" onClick={() => setWk(addDays(wk, 7))} style={{ background: 'var(--bg)' }}>›</button>
+      </div>
       <div style={{ display: 'grid', gridTemplateColumns: 'repeat(7, 1fr)', gap: 5 }}>
         {days.map((x, i) => {
           const disabled = x < t || x === date;

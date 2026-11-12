@@ -1,4 +1,5 @@
 import { useEffect, useState, type ReactNode } from 'react';
+import { createPortal } from 'react-dom';
 import { useApp } from './app-context';
 
 export function TopBar({ left, title, right }: { left?: ReactNode; title?: ReactNode; right?: ReactNode }) {
@@ -25,7 +26,12 @@ export function Field({ label, aside, error, children, id }: { label: ReactNode;
   );
 }
 
+/**
+ * Bottom sheet (centered dialog on desktop). Rendered into <body>: on iPhone a fixed element inside the
+ * scrolling content area gets clipped to it, which hid the sheet's bottom buttons behind the tab bar.
+ */
 export function Sheet({ open, onClose, children, label }: { open: boolean; onClose: () => void; children: ReactNode; label: string }) {
+  const { wide } = useApp();
   const [startY, setStartY] = useState<number | null>(null);
   const [dy, setDy] = useState(0);
   useEffect(() => {
@@ -35,11 +41,11 @@ export function Sheet({ open, onClose, children, label }: { open: boolean; onClo
     return () => window.removeEventListener('keydown', onKey);
   }, [open, onClose]);
   if (!open) return null;
-  return (
+  return createPortal(
     <>
       <button className="scrim" aria-label="Закрыть" onClick={onClose} />
       <div
-        className="sheet" role="dialog" aria-modal="true" aria-label={label}
+        className={`sheet${wide ? ' desk' : ''}`} role="dialog" aria-modal="true" aria-label={label}
         style={dy > 0 ? { transform: `translateY(${dy}px)`, transition: 'none' } : undefined}
         onTouchStart={(e) => { if ((e.currentTarget.scrollTop ?? 0) <= 0) setStartY(e.touches[0].clientY); }}
         onTouchMove={(e) => { if (startY !== null) setDy(Math.max(0, e.touches[0].clientY - startY)); }}
@@ -48,7 +54,8 @@ export function Sheet({ open, onClose, children, label }: { open: boolean; onClo
         <div className="grab" />
         {children}
       </div>
-    </>
+    </>,
+    document.body,
   );
 }
 
