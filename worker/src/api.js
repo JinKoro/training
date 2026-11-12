@@ -25,8 +25,9 @@ async function currentProfile(env, userId) {
   const { results } = await env.DB.prepare(
     'SELECT * FROM profile_history WHERE user_id = ? ORDER BY date ASC',
   ).bind(userId).all();
-  const p = { name: null, weight: null, height: null, birthDate: null, steps: null };
+  const p = { name: null, weight: null, height: null, birthDate: null, steps: null, sex: null, bodyFat: null, trainingMode: null, trainingMin: null, trainingKcal: null };
   for (const r of results) {
+    for (const [col, key] of EXTRA) if (r[col] !== null && r[col] !== undefined) p[key] = r[col];
     if (r.name !== null) p.name = r.name;
     if (r.weight_kg !== null) p.weight = r.weight_kg;
     if (r.height_cm !== null) p.height = r.height_cm;
@@ -40,7 +41,7 @@ async function normsHistory(env, userId) {
   const { results } = await env.DB.prepare(
     'SELECT effective_from, day_type, protein_g, fat_g, carbs_g FROM nutrition_norms WHERE user_id = ? ORDER BY effective_from',
   ).bind(userId).all();
-  return results.map((r) => ({ from: r.effective_from, type: r.day_type, macros: [r.protein_g, r.fat_g, r.carbs_g] }));
+  return results.map((r) => ({ from: r.effective_from, type: r.day_type, macros: r.protein_g === null ? null : [r.protein_g, r.fat_g, r.carbs_g] }));
 }
 
 function profileFields(body, { partial }) {
@@ -56,6 +57,12 @@ function profileFields(body, { partial }) {
     out.birth_date = b;
   }
   if (want('steps')) out.steps_per_day = num(body.steps, 'steps', { min: 0, max: 150000, int: true });
+  // Calorie-formula inputs are optional everywhere (older accounts have none).
+  if (body.sex !== undefined) out.sex = oneOf(body.sex, 'sex', ['m', 'f']);
+  if (body.bodyFat !== undefined) out.body_fat = num(body.bodyFat, 'bodyFat', { min: 3, max: 60 });
+  if (body.trainingMode !== undefined) out.training_mode = oneOf(body.trainingMode, 'trainingMode', ['none', 'time', 'kcal']);
+  if (body.trainingMin !== undefined) out.training_min = num(body.trainingMin, 'trainingMin', { min: 10, max: 300, int: true, optional: true });
+  if (body.trainingKcal !== undefined) out.training_kcal = num(body.trainingKcal, 'trainingKcal', { min: 0, max: 3000, int: true, optional: true });
   return out;
 }
 
@@ -72,11 +79,16 @@ async function writeProfile(env, userId, date, fields) {
   }
 }
 
+const EXTRA = [['sex', 'sex'], ['body_fat', 'bodyFat'], ['training_mode', 'trainingMode'], ['training_min', 'trainingMin'], ['training_kcal', 'trainingKcal']];
+
+/** Training-day norms may be null ("not set"): those days then use the rest-day norm. */
+const readNorms = (n, field) => ({ training: n?.training === null ? null : macros(n?.training, field), rest: macros(n?.rest, field) });
+
 function normStatements(env, userId, date, norms) {
   return ['training', 'rest'].map((t) => env.DB.prepare(
     `INSERT INTO nutrition_norms (user_id, effective_from, day_type, protein_g, fat_g, carbs_g) VALUES (?, ?, ?, ?, ?, ?)
      ON CONFLICT (user_id, effective_from, day_type) DO UPDATE SET protein_g = excluded.protein_g, fat_g = excluded.fat_g, carbs_g = excluded.carbs_g`,
-  ).bind(userId, date, t, ...norms[t]));
+  ).bind(userId, date, t, ...(norms[t] ?? [null, null, null])));
 }
 
 async function me(env, user) {
@@ -297,7 +309,7 @@ export async function handleApi(request, env, path) {
       if (password.length < 8 || password.length > 128) fail(400, 'invalid_password', 'password');
       const profile = profileFields(body, { partial: false });
       const goal = oneOf(body.goal ?? 'keep', 'goal', ['lose', 'keep', 'gain']);
-      const norms = { training: macros(body.norms?.training, 'norms'), rest: macros(body.norms?.rest, 'norms') };
+      const norms = readNorms(body.norms, 'norms');
       const exists = await env.DB.prepare('SELECT 1 FROM users WHERE email = ?').bind(email).first();
       if (exists) fail(409, 'email_taken', 'email');
       const { hash, salt } = await hashPassword(password);
@@ -342,19 +354,20 @@ export async function handleApi(request, env, path) {
       const body = await readJson(request);
       const fields = profileFields(body, { partial: true });
       const cur = await currentProfile(env, uid);
-      const map = { name: 'name', weight_kg: 'weight', height_cm: 'height', birth_date: 'birthDate', steps_per_day: 'steps' };
+      const map = { name: 'name', weight_kg: 'weight', height_cm: 'height', birth_date: 'birthDate', steps_per_day: 'steps', ...Object.fromEntries(EXTRA) };
       for (const k of Object.keys(fields)) if (fields[k] === cur[map[k]]) delete fields[k];
       await writeProfile(env, uid, today, fields);
       if (body.norms) {
-        const norms = { training: macros(body.norms.training, 'norms'), rest: macros(body.norms.rest, 'norms') };
-        await env.DB.batch(normStatements(env, uid, today, norms));
+        await env.DB.batch(normStatements(env, uid, today, readNorms(body.norms, 'norms')));
       }
-      return ok(await me(env, user));
+      if (body.goal !== undefined) {
+        await env.DB.prepare('UPDATE users SET goal = ? WHERE id = ?').bind(oneOf(body.goal, 'goal', ['lose', 'keep', 'gain']), uid).run();
+      }
+      return ok(await me(env, { ...user, goal: body.goal ?? user.goal }));
     }
     if (seg[1] === 'norms' && method === 'PUT') {
       const body = await readJson(request);
-      const norms = { training: macros(body.training, 'training'), rest: macros(body.rest, 'rest') };
-      await env.DB.batch(normStatements(env, uid, today, norms));
+      await env.DB.batch(normStatements(env, uid, today, readNorms(body, 'norms')));
       return ok(await me(env, user));
     }
     if (seg[1] === 'password' && method === 'POST') {

@@ -1,27 +1,61 @@
 import { addDays, diffDays, fromDay, plural, toDay, today, weekdayIdx, weekStart, type Day } from './dates';
-import type { Entry, Exercise, Macros, Me, Meal, PlanRow, Program, Workout } from './types';
+import type { Entry, Exercise, Goal, Macros, Me, Meal, PlanRow, Program, Sex, TrainingMode, Workout } from './types';
 
 export const kcal = (m: Macros) => Math.round(m[0] * 4 + m[1] * 9 + m[2] * 4);
 export const fmt = (n: number) => Math.round(n).toLocaleString('ru-RU');
 
 // ---------- norms ----------
-export function normFor(me: Me, date: Day, type: 'training' | 'rest'): Macros {
-  let found: Macros | null = null;
-  let first: Macros | null = null;
+/** Latest norm of that day type in effect on the date; null when the training-day norm is not set. */
+export function setNormFor(me: Me, date: Day, type: 'training' | 'rest'): Macros | null {
+  let found: Macros | null | undefined;
+  let first: Macros | null | undefined;
   for (const n of me.norms) {
     if (n.type !== type) continue;
-    first ??= n.macros;
+    if (first === undefined) first = n.macros;
     if (n.from <= date) found = n.macros;
   }
-  return found ?? first ?? [0, 0, 0];
+  const v = found !== undefined ? found : first;
+  return v ?? null;
 }
 
-/** Starting norms by the design formula: P = 2 g/kg, F = 80, C = rest of target kcal. */
-export function suggestNorms(weight: number, goal: 'lose' | 'keep' | 'gain'): { training: Macros; rest: Macros } {
-  const restK = { lose: 2100, keep: 2300, gain: 2500 }[goal];
-  const p = Math.round(2 * weight), f = 80;
-  const c = (k: number) => Math.max(0, Math.round((k - 4 * p - 9 * f) / 4));
-  return { training: [p, f, c(restK + 400)], rest: [p, f, c(restK)] };
+/** Norm used for a day: a training day without its own norm falls back to the rest-day norm. */
+export function normFor(me: Me, date: Day, type: 'training' | 'rest'): Macros {
+  const rest = setNormFor(me, date, 'rest') ?? [0, 0, 0];
+  return type === 'training' ? setNormFor(me, date, 'training') ?? rest : rest;
+}
+
+// ---------- energy formula ----------
+export interface EnergyInput {
+  sex: Sex; weight: number; bodyFat: number; steps: number;
+  trainingMode: TrainingMode; trainingMin: number; trainingKcal: number;
+}
+export const GOAL_FACTOR: Record<Goal, number> = { lose: 0.9, keep: 1, gain: 1.1 };
+
+/** Daily expenditure: Katch-McArdle BMR + 17 % digestion + steps (20-40 kcal per 1000 by body size) + training. */
+export function energy(e: EnergyInput) {
+  const lean = e.weight * (1 - e.bodyFat / 100);
+  const bmr = Math.round(370 + 21.6 * lean);
+  const tef = Math.round(bmr * 0.17);
+  const per1000 = Math.max(20, Math.min(40, e.weight * 0.4));
+  const steps = Math.round((e.steps / 1000) * per1000);
+  const training = Math.round(e.trainingMode === 'time' ? 0.07 * e.weight * e.trainingMin : e.trainingMode === 'kcal' ? e.trainingKcal : 0);
+  const rest = bmr + tef + steps;
+  return { lean, bmr, tef, per1000, steps, training, rest, train: rest + training };
+}
+
+/** Macros for a calorie target: protein 1.8 g/kg, fat 0.9 g/kg (men) or 1 g/kg (women), the rest carbs. */
+export function macrosFor(kcalTarget: number, weight: number, sex: Sex): Macros {
+  const p = Math.round(1.8 * weight), f = Math.round((sex === 'f' ? 1 : 0.9) * weight);
+  return [p, f, Math.max(0, Math.round((kcalTarget - 4 * p - 9 * f) / 4))];
+}
+
+/** Suggested norms; no training means no training-day norm. */
+export function suggestNorms(e: EnergyInput, goal: Goal): { training: Macros | null; rest: Macros } {
+  const en = energy(e), k = GOAL_FACTOR[goal];
+  return {
+    rest: macrosFor(en.rest * k, e.weight, e.sex),
+    training: e.trainingMode === 'none' ? null : macrosFor(en.train * k, e.weight, e.sex),
+  };
 }
 
 // ---------- programs ----------

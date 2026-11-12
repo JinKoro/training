@@ -50,4 +50,18 @@ export function maskBirth(s: string) {
   return [d.slice(0, 2), d.slice(2, 4), d.slice(4)].filter(Boolean).join('.');
 }
 
+export const vFat = (s: string) => {
+  const n = numIn(s);
+  return Number.isNaN(n) ? 'Число, например 18' : n < 3 ? 'Меньше 3 % не бывает' : n > 60 ? 'Больше 60 %? Проверь' : null;
+};
+export const vMinutes = (s: string) => {
+  const t = String(s).replace(/\s/g, '');
+  return !/^\d+$/.test(t) ? 'Минуты целым числом' : Number(t) < 10 ? 'Меньше 10 минут? Проверь' : Number(t) > 300 ? 'Больше 5 часов? Проверь' : null;
+};
+export const vKcal = (s: string) => {
+  const t = String(s).replace(/\s/g, '');
+  return !/^\d+$/.test(t) ? 'Ккал целым числом' : Number(t) > 3000 ? 'Больше 3 000? Проверь' : null;
+};
+export const intIn = (s: string) => Number(String(s).replace(/\s/g, ''));
+
 export const vGrams = (s: string) => (/^\d{1,4}$/.test(String(s).trim()) && Number(s) <= 1000 ? null : 'Только целое число');

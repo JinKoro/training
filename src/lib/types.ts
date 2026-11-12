@@ -1,9 +1,17 @@
 export type Macros = [number, number, number]; // P, F, C grams
 
+export type Sex = 'm' | 'f';
+export type TrainingMode = 'none' | 'time' | 'kcal';
+export type Goal = 'lose' | 'keep' | 'gain';
+
 export interface Me {
   user: { id: number; email: string; theme: 'system' | 'light' | 'dark'; goal: 'lose' | 'keep' | 'gain'; createdAt: number };
-  profile: { name: string | null; weight: number | null; height: number | null; birthDate: string | null; steps: number | null };
-  norms: { from: string; type: 'training' | 'rest'; macros: Macros }[];
+  profile: {
+    name: string | null; weight: number | null; height: number | null; birthDate: string | null; steps: number | null;
+    sex: Sex | null; bodyFat: number | null; trainingMode: TrainingMode | null; trainingMin: number | null; trainingKcal: number | null;
+  };
+  /** macros null = training-day norm "not set": such days use the rest-day norm. */
+  norms: { from: string; type: 'training' | 'rest'; macros: Macros | null }[];
 }
 
 export interface Exercise {

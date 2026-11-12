@@ -3,6 +3,7 @@
   --chart: #4F8FE6; --warn: #E2703A; --warnT: #F2A07A; --btn: #2E3A4B; --track: #3A4350; --sub: #1E232B;
   --good: #2FA57D; --goodT: #7FD3B2; --side: #10141A; --line: #2F3743;
   --blue: #2438C9; --onBlue: #FFFFFF;
+  --body: #8E98A6; --bodyOn: #D2DAE4; --cloth: #4A5463; --hair: #5A6472; --hairOn: #7F8A99; --pick: #232F45; --dig: #A9CBFA;
   --font: Manrope, system-ui, -apple-system, sans-serif;
   --display: Unbounded, Manrope, system-ui, sans-serif;
   --safe-top: env(safe-area-inset-top, 0px);
@@ -13,6 +14,7 @@
   --bg: #F3F5F8; --card: #FFFFFF; --ink: #12151C; --muted: #5A6371; --acc: #2438C9; --onAcc: #FFFFFF;
   --chart: #2F5BEA; --warn: #E8590C; --warnT: #C2410C; --btn: #E6EAF0; --track: #E1E5EB; --sub: #F0F2F6;
   --good: #0B9468; --goodT: #0B7A57; --side: #FFFFFF; --line: #EEF1F5;
+  --body: #B6BEC9; --bodyOn: #C9D1DC; --cloth: #7D8696; --hair: #5A6371; --hairOn: #3A4350; --pick: #E8EEFC; --dig: #8DB4F2;
   color-scheme: light;
 }
 
