@@ -131,7 +131,7 @@ html:has(.shell-m) body, html:has(.shell-m) #root { min-height: 0; height: 0; }
 .shell-d .sheet .grab, .sheet.desk .grab { display: none; }
 
 /* ---------- nav ---------- */
-.tabbar { flex: none; position: relative; z-index: 20; background: var(--side); border-top: 1px solid var(--line); display: grid; grid-template-columns: repeat(5, 1fr); padding: 8px 6px max(18px, var(--safe-bottom)); }
+.tabbar { flex: none; position: relative; z-index: 20; background: var(--side); border-top: 1px solid var(--line); display: grid; grid-template-columns: repeat(5, 1fr); padding: 8px 6px max(10px, calc(var(--safe-bottom) - 14px)); }
 .tabbar a { display: flex; flex-direction: column; align-items: center; gap: 4px; font-size: 12px; font-weight: 800; color: var(--muted); }
 .tabbar a > span { width: 44px; height: 30px; border-radius: 15px; display: flex; align-items: center; justify-content: center; }
 .tabbar a[aria-current="page"] { color: var(--ink); }

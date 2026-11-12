@@ -72,6 +72,7 @@ export function ProfileScreen() {
       </div>
       <span className="label">Безопасность</span>
       <div className="list"><a href="#/profile/password"><span className="grow">Пароль</span><span className="muted">Сменить ›</span></a></div>
+      <ScreenDebug />
     </Screen>
   );
 }
@@ -372,4 +373,20 @@ function DesktopProfile() {
       </div>
     </Screen>
   );
+}
+
+/** Temporary: what the phone reports about its screen, to fix the tab bar position on the installed app. */
+function ScreenDebug() {
+  const [, tick] = useState(0);
+  const shell = document.querySelector('.shell-m')?.getBoundingClientRect();
+  const bar = document.querySelector('.tabbar')?.getBoundingClientRect();
+  const probe = document.createElement('div');
+  probe.style.cssText = 'position:fixed;padding:env(safe-area-inset-top) 0 env(safe-area-inset-bottom);visibility:hidden';
+  document.body.appendChild(probe);
+  const cs = getComputedStyle(probe);
+  const safe = `${cs.paddingTop}/${cs.paddingBottom}`;
+  probe.remove();
+  const sa = (navigator as Navigator & { standalone?: boolean }).standalone;
+  const line = `экран ${screen.width}×${screen.height} · окно ${innerWidth}×${innerHeight} · app-h ${getComputedStyle(document.documentElement).getPropertyValue('--app-h') || '—'} · оболочка ${Math.round(shell?.height ?? 0)} · меню ${Math.round(bar?.top ?? 0)}–${Math.round(bar?.bottom ?? 0)} · safe ${safe} · домой ${sa ? 'да' : 'нет'}`;
+  return <button className="muted" style={{ fontSize: 11, textAlign: 'left', opacity: 0.7 }} onClick={() => tick((x) => x + 1)}>{line}</button>;
 }
