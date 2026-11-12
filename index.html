@@ -4,175 +4,20 @@
 <meta charset="utf-8">
 <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
 <meta name="apple-mobile-web-app-capable" content="yes">
-<meta name="apple-mobile-web-app-status-bar-style" content="black">
-<meta name="apple-mobile-web-app-title" content="Таймер">
-<link rel="manifest" href="manifest.webmanifest">
-<title>Тест таймера</title>
-<style>
-  :root { color-scheme: dark; --bg:#111418; --card:#1c2128; --text:#f2f4f7; --muted:#9aa4b2; --accent:#4ade80; --line:#2d343e; }
-  * { box-sizing:border-box; }
-  body { margin:0; padding:max(16px, env(safe-area-inset-top)) 16px 32px; background:var(--bg); color:var(--text); font:16px/1.4 -apple-system, system-ui, sans-serif; }
-  main { max-width:520px; margin:0 auto; }
-  h1 { font-size:22px; margin:0 0 4px; }
-  p { color:var(--muted); margin:0 0 16px; }
-  label { display:block; color:var(--muted); font-size:14px; margin:12px 0 6px; }
-  select, button { width:100%; min-height:52px; border-radius:12px; border:1px solid var(--line); background:var(--card); color:var(--text); font-size:17px; padding:0 12px; margin-top:10px; }
-  button.primary { background:var(--accent); border-color:var(--accent); color:#06240f; font-weight:700; }
-  #clock { font-size:72px; font-weight:700; text-align:center; font-variant-numeric:tabular-nums; margin:20px 0 0; }
-  #status { text-align:center; min-height:22px; margin:0; }
-  #log { background:var(--card); border-radius:12px; padding:12px; font:12px/1.5 ui-monospace, Menlo, monospace; white-space:pre-wrap; overflow-wrap:anywhere; max-height:320px; overflow:auto; margin-top:16px; color:var(--muted); }
-</style>
+<meta name="mobile-web-app-capable" content="yes">
+<meta name="apple-mobile-web-app-status-bar-style" content="black-translucent">
+<meta name="apple-mobile-web-app-title" content="Подход">
+<meta name="theme-color" content="#171B21">
+<link rel="manifest" href="./manifest.webmanifest">
+<link rel="apple-touch-icon" href="./icon-180.png">
+<link rel="icon" href="./favicon.png">
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Unbounded:wght@500;800&family=Manrope:wght@500;700;800&display=swap">
+<title>Подход</title>
 </head>
 <body>
-<main>
-  <h1>Тест push-таймера</h1>
-  <p>Один раз включи уведомления. Затем включи музыку, нажми «Старт» и заблокируй телефон.</p>
-
-  <button id="enable" type="button">Включить уведомления</button>
-
-  <label for="seconds">Время отдыха</label>
-  <select id="seconds">
-    <option value="15">15 секунд</option>
-    <option value="30" selected>30 секунд</option>
-    <option value="60">1 минута</option>
-    <option value="180">3 минуты</option>
-  </select>
-
-  <div id="clock">0:30</div>
-  <p id="status">Готов</p>
-
-  <button id="start" class="primary" type="button">Старт</button>
-  <button id="stop" type="button">Стоп</button>
-  <button id="check" type="button">Проверить доставку</button>
-  <button id="copy" type="button">Скопировать журнал</button>
-  <div id="log"></div>
-</main>
-
-<script>
-const WORKER_URL = 'https://training-timer.dskorotin.workers.dev';
-const VAPID_PUBLIC_KEY = 'BBNp3N111r3Hl06kNkE5fWo5WCRQzqmlw_9f7afJTTgo0erK2NopkenjQqXLavUO6QhWLIFPLCuABTUiA__JeT8';
-const LOG_KEY = 'push-timer-log';
-
-const $ = (id) => document.getElementById(id);
-let lines = [];
-let tick = null;
-
-try { lines = JSON.parse(localStorage.getItem(LOG_KEY) || '[]'); } catch {}
-renderLog();
-showIdleClock();
-log(`запуск: ${window.navigator.standalone ? 'с экрана Домой' : 'вкладка браузера'}, разрешение: ${'Notification' in window ? Notification.permission : 'нет API'}`);
-
-function log(message) {
-  lines = [...lines, `${new Date().toLocaleTimeString('ru-RU')} ${message}`].slice(-200);
-  try { localStorage.setItem(LOG_KEY, JSON.stringify(lines)); } catch {}
-  renderLog();
-}
-
-function renderLog() {
-  $('log').textContent = lines.join('\n') || 'Журнал пуст';
-  $('log').scrollTop = $('log').scrollHeight;
-}
-
-function formatTime(seconds) {
-  const whole = Math.max(0, Math.ceil(seconds));
-  return `${Math.floor(whole / 60)}:${String(whole % 60).padStart(2, '0')}`;
-}
-
-function showIdleClock() {
-  $('clock').textContent = formatTime(Number($('seconds').value));
-}
-
-function keyBytes(value) {
-  const base64 = value.replaceAll('-', '+').replaceAll('_', '/');
-  return Uint8Array.from(atob(base64), (char) => char.charCodeAt(0));
-}
-
-async function registration() {
-  await navigator.serviceWorker.register('sw.js');
-  return navigator.serviceWorker.ready;
-}
-
-async function enable() {
-  if (!('Notification' in window) || !('serviceWorker' in navigator)) {
-    throw new Error('Открой приложение с экрана Домой');
-  }
-  const permission = await Notification.requestPermission();
-  log(`разрешение: ${permission}`);
-  if (permission !== 'granted') throw new Error('Уведомления не разрешены');
-  const worker = await registration();
-  const subscription = await worker.pushManager.getSubscription()
-    || await worker.pushManager.subscribe({ userVisibleOnly: true, applicationServerKey: keyBytes(VAPID_PUBLIC_KEY) });
-  log(`подписка: ${new URL(subscription.endpoint).hostname}`);
-  return subscription;
-}
-
-async function currentEndpoint() {
-  const worker = await registration();
-  const subscription = await worker.pushManager.getSubscription();
-  if (!subscription) throw new Error('Сначала включи уведомления');
-  return subscription.endpoint;
-}
-
-async function callWorker(path, body) {
-  let response;
-  try {
-    response = await fetch(`${WORKER_URL}${path}`, {
-      method: 'POST',
-      headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify(body),
-    });
-  } catch (error) {
-    throw new Error(`сервис недоступен: ${error.message}`);
-  }
-  const data = await response.json().catch(() => ({}));
-  if (!response.ok) throw new Error(`сервис ответил ${response.status}: ${JSON.stringify(data)}`);
-  return data;
-}
-
-function action(handler) {
-  return async () => {
-    try { await handler(); }
-    catch (error) { log(`ОШИБКА ${error.message}`); $('status').textContent = 'Ошибка, смотри журнал'; }
-  };
-}
-
-$('enable').addEventListener('click', action(async () => {
-  await enable();
-  $('status').textContent = 'Уведомления включены';
-}));
-
-$('start').addEventListener('click', action(async () => {
-  const seconds = Number($('seconds').value);
-  const endpoint = await currentEndpoint();
-  await callWorker('/start', { endpoint, seconds });
-  const startedAt = Date.now();
-  log(`СТАРТ ${seconds} с`);
-  $('status').textContent = 'Идёт отдых, можно блокировать';
-  clearInterval(tick);
-  tick = setInterval(() => {
-    const left = seconds - (Date.now() - startedAt) / 1000;
-    $('clock').textContent = formatTime(left);
-    if (left <= 0) { clearInterval(tick); $('status').textContent = 'Время вышло'; }
-  }, 250);
-}));
-
-$('stop').addEventListener('click', action(async () => {
-  await callWorker('/stop', { endpoint: await currentEndpoint() });
-  clearInterval(tick);
-  showIdleClock();
-  log('СТОП');
-  $('status').textContent = 'Остановлено';
-}));
-
-$('check').addEventListener('click', action(async () => {
-  log(`доставка: ${JSON.stringify(await callWorker('/status', { endpoint: await currentEndpoint() }))}`);
-}));
-
-$('seconds').addEventListener('change', () => { if (!tick) showIdleClock(); });
-$('copy').addEventListener('click', async () => {
-  try { await navigator.clipboard.writeText(lines.join('\n')); $('status').textContent = 'Журнал скопирован'; }
-  catch { $('status').textContent = 'Не удалось скопировать'; }
-});
-</script>
+<div id="root"></div>
+<script type="module" src="/src/main.tsx"></script>
 </body>
 </html>

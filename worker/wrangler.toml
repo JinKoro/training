@@ -13,3 +13,9 @@ new_sqlite_classes = ["RestTimer"]
 
 [vars]
 VAPID_PUBLIC_KEY = "BBNp3N111r3Hl06kNkE5fWo5WCRQzqmlw_9f7afJTTgo0erK2NopkenjQqXLavUO6QhWLIFPLCuABTUiA__JeT8"
+
+[[d1_databases]]
+binding = "DB"
+database_name = "training"
+database_id = "ac14bc50-f25e-44ae-afa7-9b3a7baa9dcf"
+migrations_dir = "migrations"
