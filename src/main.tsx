@@ -17,33 +17,8 @@ function syncAppHeight() {
 }
 syncAppHeight();
 for (const ev of ['resize', 'orientationchange', 'pageshow']) window.addEventListener(ev, () => { syncAppHeight(); setTimeout(syncAppHeight, 300); });
-document.addEventListener('visibilitychange', () => { if (!document.hidden) { syncAppHeight(); nudgeViewport(); } });
+document.addEventListener('visibilitychange', () => { if (!document.hidden) syncAppHeight(); });
 
-/**
- * iOS bug on the installed app with a translucent status bar: after launch the window is shorter than the screen
- * by the status bar height (measured on device: screen 956, window 894, safe-top 62), leaving a dead strip under
- * the tab bar. A scroll of the page makes iOS recompute it, so scroll by one pixel and back once at launch.
- */
-function nudgeViewport() {
-  const standalone = (navigator as Navigator & { standalone?: boolean }).standalone === true || matchMedia('(display-mode: standalone)').matches;
-  const portrait = matchMedia('(orientation: portrait)').matches;
-  const full = portrait ? Math.max(screen.width, screen.height) : Math.min(screen.width, screen.height);
-  if (!standalone || window.innerHeight >= full - 4) return;
-  const root = document.documentElement, body = document.body;
-  const prev = [root.style.height, body.style.height, body.style.minHeight];
-  body.style.minHeight = '0';
-  body.style.height = `${full + 2}px`;
-  window.scrollTo(0, 1);
-  requestAnimationFrame(() => {
-    window.scrollTo(0, 0);
-    requestAnimationFrame(() => {
-      [root.style.height, body.style.height, body.style.minHeight] = prev;
-      syncAppHeight();
-      setTimeout(syncAppHeight, 300);
-    });
-  });
-}
-window.addEventListener('load', () => setTimeout(nudgeViewport, 50));
 
 /**
  * iOS still rubber-bands the whole page (dragging the tab bar up with it) when a swipe lands on something that
