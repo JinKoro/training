@@ -211,9 +211,8 @@ export function ItemScreen({ date, type, id, meal }: { date?: string; type: 'pro
   const d = asDate(date);
   const q = useQuery<{ product?: FoodItem; dish?: FoodItem }>(type === 'dish' ? `/dishes/${id}` : `/products/${id}`);
   const last = useQuery<{ grams: number | null }>(`/food/last-grams?type=${type}&id=${id}`);
-  const [m, setM] = useState<Meal>(asMeal(meal));
+  const m = asMeal(meal);
   const [grams, setGrams] = useState<string | null>(null);
-  const [mealSheet, setMealSheet] = useState(false);
   const [busy, setBusy] = useState(false);
   const [tags, setTags] = useState<Meal[] | null>(null);
   const it = q.data?.product ?? q.data?.dish;
@@ -253,8 +252,13 @@ export function ItemScreen({ date, type, id, meal }: { date?: string; type: 'pro
         <span className="muted" style={{ fontWeight: 700 }}>Сколько граммов</span>
         <div className="row" style={{ gap: 16 }}>
           <button aria-label="Меньше" onClick={() => setGrams(String(Math.max(0, g - step)))} style={{ width: 52, height: 52, borderRadius: 26, background: 'var(--card)', fontSize: 22, fontWeight: 800 }}>−</button>
-          {piece ? <span className="display num" style={{ fontSize: 46 }}>{fmtG(g / piece)} шт</span>
-            : <input aria-label="Граммы" inputMode="numeric" value={grams} onChange={(e) => setGrams(e.target.value.replace(/\D/g, '').slice(0, 4))} className="display num" style={{ width: 140, fontSize: 46, textAlign: 'center', border: 0, background: 'none', outline: 'none', fontWeight: 800 }} />}
+          {piece ? (
+            <span className="row" style={{ gap: 6, alignItems: 'baseline' }}>
+              <input aria-label="Штук" inputMode="numeric" value={fmtG(g / piece)} onChange={(e) => { const k = Number(e.target.value.replace(/\D/g, '').slice(0, 2)) || 0; setGrams(String(Math.round(k * piece))); }}
+                className="display num" style={{ width: `${Math.max(1, fmtG(g / piece).length) + 0.6}ch`, fontSize: 46, textAlign: 'right', border: 0, background: 'none', outline: 'none', fontWeight: 800, color: 'var(--ink)', padding: 0 }} />
+              <b className="display" style={{ fontSize: 28 }}>шт</b>
+            </span>
+          ) : <input aria-label="Граммы" inputMode="numeric" value={grams} onChange={(e) => setGrams(e.target.value.replace(/\D/g, '').slice(0, 4))} className="display num" style={{ width: 140, fontSize: 46, textAlign: 'center', border: 0, background: 'none', outline: 'none', fontWeight: 800, color: 'var(--ink)' }} />}
           <button aria-label="Больше" onClick={() => setGrams(String(Math.min(5000, g + step)))} style={{ width: 52, height: 52, borderRadius: 26, background: 'var(--card)', fontSize: 22, fontWeight: 800 }}>+</button>
         </div>
         <div className="row" style={{ gap: 6, flexWrap: 'wrap', justifyContent: 'center' }}>
@@ -268,14 +272,7 @@ export function ItemScreen({ date, type, id, meal }: { date?: string; type: 'pro
           <MealChips value={tags ?? it.meals ?? MEALS} onChange={(v) => void saveTags(v)} />
         </div>
       ) : null}
-      <button className="card between" style={{ borderRadius: 16, padding: '12px 14px', width: '100%' }} onClick={() => setMealSheet(true)}>
-        <span style={{ fontWeight: 700 }}>Приём пищи</span><b style={{ color: 'var(--acc)' }}>{MEAL_RU[m]} ›</b>
-      </button>
       <div className="fixed-bottom"><button className="btn big" disabled={busy || g < 1 || g > 5000} onClick={add}>Добавить {MEAL_IN[m]}</button></div>
-      <Sheet open={mealSheet} onClose={() => setMealSheet(false)} label="Приём пищи">
-        {MEALS.map((x) => <button key={x} style={{ minHeight: 52, textAlign: 'left', fontWeight: 800, color: x === m ? 'var(--acc)' : 'var(--ink)' }} onClick={() => { setM(x); setMealSheet(false); }}>{MEAL_RU[x]}</button>)}
-        <button className="btn outline" onClick={() => setMealSheet(false)}>Отмена</button>
-      </Sheet>
     </Screen>
   );
 }
