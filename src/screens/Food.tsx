@@ -217,10 +217,12 @@ function EntrySheet({ entry, onClose }: { entry: Entry | null; onClose: () => vo
       <div className="row"><FoodArt kind={entry.icon} size={60} /><div className="grow"><b style={{ fontSize: 19 }}>{entry.name}</b><div className="muted" style={{ fontSize: 14 }}>{entry.dishId ? 'своё блюдо · ' : ''}{per100} ккал на 100 г</div></div></div>
       <div style={{ display: 'grid', gridTemplateColumns: '52px 1fr 52px', gap: 10, alignItems: 'center' }}>
         <button className="icon-btn" aria-label="Меньше" style={{ height: 52, width: 52, borderRadius: 14, border: '1px solid var(--track)' }} onClick={() => setGrams(String(Math.max(0, g - 50)))}>−</button>
-        <div className="row" style={{ justifyContent: 'center', gap: 6 }}>
-          <input aria-label="Граммы" inputMode="numeric" value={grams} onChange={(e) => setGrams(e.target.value.replace(/\D/g, '').slice(0, 4))} style={{ width: 120, height: 56, borderRadius: 14, border: 0, background: 'var(--bg)', textAlign: 'center', fontFamily: 'var(--display)', fontWeight: 800, fontSize: 30, outline: 'none' }} />
-          <b>г</b>
-        </div>
+        {/* The input grows with the number and "г" sits inside the same pill, so nothing gets clipped on iPhone. */}
+        <label style={{ justifySelf: 'center', display: 'flex', alignItems: 'center', gap: 6, height: 56, maxWidth: '100%', padding: '0 16px', borderRadius: 14, background: 'var(--bg)', minWidth: 0 }}>
+          <input aria-label="Граммы" inputMode="numeric" value={grams} onChange={(e) => setGrams(e.target.value.replace(/\D/g, '').slice(0, 4))}
+            style={{ width: `${Math.max(1, grams.length) + 0.6}ch`, minWidth: 0, padding: 0, border: 0, background: 'none', textAlign: 'right', fontFamily: 'var(--display)', fontWeight: 800, fontSize: 28, outline: 'none', color: 'var(--ink)' }} />
+          <b style={{ flex: 'none' }}>г</b>
+        </label>
         <button className="icon-btn" aria-label="Больше" style={{ height: 52, width: 52, borderRadius: 14, border: '1px solid var(--track)' }} onClick={() => setGrams(String(Math.min(5000, g + 50)))}>+</button>
       </div>
       <Tiles m={m} />
