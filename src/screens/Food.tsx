@@ -24,32 +24,46 @@ async function deleteEntry(e: Entry) {
 const OPEN = 72; // width of the revealed trash button
 const GAP = 12; // air between the kcal number and the button
 
+const EASE = 'cubic-bezier(.22,.9,.24,1)';
+
 /**
- * Row that slides left: a short swipe reveals a trash button, a long one (past half the row) deletes at once.
+ * Row that slides left: a short swipe reveals a trash button (it fades and grows in with the swipe), a long one
+ * (past half the row) deletes at once. On delete the row slides out and its space collapses smoothly.
  * A tap opens the entry, or closes the row when the button is showing.
  */
 function SwipeToDelete({ children, onDelete, onTap }: { children: React.ReactNode; onDelete: () => void; onTap: () => void }) {
   const [x, setX] = useState(0);
   const [drag, setDrag] = useState(false);
-  const [gone, setGone] = useState(false);
+  const [phase, setPhase] = useState<'idle' | 'out' | 'collapse'>('idle');
+  const [h, setH] = useState<number | null>(null);
+  const wrap = useRef<HTMLDivElement>(null);
   const start = useRef<{ x: number; y: number; base: number; dir: 'h' | 'v' | null; w: number } | null>(null);
   const moved = useRef(false);
-  const remove = () => { setGone(true); setX(-(start.current?.w ?? 400)); setTimeout(onDelete, 180); };
+  const remove = () => {
+    const el = wrap.current;
+    setPhase('out'); setX(-(el?.offsetWidth ?? 400));
+    setTimeout(() => { setH(el?.offsetHeight ?? 48); requestAnimationFrame(() => requestAnimationFrame(() => { setPhase('collapse'); setH(0); })); }, 220);
+    setTimeout(onDelete, 480);
+  };
+  const p = Math.min(1, -x / OPEN); // how far the button is revealed, 0..1
   return (
-    <div style={{ position: 'relative', overflow: 'hidden', borderRadius: 12, opacity: gone ? 0 : 1, transition: 'opacity .18s' }}>
+    <div ref={wrap} style={{ position: 'relative', overflow: 'hidden', borderRadius: 12, height: h ?? undefined, opacity: phase === 'collapse' ? 0 : 1,
+      transition: `height .26s ${EASE}, opacity .26s ${EASE}` }}>
       <button aria-label="Удалить" onClick={remove} tabIndex={x < 0 ? 0 : -1}
-        style={{ position: 'absolute', top: 4, right: 0, bottom: 4, width: Math.max(OPEN, -x - GAP), borderRadius: 12, background: 'var(--warn)', color: '#fff', display: 'flex', alignItems: 'center', justifyContent: 'center' }}>
-        <Icon d={TRASH_ICON} size={22} />
+        style={{ position: 'absolute', top: 4, right: 0, bottom: 4, width: Math.max(OPEN, -x - GAP), borderRadius: 12, background: 'var(--warn)', color: '#fff', display: 'flex', alignItems: 'center', justifyContent: 'center',
+          opacity: phase === 'idle' ? p : 1, transform: `scale(${0.7 + 0.3 * p})`, transformOrigin: 'right center', transition: drag ? 'none' : `opacity .28s ${EASE}, transform .28s ${EASE}, width .28s ${EASE}` }}>
+        <span style={{ display: 'inline-flex', transform: `scale(${0.6 + 0.4 * p})`, transition: drag ? 'none' : `transform .28s ${EASE}` }}><Icon d={TRASH_ICON} size={22} /></span>
       </button>
-      <button className="row" style={{ position: 'relative', width: '100%', minHeight: 48, textAlign: 'left', background: 'var(--card)', transform: `translateX(${x}px)`, transition: drag ? 'none' : 'transform .2s ease', touchAction: 'pan-y' }}
-        onTouchStart={(ev) => { const t = ev.touches[0]; start.current = { x: t.clientX, y: t.clientY, base: x, dir: null, w: ev.currentTarget.offsetWidth }; moved.current = false; }}
+      <button className="row" style={{ position: 'relative', width: '100%', minHeight: 48, textAlign: 'left', background: 'var(--card)', transform: `translateX(${x}px)`, transition: drag ? 'none' : `transform .3s ${EASE}`, touchAction: 'pan-y' }}
+        onTouchStart={(ev) => { if (phase !== 'idle') return; const t = ev.touches[0]; start.current = { x: t.clientX, y: t.clientY, base: x, dir: null, w: ev.currentTarget.offsetWidth }; moved.current = false; }}
         onTouchMove={(ev) => {
           const s = start.current; if (!s) return;
           const t = ev.touches[0], dx = t.clientX - s.x, dy = t.clientY - s.y;
           if (!s.dir) { if (Math.abs(dx) < 8 && Math.abs(dy) < 8) return; s.dir = Math.abs(dx) > Math.abs(dy) ? 'h' : 'v'; }
           if (s.dir !== 'h') return;
           moved.current = true; setDrag(true);
-          setX(Math.min(0, Math.max(-s.w, s.base + dx)));
+          const raw = s.base + dx;
+          setX(raw > 0 ? raw * 0.2 : Math.max(-s.w, raw)); // a little rubber band to the right
         }}
         onTouchEnd={() => {
           const s = start.current; start.current = null; setDrag(false);

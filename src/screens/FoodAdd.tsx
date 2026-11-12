@@ -7,7 +7,7 @@ import { invalidate, useQuery } from '../lib/query';
 import { go } from '../lib/router';
 import type { Entry, FoodItem, Meal } from '../lib/types';
 import { FoodArt, Icon } from '../art';
-import { AmountInput, ErrorBox, Screen, Sheet, Skeleton, errText, toast } from '../ui';
+import { AmountInput, ErrorBox, Screen, Sheet, Skeleton, TOAST_MS, errText, toast } from '../ui';
 import { SearchInput } from './ExercisePicker';
 import { Tiles } from './Food';
 
@@ -42,21 +42,46 @@ export function MealChips({ value, onChange }: { value: Meal[]; onChange: (v: Me
 
 const PLUS: React.CSSProperties = { width: 36, height: 36, borderRadius: 18, border: '2px solid var(--acc)', color: 'var(--acc)', display: 'inline-flex', alignItems: 'center', justifyContent: 'center', fontWeight: 800, fontSize: 18, flex: 'none' };
 
+const CHECK_ICON = 'M5 12.5l4.5 4.5L19 7.5';
+
 /**
- * A food row. Tapping it, or its "+", opens the weight/amount screen. Only rows that pass onAdd (Recent) add
- * right away with the amount eaten last time.
+ * A food row. Tapping it, or its "+", opens the weight/amount screen. Rows that pass onAdd (Recent, Yesterday)
+ * add right away; their "+" turns into an animated check for as long as the toast is shown.
  */
-function ItemRow({ it, href, sub, onAdd }: { it: FoodItem; href: string; sub?: string; onAdd?: () => void }) {
+function ItemRow({ it, href, sub, onAdd }: { it: FoodItem; href: string; sub?: string; onAdd?: () => Promise<boolean> }) {
+  const [done, setDone] = useState(false);
+  const timer = useRef<number>();
+  useEffect(() => () => window.clearTimeout(timer.current), []);
+  const add = async () => {
+    if (!onAdd || done) return;
+    if (await onAdd()) { setDone(true); window.clearTimeout(timer.current); timer.current = window.setTimeout(() => setDone(false), TOAST_MS); }
+  };
+  const ease = 'cubic-bezier(.22,.9,.24,1)';
+  const glyph = (d: string, on: boolean) => (
+    <span style={{ position: 'absolute', inset: 0, display: 'flex', alignItems: 'center', justifyContent: 'center', opacity: on ? 1 : 0, transform: on ? 'scale(1) rotate(0deg)' : 'scale(.4) rotate(-90deg)', transition: `opacity .25s ${ease}, transform .35s ${ease}` }}>
+      <Icon d={d} size={18} />
+    </span>
+  );
   return (
     <div className="row a-in" style={{ minHeight: 56, gap: 12 }}>
-      <a href={href} className="row grow" style={{ gap: 12, minWidth: 0 }}>
+      <a href={href} onClick={() => { cameFromAdd = true; }} className="row grow" style={{ gap: 12, minWidth: 0 }}>
         <FoodArt kind={it.icon} size={44} />
         <div className="grow" style={{ minWidth: 0 }}><b>{it.name}</b><div className="sub ell">{sub ?? subtitle(it)}</div></div>
       </a>
-      {onAdd ? <button aria-label={`Добавить ${it.name}`} onClick={onAdd} style={PLUS}>+</button> : <a href={href} aria-label={`Выбрать вес: ${it.name}`} style={PLUS}>+</a>}
+      {onAdd ? (
+        <button aria-label={done ? `${it.name} добавлен` : `Добавить ${it.name}`} onClick={() => void add()}
+          style={{ ...PLUS, position: 'relative', background: done ? 'var(--good)' : 'transparent', borderColor: done ? 'var(--good)' : 'var(--acc)', color: done ? '#fff' : 'var(--acc)', transition: `background .25s ${ease}, border-color .25s ${ease}, color .25s ${ease}` }}>
+          {glyph('M12 5v14M5 12h14', !done)}{glyph(CHECK_ICON, done)}
+        </button>
+      ) : <a href={href} onClick={() => { cameFromAdd = true; }} aria-label={`Выбрать вес: ${it.name}`} style={PLUS}>+</a>}
     </div>
   );
 }
+
+/** Set when the weight screen is opened from the add panel, so adding there goes back to the same list/search. */
+let cameFromAdd = false;
+/** Search text and tab of the add panel per day+meal, kept while visiting the weight screen. */
+const panelState = new Map<string, { q: string; tab: Tab }>();
 
 const WHEN = (date: string, d: string) => { const k = diffDays(d, date); return k === 0 ? 'сегодня' : k === 1 ? 'вчера' : k === 2 ? 'позавчера' : dayMonth(date); };
 const gramsText = (it: FoodItem, g: number) => (it.portionName === 'шт' && it.portionG ? `${fmtG(g / it.portionG)} шт` : `${fmtG(g)} г`);
@@ -73,8 +98,10 @@ const TABS: [Tab, string][] = [['recent', 'Недавние'], ['yesterday', 'В
 
 /** Search, scan, dish and the four lists for adding food to one meal. Shared by phone and desktop. */
 function AddPanel({ date: d, meal: m }: { date: string; meal: Meal }) {
-  const [q, setQ] = useState('');
-  const [tab, setTab] = useState<Tab>('recent');
+  const key = `${d}/${m}`;
+  const [q, setQ] = useState(() => panelState.get(key)?.q ?? '');
+  const [tab, setTab] = useState<Tab>(() => panelState.get(key)?.tab ?? 'recent');
+  useEffect(() => { panelState.set(key, { q, tab }); }, [key, q, tab]);
   const searchRef = useRef<HTMLDivElement>(null);
   const s = q.trim();
   const y = addDays(d, -1);
@@ -83,12 +110,13 @@ function AddPanel({ date: d, meal: m }: { date: string; meal: Meal }) {
   const lib = useQuery<{ products: FoodItem[] }>(s.length >= 2 ? `/products?q=${encodeURIComponent(s)}` : tab === 'library' ? '/products' : null);
   const dishes = useQuery<{ dishes: FoodItem[] }>('/dishes');
   const itemHref = (it: FoodItem) => `#/food/${d}/item/${it.type}/${it.id}/${m}`;
-  const quick = (it: FoodItem, g: number) => async () => {
+  const quick = (it: FoodItem, g: number) => async (): Promise<boolean> => {
     try {
       await api('POST', '/diary', { date: d, meal: m, itemType: it.type, itemId: it.id, grams: g, portions: it.portionG && Math.abs(g / it.portionG - Math.round(g / it.portionG)) < 1e-6 && Math.round(g / it.portionG) > 0 ? Math.round(g / it.portionG) : null });
       invalidate('/diary', '/food/recent');
       toast(`${it.name} — ${MEAL_IN[m]}`);
-    } catch (e) { toast(errText(e)); }
+      return true;
+    } catch (e) { toast(errText(e)); return false; }
   };
   const newProduct = `#/food/${d}/new-product/${m}/${encodeURIComponent(s ? `name:${s}` : '-')}`;
 
@@ -124,7 +152,7 @@ function AddPanel({ date: d, meal: m }: { date: string; meal: Meal }) {
               {list.map((e) => {
                 const it = entryItem(e);
                 const sub = `${gramsText({ ...(it ?? { portionName: e.portionName, portionG: e.portionG }) } as FoodItem, e.grams)} · ${fmt(kcalAt(e, e.grams))} ккал`;
-                return it ? <ItemRow key={e.id} it={it} href={itemHref(it)} sub={sub} /> : null;
+                return it ? <ItemRow key={e.id} it={it} href={itemHref(it)} sub={sub} onAdd={quick(it, e.grams)} /> : null;
               })}
             </div>
           );
@@ -236,7 +264,9 @@ export function ItemScreen({ date, type, id, meal }: { date?: string; type: 'pro
     try {
       await api('POST', '/diary', { date: d, meal: m, itemType: it.type, itemId: it.id, grams: g, portions: it.portionG && Math.abs(g / it.portionG - Math.round(g / it.portionG)) < 1e-6 && Math.round(g / it.portionG) > 0 ? Math.round(g / it.portionG) : null });
       invalidate('/diary', '/food/recent');
-      go('food', d);
+      toast(`${it.name} — ${MEAL_IN[m]}`);
+      // Back to where it was picked (search, recent, library...) rather than to the day.
+      if (cameFromAdd) { cameFromAdd = false; history.back(); } else go('food', d, 'add', m);
     } catch (e) { toast(errText(e)); setBusy(false); }
   };
   const chips: [string, number][] = [['100 г', 100], ['150 г', 150], ['200 г', 200], ...(it.portionG ? [['порция', it.portionG] as [string, number]] : [])];

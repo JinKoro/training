@@ -113,6 +113,8 @@ export function Screen({ children, className = '', title, actions }: { children:
 }
 
 let toastTimer: number | undefined;
+/** How long a toast stays; quick-add checkmarks last the same. */
+export const TOAST_MS = 2400;
 export function toast(text: string) {
   document.querySelector('.toast')?.remove();
   const el = document.createElement('div');
@@ -121,7 +123,7 @@ export function toast(text: string) {
   el.textContent = text;
   document.body.appendChild(el);
   window.clearTimeout(toastTimer);
-  toastTimer = window.setTimeout(() => el.remove(), 2400);
+  toastTimer = window.setTimeout(() => el.remove(), TOAST_MS);
 }
 
 export const errText = (e: unknown) => {
