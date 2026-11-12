@@ -197,16 +197,15 @@ function Ring({ eaten, norm, over }: { eaten: number; norm: number; over: boolea
 
 function EntrySheet({ entry, onClose }: { entry: Entry | null; onClose: () => void }) {
   const [grams, setGrams] = useState('');
-  const [meal, setMeal] = useState<Meal>('breakfast');
   const [busy, setBusy] = useState(false);
-  useEffect(() => { if (entry) { setGrams(String(Math.round(entry.grams))); setMeal(entry.meal); } }, [entry]);
+  useEffect(() => { if (entry) setGrams(String(Math.round(entry.grams))); }, [entry]);
   if (!entry) return null;
   const g = Number(grams) || 0;
   const m = entryMacros({ ...entry, grams: g });
   const per100 = kcal([entry.protein, entry.fat, entry.carbs]);
   const save = async () => {
     setBusy(true);
-    try { await api('PATCH', `/diary/${entry.id}`, { grams: g, meal }); invalidate('/diary'); onClose(); } catch (e) { toast(errText(e)); } finally { setBusy(false); }
+    try { await api('PATCH', `/diary/${entry.id}`, { grams: g }); invalidate('/diary'); onClose(); } catch (e) { toast(errText(e)); } finally { setBusy(false); }
   };
   const remove = async () => {
     setBusy(true);
@@ -226,11 +225,6 @@ function EntrySheet({ entry, onClose }: { entry: Entry | null; onClose: () => vo
         <button className="icon-btn" aria-label="Больше" style={{ height: 52, width: 52, borderRadius: 14, border: '1px solid var(--track)' }} onClick={() => setGrams(String(Math.min(5000, g + 50)))}>+</button>
       </div>
       <Tiles m={m} />
-      <div style={{ display: 'grid', gridTemplateColumns: 'repeat(4, 1fr)', gap: 6 }}>
-        {(['breakfast', 'lunch', 'dinner', 'snack'] as Meal[]).map((x) => (
-          <button key={x} aria-pressed={meal === x} onClick={() => setMeal(x)} style={{ height: 40, borderRadius: 10, fontSize: 13, fontWeight: 800, background: meal === x ? 'var(--acc)' : 'var(--bg)', color: meal === x ? 'var(--onAcc)' : 'var(--ink)' }}>{MEAL_RU[x]}</button>
-        ))}
-      </div>
       <button className="btn" disabled={busy || g < 1 || g > 5000} onClick={save}>Сохранить</button>
       <button className="warn-link" disabled={busy} onClick={remove}>Удалить из дневника</button>
     </Sheet>
