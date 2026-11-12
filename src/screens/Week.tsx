@@ -1,6 +1,6 @@
 import { useMemo, useRef, useState } from 'react';
 import { useApp } from '../app-context';
-import { activeProgram, dayTitle, fmt, kcal, MEAL_RU, MEALS, weekRange, workoutStats, type DayInfo } from '../lib/calc';
+import { activeProgram, dayTitle, fmt, kcal, MEAL_RU, MEALS, weekRange, workoutStats, type DayInfo, programWeek, planRows, slotDone } from '../lib/calc';
 import { addDays, dayMonth, diffDays, plural, today, WD_CAP, WD_SHORT, weekDays, weekStart } from '../lib/dates';
 import { useDays } from '../lib/hooks';
 import { go } from '../lib/router';
@@ -43,7 +43,13 @@ export function WeekScreen({ offset }: { offset: number }) {
       <Bars days={ds} selected={selected} onSelect={setSel} />
     </>
   );
-  const right = <DayPanel d={ds[selected]} onToday={() => { if (offset) setOffset(0); else setSel(todayIdx); }} />;
+  // A rest day (today or past) can host any program session of its week that is not trained yet.
+  const program = activeProgram(programs);
+  const sd = ds[selected];
+  const pWeek = program ? programWeek(program, sd.date) : null;
+  const canTrain = !sd.isTraining && sd.date <= today() && !!program && pWeek !== null
+    && program.weekdays.some((wd) => planRows(program, pWeek, wd).length > 0 && !slotDone(program, pWeek, wd, data.workouts));
+  const right = <DayPanel d={sd} canTrain={canTrain} onToday={() => { if (offset) setOffset(0); else setSel(todayIdx); }} />;
   return (
     <Screen title="Неделя">
       <div
@@ -169,13 +175,22 @@ export function FoodCard({ d, title, meals }: { d: DayInfo; title?: string; meal
   );
 }
 
-export function WorkoutCard({ d, calendar }: { d: DayInfo; calendar?: boolean }) {
+export function WorkoutCard({ d, calendar, canTrain }: { d: DayInfo; calendar?: boolean; canTrain?: boolean }) {
   const { programs, exById } = useApp();
   const program = activeProgram(programs);
   const t = today();
   const w = d.workout;
   const icon = <span style={{ color: 'var(--acc)' }}><Icon d="M3 12h3M18 12h3M6 8v8M18 8v8M9 10v4M15 10v4M9 12h6" size={22} /></span>;
   if (!d.isTraining) {
+    if (canTrain) {
+      return (
+        <a href={`#/day/${d.date}`} className="card row a-in" style={{ gap: 10 }}>
+          {icon}
+          <b className="grow">Можно провести тренировку из программы</b>
+          <span style={{ color: 'var(--acc)', fontWeight: 800 }}>›</span>
+        </a>
+      );
+    }
     if (calendar) return <div className="card row a-in">{icon}<div className="grow"><b>День отдыха</b><div className="sub">тренировки нет</div></div></div>;
     return <div className="card row a-in muted" style={{ fontWeight: 700 }}><Icon d="M20 14A8 8 0 1 1 10 4a7 7 0 0 0 10 10z" size={20} />Тренировки нет, день отдыха</div>;
   }
@@ -219,7 +234,7 @@ export function WorkoutCard({ d, calendar }: { d: DayInfo; calendar?: boolean })
   );
 }
 
-function DayPanel({ d, onToday }: { d: DayInfo; onToday: () => void }) {
+function DayPanel({ d, onToday, canTrain }: { d: DayInfo; onToday: () => void; canTrain?: boolean }) {
   return (
     <>
       <div className="between" style={{ gap: 8 }}>
@@ -230,7 +245,7 @@ function DayPanel({ d, onToday }: { d: DayInfo; onToday: () => void }) {
         {!d.isToday ? <button onClick={onToday} style={{ flex: 'none', border: '1px solid var(--track)', color: 'var(--acc)', borderRadius: 999, padding: '6px 12px', fontWeight: 800, fontSize: 14 }}>К сегодня</button> : null}
       </div>
       <a href={`#/food/${d.date}`} style={{ display: 'block' }}><FoodCard d={d} /></a>
-      <WorkoutCard d={d} />
+      <WorkoutCard d={d} canTrain={canTrain} />
     </>
   );
 }
