@@ -21,7 +21,8 @@ async function deleteEntry(e: Entry) {
   try { await api('DELETE', `/diary/${e.id}`); invalidate('/diary'); toast(`Удалено: ${e.name}`); } catch (err) { toast(errText(err)); }
 }
 
-const OPEN = 76; // width of the revealed trash button
+const OPEN = 72; // width of the revealed trash button
+const GAP = 12; // air between the kcal number and the button
 
 /**
  * Row that slides left: a short swipe reveals a trash button, a long one (past half the row) deletes at once.
@@ -37,7 +38,7 @@ function SwipeToDelete({ children, onDelete, onTap }: { children: React.ReactNod
   return (
     <div style={{ position: 'relative', overflow: 'hidden', borderRadius: 12, opacity: gone ? 0 : 1, transition: 'opacity .18s' }}>
       <button aria-label="Удалить" onClick={remove} tabIndex={x < 0 ? 0 : -1}
-        style={{ position: 'absolute', top: 0, right: 0, bottom: 0, width: Math.max(OPEN, -x), background: 'var(--warn)', color: '#fff', display: 'flex', alignItems: 'center', justifyContent: 'center' }}>
+        style={{ position: 'absolute', top: 4, right: 0, bottom: 4, width: Math.max(OPEN, -x - GAP), borderRadius: 12, background: 'var(--warn)', color: '#fff', display: 'flex', alignItems: 'center', justifyContent: 'center' }}>
         <Icon d={TRASH_ICON} size={22} />
       </button>
       <button className="row" style={{ position: 'relative', width: '100%', minHeight: 48, textAlign: 'left', background: 'var(--card)', transform: `translateX(${x}px)`, transition: drag ? 'none' : 'transform .2s ease', touchAction: 'pan-y' }}
@@ -53,7 +54,7 @@ function SwipeToDelete({ children, onDelete, onTap }: { children: React.ReactNod
         onTouchEnd={() => {
           const s = start.current; start.current = null; setDrag(false);
           if (!s || s.dir !== 'h') return;
-          if (-x > s.w * 0.5) remove(); else setX(-x > OPEN / 2 ? -OPEN : 0);
+          if (-x > s.w * 0.5) remove(); else setX(-x > OPEN / 2 ? -(OPEN + GAP) : 0);
         }}
         onClick={() => { if (moved.current) { moved.current = false; return; } if (x !== 0) setX(0); else onTap(); }}>
         {children}

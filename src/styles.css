@@ -121,7 +121,8 @@ html:has(.shell-m) body, html:has(.shell-m) #root { min-height: 0; height: 0; }
 .shell-d .fixed-bottom > * { margin: 0; max-width: 420px; }
 .empty { color: var(--muted); font-weight: 700; text-align: center; padding: 24px 12px; }
 .skeleton { background: var(--card); border-radius: 18px; opacity: .45; height: 72px; animation: a-fade 1s ease-in-out infinite alternate; }
-.toast { position: fixed; left: 50%; bottom: calc(100px + var(--safe-bottom)); transform: translateX(-50%); background: var(--ink); color: var(--bg); padding: 10px 16px; border-radius: 14px; font-weight: 800; z-index: 50; animation: a-up .3s; max-width: calc(100% - 32px); }
+.toast { position: fixed; left: 50%; top: calc(10px + var(--safe-top)); transform: translateX(-50%); background: var(--ink); color: var(--bg); padding: 10px 16px; border-radius: 14px; font-weight: 800; z-index: 60; animation: a-down .3s; max-width: calc(100% - 32px); text-align: center; box-shadow: 0 8px 24px rgba(0,0,0,.25); }
+@keyframes a-down { from { opacity: 0; transform: translate(-50%, -12px); } }
 
 /* ---------- sheet ---------- */
 .scrim { position: fixed; inset: 0; background: rgba(0,0,0,.5); z-index: 40; animation: a-fade .2s; border: 0; width: 100%; }
