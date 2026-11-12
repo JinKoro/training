@@ -128,9 +128,12 @@ export function ProgramScreen({ id }: { id: number }) {
             {rows.length ? rows.map((r, i) => {
               const e = exById.get(r.exerciseId);
               return (
-                <div key={i} className="between" style={{ fontSize: 14 }}>
-                  <span className="ell">{e?.name ?? 'Упражнение'}</span>
-                  <span className="muted" style={{ whiteSpace: 'nowrap' }}>{r.note ? r.note : `${r.sets}×${r.reps.replace('-', '–')} · ${mmss(r.rest ?? e?.rest ?? 150)}`}</span>
+                <div key={i} className="col" style={{ fontSize: 14, gap: 2 }}>
+                  <div className="between" style={{ gap: 8 }}>
+                    <span className="ell" style={{ minWidth: 0 }}>{e?.name ?? 'Упражнение'}</span>
+                    <span className="muted" style={{ whiteSpace: 'nowrap', flex: 'none' }}>{`${r.sets}×${r.reps.replace('-', '–')} · ${mmss(r.rest ?? e?.rest ?? 150)}`}</span>
+                  </div>
+                  {r.note ? <span className="muted" style={{ fontSize: 13, overflowWrap: 'anywhere' }}>{r.note}</span> : null}
                 </div>
               );
             }) : <span className="muted" style={{ fontSize: 14 }}>Пусто</span>}

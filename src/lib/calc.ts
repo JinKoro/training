@@ -211,12 +211,23 @@ export interface DayInfo {
   workout: Workout | null; planned: { week: number; weekday: number; rows: PlanRow[] } | null;
 }
 
+/** A program day (week + weekday) already trained, possibly on another date (e.g. Friday's session done on Saturday). */
+export const slotDone = (program: Program | undefined, week: number, weekday: number, workouts: Workout[]) =>
+  !!program && workouts.some((w) => w.programId === program.id && w.week === week && w.weekday === weekday);
+
+/** Planned session for a date, unless that program day was already trained on another date. */
+export function plannedOpen(program: Program | undefined, date: Day, workouts: Workout[]) {
+  const pl = plannedFor(program, date);
+  if (!pl) return null;
+  return workouts.some((w) => w.date !== date && w.programId === program!.id && w.week === pl.week && w.weekday === pl.weekday) ? null : pl;
+}
+
 export function buildDays(days: Day[], me: Me, program: Program | undefined, workouts: Workout[], entries: Entry[]): DayInfo[] {
   const t = today();
   const totals = dayTotals(entries);
   return days.map((date) => {
     const workout = workouts.find((w) => w.date === date) ?? null;
-    const planned = plannedFor(program, date);
+    const planned = plannedOpen(program, date, workouts);
     const isTraining = !!workout || !!planned;
     const tot = totals.get(date);
     const isPlan = date > t;

@@ -1,8 +1,8 @@
 import { useState } from 'react';
 import { useApp } from '../app-context';
 import { api } from '../lib/api';
-import { activeProgram, dayTitle, exerciseSubtitle, mmss, plannedFor, setWeights, showKg, workoutFromPlan } from '../lib/calc';
-import { diffDays, isDayStr, plural, today, WD_CAP, weekStart } from '../lib/dates';
+import { activeProgram, dayTitle, exerciseSubtitle, mmss, plannedOpen, planRows, programWeek, setWeights, showKg, slotDone, workoutFromPlan } from '../lib/calc';
+import { addDays, diffDays, isDayStr, plural, today, WD_CAP, weekStart } from '../lib/dates';
 import { invalidate, useQuery } from '../lib/query';
 import { go } from '../lib/router';
 import type { Workout } from '../lib/types';
@@ -13,14 +13,45 @@ export function DayScreen({ date }: { date?: string }) {
   const { programs, exById, wide } = useApp();
   const d = isDayStr(date) ? date : today();
   const program = activeProgram(programs);
-  const planned = plannedFor(program, d);
-  const wq = useQuery<{ workouts: Workout[] }>(`/workouts?from=${d}&to=${d}`);
+  // The whole week, to know which program days were already trained (possibly on another date).
+  const wq = useQuery<{ workouts: Workout[] }>(`/workouts?from=${weekStart(d)}&to=${addDays(weekStart(d), 6)}`);
   const [busy, setBusy] = useState(false);
+  const [showOthers, setShowOthers] = useState(false);
   const weekOffset = Math.round(diffDays(weekStart(d), weekStart(today())) / 7);
   const wdName = WD_CAP[diffDays(d, weekStart(d))];
 
   if (!wq.data) return <Screen><Skeleton n={4} /></Screen>;
-  const existing = wq.data.workouts[0];
+  const weekWorkouts = wq.data.workouts;
+  const existing = weekWorkouts.find((w) => w.date === d);
+  const planned = plannedOpen(program, d, weekWorkouts);
+  // Any not-yet-trained session of this program week can be done today instead of its own day.
+  const pWeek = program ? programWeek(program, d) : null;
+  const others = program && pWeek !== null && !existing && d <= today()
+    ? program.weekdays.filter((wd) => wd !== planned?.weekday && planRows(program, pWeek, wd).length && !slotDone(program, pWeek, wd, weekWorkouts))
+      .map((wd) => ({ wd, rows: planRows(program, pWeek, wd), title: dayTitle(planRows(program, pWeek, wd), exById, WD_CAP[wd]) }))
+    : [];
+  const startOther = async (wd: number, t: string) => {
+    if (busy || !program || pWeek === null) return;
+    setBusy(true);
+    try {
+      const { workout } = await api<{ workout: Workout }>('POST', '/workouts', workoutFromPlan(program, pWeek, wd, d, exById, t));
+      invalidate('/workouts');
+      go('workout', workout.id);
+    } catch (e) { toast(errText(e)); setBusy(false); }
+  };
+  const othersList = (
+    <div className="col" style={{ gap: 8 }}>
+      {others.map((o) => (
+        <div key={o.wd} className="card row a-in" style={{ borderRadius: 16, padding: '10px 12px' }}>
+          <div className="grow" style={{ minWidth: 0 }}>
+            <b>{o.title}</b>
+            <div className="sub">{WD_CAP[o.wd]} · {o.rows.length} {plural(o.rows.length, ['упражнение', 'упражнения', 'упражнений'])}</div>
+          </div>
+          <button className="btn small blue" disabled={busy} onClick={() => void startOther(o.wd, o.title)}>Начать</button>
+        </div>
+      ))}
+    </div>
+  );
   const rows = planned?.rows ?? [];
   const title = dayTitle(rows, exById, wdName);
   const sets = rows.reduce((a, r) => a + r.sets, 0);
@@ -70,17 +101,22 @@ export function DayScreen({ date }: { date?: string }) {
                     <span className="muted" style={{ fontWeight: 800 }}>›</span>
                   </div>
                   <div className="row" style={{ gap: 6 }}>
-                    {[[`${r.sets} × ${r.reps}`, 'подходы', 1], [wText, 'вес, кг', 1.6], [r.note || mmss(rest), r.note ? 'заметка' : 'отдых', 1]].map(([v, l, f]) => (
+                    {[[`${r.sets} × ${r.reps}`, 'подходы', 1], [wText, 'вес, кг', 1.6], [mmss(rest), 'отдых', 1]].map(([v, l, f]) => (
                       <div key={String(l)} style={{ flex: Number(f), minWidth: 0, background: 'var(--bg)', borderRadius: 10, padding: '6px 8px' }}>
                         <div className="ell" style={{ fontWeight: 800, fontSize: 15 }}>{v}</div>
                         <div className="sub" style={{ fontSize: 12 }}>{l}</div>
                       </div>
                     ))}
                   </div>
+                  {r.note ? <div className="sub" style={{ fontSize: 13, overflowWrap: 'anywhere' }}>{r.note}</div> : null}
                 </a>
               );
             })}
           </div>
+          {others.length ? (
+            !showOthers ? <button className="link" style={{ minHeight: 44, alignSelf: 'flex-start' }} onClick={() => setShowOthers(true)}>Провести другую тренировку этой недели ›</button>
+              : <><span className="label">Другие тренировки этой недели</span>{othersList}</>
+          ) : null}
           <div className="fixed-bottom">
             <button className="btn big blue" style={{ height: 60 }} onClick={start} disabled={busy}>
               {existing ? (existing.status === 'finished' ? 'Итог ›' : 'Продолжить') : 'Начать'}
@@ -88,10 +124,19 @@ export function DayScreen({ date }: { date?: string }) {
           </div>
         </>
       ) : (
-        <div className="card col" style={{ alignItems: 'flex-start' }}>
-          <b>{planned ? 'В этом дне программы пока нет упражнений' : 'По программе в этот день отдых'}</b>
-          <a className="btn small sec" href={program ? `#/program/${program.id}/edit` : '#/program/new'}>{program ? 'Открыть программу' : 'Создать программу'}</a>
-        </div>
+        <>
+          {existing ? (
+            <button className="card between" style={{ borderRadius: 16, width: '100%' }} onClick={() => go(existing.status === 'finished' ? 'summary' : 'workout', existing.id)}>
+              <b>{existing.title}</b><span className="link">{existing.status === 'finished' ? 'Итог ›' : 'Продолжить ›'}</span>
+            </button>
+          ) : (
+            <div className="card col" style={{ alignItems: 'flex-start' }}>
+              <b>{planned ? 'В этом дне программы пока нет упражнений' : 'По программе в этот день отдых'}</b>
+              {!others.length ? <a className="btn small sec" href={program ? `#/program/${program.id}/edit` : '#/program/new'}>{program ? 'Открыть программу' : 'Создать программу'}</a> : null}
+            </div>
+          )}
+          {others.length ? <><span className="label">Можно провести тренировку из программы</span>{othersList}</> : null}
+        </>
       )}
     </Screen>
   );

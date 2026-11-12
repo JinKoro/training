@@ -1,6 +1,6 @@
 import { useMemo, useState } from 'react';
 import { useApp } from '../app-context';
-import { activeProgram, dayTitle, plannedFor, weekRange, workoutStats } from '../lib/calc';
+import { activeProgram, dayTitle, plannedOpen, weekRange, workoutStats } from '../lib/calc';
 import { addDays, diffDays, fromDay, plural, today, WD_CAP, WD_SHORT, weekStart } from '../lib/dates';
 import { useQuery } from '../lib/query';
 import type { Workout } from '../lib/types';
@@ -29,7 +29,7 @@ export function LogScreen() {
         const w = q.data.workouts.find((x) => x.date === d && x.status === 'finished');
         if (w) { rows.push({ kind: 'w', w }); continue; }
         if (d === t) continue;
-        const pl = plannedFor(program, d);
+        const pl = plannedOpen(program, d, q.data.workouts);
         if (!pl) continue;
         rows.push({ kind: 'missed', date: d, title: dayTitle(pl.rows, exById, WD_CAP[k]) });
       }
