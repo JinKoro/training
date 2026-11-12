@@ -4,6 +4,7 @@ import { api } from '../lib/api';
 import { MEALS, MEAL_IN, MEAL_RU, entryMacros, fmt, fmtG, kcal, macroLine, sumMacros, weekRange } from '../lib/calc';
 import { addDays, dayMonth, diffDays, fromDay, isDayStr, plural, today, WD_CAP, WD_SHORT, weekDays, weekStart } from '../lib/dates';
 import { useDays } from '../lib/hooks';
+import { go } from '../lib/router';
 import { invalidate, useQuery } from '../lib/query';
 import type { Entry, FoodItem, Meal } from '../lib/types';
 import { FoodArt, Icon } from '../art';
@@ -24,6 +25,7 @@ export function FoodScreen({ date }: { date?: string }) {
   const [edit, setEdit] = useState<Entry | null>(null);
   const [copy, setCopy] = useState<Meal | null>(null);
   const [target, setTarget] = useState<Meal | null>(null);
+  const [cal, setCal] = useState(false);
 
   if (data.error) return <Screen title="Еда"><ErrorBox error={data.error} retry={data.reload} /></Screen>;
   if (!data.days) return <Screen title="Еда"><Skeleton n={4} /></Screen>;
@@ -39,6 +41,7 @@ export function FoodScreen({ date }: { date?: string }) {
     <>
       <EntrySheet entry={edit} onClose={() => setEdit(null)} />
       <CopySheet date={d} meal={copy} entries={copy ? byMeal(copy) : []} onClose={() => setCopy(null)} />
+      <MonthSheet open={cal} date={d} onPick={(x) => { setCal(false); go('food', x); }} onClose={() => setCal(false)} />
     </>
   );
 
@@ -67,6 +70,7 @@ export function FoodScreen({ date }: { date?: string }) {
                         <td style={{ padding: '10px 6px', fontWeight: 800, color: 'var(--acc)' }}>
                           <span className="row" style={{ gap: 6 }}>{MEAL_RU[m]}
                             <button aria-label="Скопировать приём пищи" disabled={!list.length} onClick={(ev) => { ev.stopPropagation(); setCopy(m); }} style={{ width: 32, height: 32, opacity: list.length ? 1 : 0.35, color: 'var(--ink)' }}><Icon d={COPY_ICON} size={16} /></button>
+                            {list.length ? <a href={`#/food/${d}/dish/${m}/from-meal`} onClick={(ev) => ev.stopPropagation()} style={{ fontSize: 13, fontWeight: 800, color: 'var(--acc)' }}>Создать блюдо</a> : null}
                             <a aria-label="Добавить" href={`#/food/${d}/add/${m}`} onClick={(ev) => ev.stopPropagation()} style={{ width: 32, height: 32, display: 'inline-flex', alignItems: 'center', justifyContent: 'center', borderRadius: 16, background: target === m || (!target && defaultTarget === m) ? 'var(--acc)' : 'var(--btn)', color: target === m || (!target && defaultTarget === m) ? 'var(--onAcc)' : 'var(--ink)' }}>+</a>
                           </span>
                         </td>
@@ -100,8 +104,16 @@ export function FoodScreen({ date }: { date?: string }) {
   }
 
   const t = today();
+  const rel = diffDays(d, t);
+  const dayTitle = `${rel === 0 ? 'Сегодня' : rel === -1 ? 'Вчера' : rel === 1 ? 'Завтра' : WD_SHORT[diffDays(d, start)]}, ${dayMonth(d)}`;
   return (
     <Screen>
+      <div className="row" style={{ gap: 8 }}>
+        <a className="icon-btn" aria-label="Предыдущая неделя" href={`#/food/${addDays(d, -7)}`}>‹</a>
+        <b className="grow" style={{ textAlign: 'center', fontSize: 17, whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis', minWidth: 0 }}>{weekRange(start)}</b>
+        <a className="icon-btn" aria-label="Следующая неделя" href={`#/food/${addDays(d, 7)}`}>›</a>
+        <button className="icon-btn" aria-label="Календарь" onClick={() => setCal(true)}><Icon d="M4 6h16v14H4zM4 10h16M8 3v4M16 3v4" size={20} /></button>
+      </div>
       <div style={{ display: 'grid', gridTemplateColumns: 'repeat(7, 1fr)', gap: 4 }}>
         {days.map((x, i) => {
           const isSel = x === d, future = x > t;
@@ -116,11 +128,15 @@ export function FoodScreen({ date }: { date?: string }) {
           );
         })}
       </div>
+      <div className="between" style={{ gap: 8, minHeight: 36 }}>
+        <h1 className="display a-h ell" style={{ fontSize: 17, minWidth: 0 }}>{dayTitle}</h1>
+        {rel !== 0 ? <a href={`#/food/${t}`} style={{ flex: 'none', border: '1px solid var(--track)', color: 'var(--acc)', borderRadius: 999, padding: '6px 12px', fontWeight: 800, fontSize: 14 }}>К сегодня</a> : null}
+      </div>
       <div className="card row a-in" style={{ borderRadius: 22, padding: 14, gap: 16 }}>
         <Ring eaten={eatenK} norm={normK} over={over} />
         <div className="col grow" style={{ gap: 9 }}>
           <b style={{ fontSize: 15, color: over ? 'var(--warnT)' : 'var(--ink)' }}>{over ? `Сверх нормы ${fmt(eatenK - normK)} ккал` : `Осталось ${fmt(normK - eatenK)} ккал`}</b>
-          <span className="sub">норма дня {info.isTraining ? 'тренировки' : 'отдыха'} {fmt(normK)}</span>
+          <span className="sub" style={{ whiteSpace: 'nowrap' }}>{fmt(normK)} · {info.isTraining ? 'тренировка' : 'отдых'}</span>
           {[0, 1, 2].map((i) => {
             const o = eaten[i] > info.norm[i] + 3;
             return (
@@ -153,6 +169,7 @@ export function FoodScreen({ date }: { date?: string }) {
                 </button>
               );
             })}
+            {list.length ? <a className="link" href={`#/food/${d}/dish/${m}/from-meal`} style={{ minHeight: 40, display: 'flex', alignItems: 'center', fontSize: 15 }}>Создать блюдо ›</a> : null}
           </div>
         );
       })}
@@ -340,3 +357,40 @@ function WeekMacroCard({ days, d }: { days: ReturnType<typeof useDays>['days']; 
   );
 }
 
+
+/** Month grid for jumping to any day of the food diary. */
+function MonthSheet({ open, date, onPick, onClose }: { open: boolean; date: string; onPick: (d: string) => void; onClose: () => void }) {
+  const [month, setMonth] = useState(() => date.slice(0, 7));
+  useEffect(() => { if (open) setMonth(date.slice(0, 7)); }, [open, date]);
+  const [yy, mm] = month.split('-').map(Number);
+  const first = new Date(yy, mm - 1, 1);
+  const lead = (first.getDay() + 6) % 7;
+  const len = new Date(yy, mm, 0).getDate();
+  const t = today();
+  const shift = (k: number) => { const x = new Date(yy, mm - 1 + k, 1); setMonth(`${x.getFullYear()}-${String(x.getMonth() + 1).padStart(2, '0')}`); };
+  const title = first.toLocaleDateString('ru-RU', { month: 'long', year: 'numeric' }).replace(' г.', '');
+  return (
+    <Sheet open={open} onClose={onClose} label="Календарь">
+      <div className="between">
+        <button className="icon-btn" aria-label="Прошлый месяц" onClick={() => shift(-1)} style={{ background: 'var(--bg)' }}>‹</button>
+        <b className="display" style={{ fontSize: 18 }}>{title[0].toUpperCase() + title.slice(1)}</b>
+        <button className="icon-btn" aria-label="Следующий месяц" onClick={() => shift(1)} style={{ background: 'var(--bg)' }}>›</button>
+      </div>
+      <div style={{ display: 'grid', gridTemplateColumns: 'repeat(7, 1fr)', gap: 4 }}>
+        {WD_SHORT.map((w) => <span key={w} className="sub" style={{ textAlign: 'center', fontSize: 13, fontWeight: 800 }}>{w}</span>)}
+        {Array.from({ length: lead }, (_, i) => <span key={`l${i}`} />)}
+        {Array.from({ length: len }, (_, i) => {
+          const x = `${month}-${String(i + 1).padStart(2, '0')}`;
+          const sel = x === date;
+          return (
+            <button key={x} onClick={() => onPick(x)} aria-pressed={sel} style={{
+              height: 44, borderRadius: 12, fontWeight: 800, background: sel ? 'var(--acc)' : 'var(--bg)', color: sel ? 'var(--onAcc)' : x > t ? 'var(--muted)' : 'var(--ink)',
+              border: x === t && !sel ? '2px solid var(--acc)' : 0,
+            }}>{i + 1}</button>
+          );
+        })}
+      </div>
+      {date !== t ? <button className="btn outline" onClick={() => onPick(t)}>Сегодня</button> : null}
+    </Sheet>
+  );
+}

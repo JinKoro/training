@@ -38,6 +38,12 @@ export type Meal = 'breakfast' | 'lunch' | 'snack' | 'dinner';
 export interface FoodItem {
   type: 'product' | 'dish'; id: number; name: string; protein: number; fat: number; carbs: number;
   portionName: string | null; portionG: number | null; icon: string; barcode?: string | null; cookedWeight?: number;
+  /** Meals this food is offered for (the current user's tags for shared products). */
+  meals?: Meal[];
+  /** Shared base library product (not added by a user). */
+  base?: boolean;
+  /** From /food/recent?meal=: amount and date of the latest such entry. */
+  lastGrams?: number; lastDate?: string;
 }
 export interface Entry {
   id: number; date: string; meal: Meal; position: number; productId: number | null; dishId: number | null; grams: number;

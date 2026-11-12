@@ -249,13 +249,26 @@ async function insertWorkoutExercises(env, workoutId, exercises, now) {
 
 // ---------- food ----------
 
+// Meal tags as a bit mask: breakfast 1, lunch 2, dinner 4, snack 8; 15 = every meal.
+const MEAL_BITS = { breakfast: 1, lunch: 2, dinner: 4, snack: 8 };
+const mealsOf = (mask) => Object.keys(MEAL_BITS).filter((m) => ((mask ?? 15) & MEAL_BITS[m]) !== 0);
+function maskOf(list, field) {
+  const a = arr(list, field, { max: 4 });
+  let mask = 0;
+  for (const m of a) mask |= MEAL_BITS[oneOf(m, field, MEALS)];
+  if (!mask) fail(400, 'invalid_array', field);
+  return mask;
+}
+/** Products joined with the current user's meal tags (column my_meals). */
+const PRODUCT_SELECT = 'SELECT p.*, pm.meals AS my_meals FROM products p LEFT JOIN product_meals pm ON pm.product_id = p.id AND pm.user_id = ?';
+
 const productOut = (r) => ({
   type: 'product', id: r.id, name: r.name, barcode: r.barcode, protein: r.protein, fat: r.fat, carbs: r.carbs,
-  portionName: r.portion_name, portionG: r.portion_g, icon: r.icon,
+  portionName: r.portion_name, portionG: r.portion_g, icon: r.icon, meals: mealsOf(r.my_meals), base: r.created_by === null,
 });
 const dishOut = (r) => ({
   type: 'dish', id: r.id, name: r.name, protein: r.protein, fat: r.fat, carbs: r.carbs,
-  cookedWeight: r.cooked_weight_g, icon: 'dish', portionName: null, portionG: null,
+  cookedWeight: r.cooked_weight_g, icon: 'dish', portionName: null, portionG: null, meals: mealsOf(r.meals),
 });
 const entryOut = (r) => ({
   id: r.id, date: r.date, meal: r.meal, position: r.position, productId: r.product_id, dishId: r.dish_id,
@@ -276,7 +289,7 @@ function iconFor(name) {
 
 async function itemFor(env, userId, type, id) {
   if (type === 'product') {
-    const r = await env.DB.prepare('SELECT * FROM products WHERE id = ?').bind(id).first();
+    const r = await env.DB.prepare(`${PRODUCT_SELECT} WHERE p.id = ?`).bind(userId, id).first();
     if (!r) fail(404, 'not_found');
     return productOut(r);
   }
@@ -547,15 +560,24 @@ export async function handleApi(request, env, path) {
       const url = new URL(request.url);
       const barcode = url.searchParams.get('barcode');
       if (barcode) {
-        const r = await env.DB.prepare('SELECT * FROM products WHERE barcode = ?').bind(barcode).first();
+        const r = await env.DB.prepare(`${PRODUCT_SELECT} WHERE p.barcode = ?`).bind(uid, barcode).first();
         return ok({ product: r ? productOut(r) : null });
       }
       const q = (url.searchParams.get('q') ?? '').trim();
-      const offset = Math.max(0, Number(url.searchParams.get('offset')) || 0);
-      const { results } = q
-        ? await env.DB.prepare("SELECT * FROM products WHERE name LIKE ? ESCAPE '\\' ORDER BY name COLLATE NOCASE LIMIT 50")
-          .bind(`%${q.replace(/[\\%_]/g, (c) => `\\${c}`)}%`).all()
-        : await env.DB.prepare('SELECT * FROM products ORDER BY name COLLATE NOCASE LIMIT 1000 OFFSET ?').bind(offset).all();
+      const meal = url.searchParams.get('meal');
+      // Search covers everything, including products other people added.
+      if (q) {
+        // SQLite's LIKE ignores case only for Latin letters, so "абрик" would miss "Абрикос": filter in JS instead.
+        const needle = q.toLowerCase().replace(/ё/g, 'е');
+        const { results } = await env.DB.prepare(`${PRODUCT_SELECT} ORDER BY p.name COLLATE NOCASE`).bind(uid).all();
+        const hits = results.filter((r) => r.name.toLowerCase().replace(/ё/g, 'е').includes(needle));
+        hits.sort((a, b) => Number(!a.name.toLowerCase().startsWith(needle)) - Number(!b.name.toLowerCase().startsWith(needle)));
+        return ok({ products: hits.slice(0, 50).map(productOut) });
+      }
+      // Browsing shows only the base library, optionally just the products tagged for one meal.
+      const bit = meal ? MEAL_BITS[oneOf(meal, 'meal', MEALS)] : 15;
+      const { results } = await env.DB.prepare(`${PRODUCT_SELECT} WHERE p.created_by IS NULL AND (COALESCE(pm.meals, 15) & ?) != 0 ORDER BY p.name COLLATE NOCASE LIMIT 1000`)
+        .bind(uid, bit).all();
       return ok({ products: results.map(productOut) });
     }
     if (seg.length === 1 && method === 'POST') {
@@ -568,16 +590,26 @@ export async function handleApi(request, env, path) {
       const barcode = str(body.barcode ?? '', 'barcode', { max: 14, optional: true });
       if (barcode && !/^(\d{8}|\d{12,14})$/.test(barcode)) fail(400, 'invalid_barcode', 'barcode');
       if (barcode) {
-        const dup = await env.DB.prepare('SELECT * FROM products WHERE barcode = ?').bind(barcode).first();
+        const dup = await env.DB.prepare(`${PRODUCT_SELECT} WHERE p.barcode = ?`).bind(uid, barcode).first();
         if (dup) return json(request, { error: 'barcode_taken', field: 'barcode', product: productOut(dup) }, 409);
       }
+      const mealMask = body.meals === undefined ? 15 : maskOf(body.meals, 'meals');
       const portionName = str(body.portionName ?? '', 'portionName', { max: 20, optional: true });
       const portionG = portionName ? num(body.portionG, 'portionG', { min: 1, max: 2000 }) : null;
       const r = await env.DB.prepare(
         `INSERT INTO products (name, barcode, protein, fat, carbs, portion_name, portion_g, icon, created_by, created_at)
          VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?) RETURNING *`,
       ).bind(name, barcode, p, f, c, portionName, portionG, iconFor(name), uid, now).first();
-      return ok({ product: productOut(r) }, 201);
+      if (mealMask !== 15) await env.DB.prepare('INSERT INTO product_meals (user_id, product_id, meals) VALUES (?, ?, ?)').bind(uid, r.id, mealMask).run();
+      return ok({ product: productOut({ ...r, my_meals: mealMask }) }, 201);
+    }
+    if (seg.length === 3 && seg[2] === 'meals' && method === 'PUT') {
+      const id = num(seg[1], 'id', { min: 1, int: true });
+      await itemFor(env, uid, 'product', id);
+      const mask = maskOf((await readJson(request)).meals, 'meals');
+      await env.DB.prepare(`INSERT INTO product_meals (user_id, product_id, meals) VALUES (?, ?, ?)
+        ON CONFLICT (user_id, product_id) DO UPDATE SET meals = excluded.meals`).bind(uid, id, mask).run();
+      return ok({ product: await itemFor(env, uid, 'product', id) });
     }
     if (seg.length === 2 && method === 'GET') {
       return ok({ product: await itemFor(env, uid, 'product', num(seg[1], 'id', { min: 1, int: true })) });
@@ -594,11 +626,25 @@ export async function handleApi(request, env, path) {
       const body = await readJson(request);
       const name = str(body.name, 'name', { min: 2, max: 80 });
       const cooked = num(body.cookedWeight, 'cookedWeight', { min: 1, max: 20000 });
-      const ings = arr(body.ingredients, 'ingredients', { max: 40 }).map((i) => ({
-        productId: num(i.productId, 'ingredients', { min: 1, int: true }),
-        grams: num(i.grams, 'ingredients', { min: 1, max: 5000 }),
-      }));
-      if (!ings.length) fail(400, 'invalid_array', 'ingredients');
+      const mealMask = body.meals === undefined ? 15 : maskOf(body.meals, 'meals');
+      const raw = arr(body.ingredients, 'ingredients', { max: 40 });
+      if (!raw.length) fail(400, 'invalid_array', 'ingredients');
+      // An ingredient is a product, or one of the user's dishes (e.g. a whole meal turned into a dish):
+      // a dish is expanded into its own products, scaled to the grams used.
+      const ings = [];
+      for (const i of raw) {
+        const grams = num(i.grams, 'ingredients', { min: 1, max: 5000 });
+        if (i.dishId !== undefined && i.dishId !== null) {
+          const d = await env.DB.prepare('SELECT * FROM dishes WHERE id = ? AND user_id = ?').bind(num(i.dishId, 'ingredients', { min: 1, int: true }), uid).first();
+          if (!d) fail(400, 'invalid_product', 'ingredients');
+          const { results: parts } = await env.DB.prepare('SELECT product_id, grams FROM dish_ingredients WHERE dish_id = ? ORDER BY position').bind(d.id).all();
+          const rawTotal = parts.reduce((a, x) => a + x.grams, 0) || 1;
+          for (const x of parts) ings.push({ productId: x.product_id, grams: (x.grams / rawTotal) * grams * (rawTotal / d.cooked_weight_g) });
+        } else {
+          ings.push({ productId: num(i.productId, 'ingredients', { min: 1, int: true }), grams });
+        }
+      }
+      if (ings.length > 120) fail(400, 'invalid_array', 'ingredients');
       let tp = 0; let tf = 0; let tc = 0;
       for (const i of ings) {
         const p = await env.DB.prepare('SELECT * FROM products WHERE id = ?').bind(i.productId).first();
@@ -606,8 +652,8 @@ export async function handleApi(request, env, path) {
         tp += (p.protein * i.grams) / 100; tf += (p.fat * i.grams) / 100; tc += (p.carbs * i.grams) / 100;
       }
       const r = await env.DB.prepare(
-        'INSERT INTO dishes (user_id, name, cooked_weight_g, protein, fat, carbs, created_at) VALUES (?, ?, ?, ?, ?, ?, ?) RETURNING *',
-      ).bind(uid, name, cooked, (tp / cooked) * 100, (tf / cooked) * 100, (tc / cooked) * 100, now).first();
+        'INSERT INTO dishes (user_id, name, cooked_weight_g, protein, fat, carbs, meals, created_at) VALUES (?, ?, ?, ?, ?, ?, ?, ?) RETURNING *',
+      ).bind(uid, name, cooked, (tp / cooked) * 100, (tf / cooked) * 100, (tc / cooked) * 100, mealMask, now).first();
       await env.DB.batch(ings.map((i, k) => env.DB.prepare(
         'INSERT INTO dish_ingredients (dish_id, position, product_id, grams) VALUES (?, ?, ?, ?)',
       ).bind(r.id, k, i.productId, i.grams)));
@@ -616,11 +662,42 @@ export async function handleApi(request, env, path) {
     if (seg.length === 2 && method === 'GET') {
       return ok({ dish: await itemFor(env, uid, 'dish', num(seg[1], 'id', { min: 1, int: true })) });
     }
+    if (seg.length === 3 && seg[2] === 'meals' && method === 'PUT') {
+      const id = num(seg[1], 'id', { min: 1, int: true });
+      await itemFor(env, uid, 'dish', id);
+      const mask = maskOf((await readJson(request)).meals, 'meals');
+      await env.DB.prepare('UPDATE dishes SET meals = ? WHERE id = ? AND user_id = ?').bind(mask, id, uid).run();
+      return ok({ dish: await itemFor(env, uid, 'dish', id) });
+    }
     fail(404, 'not_found');
   }
 
   if (seg[0] === 'food') {
     if (seg[1] === 'recent' && method === 'GET') {
+      const url = new URL(request.url);
+      const meal = url.searchParams.get('meal');
+      if (meal) {
+        // What this user ate at the same meal over the last few days, newest first, one row per food.
+        oneOf(meal, 'meal', MEALS);
+        const to = day(url.searchParams.get('date') ?? today, 'date');
+        const from = new Date(Date.parse(`${to}T00:00:00Z`) - 3 * 86400000).toISOString().slice(0, 10);
+        const { results } = await env.DB.prepare(
+          `SELECT * FROM diary_entries WHERE user_id = ? AND meal = ? AND date >= ? AND date <= ? AND (product_id IS NOT NULL OR dish_id IS NOT NULL)
+           ORDER BY date DESC, created_at DESC`,
+        ).bind(uid, meal, from, to).all();
+        const seen = new Set();
+        const items = [];
+        for (const e of results) {
+          const key = e.product_id ? `p${e.product_id}` : `d${e.dish_id}`;
+          if (seen.has(key)) continue;
+          seen.add(key);
+          const row = e.product_id
+            ? await env.DB.prepare(`${PRODUCT_SELECT} WHERE p.id = ?`).bind(uid, e.product_id).first()
+            : await env.DB.prepare('SELECT * FROM dishes WHERE id = ? AND user_id = ?').bind(e.dish_id, uid).first();
+          if (row) items.push({ ...(e.product_id ? productOut(row) : dishOut(row)), lastGrams: e.grams, lastDate: e.date });
+        }
+        return ok({ items });
+      }
       const { results } = await env.DB.prepare(
         `SELECT product_id, dish_id, MAX(created_at) AS last, grams FROM diary_entries
          WHERE user_id = ? AND (product_id IS NOT NULL OR dish_id IS NOT NULL)
@@ -629,7 +706,7 @@ export async function handleApi(request, env, path) {
       const items = [];
       for (const r of results) {
         const row = r.product_id
-          ? await env.DB.prepare('SELECT * FROM products WHERE id = ?').bind(r.product_id).first()
+          ? await env.DB.prepare(`${PRODUCT_SELECT} WHERE p.id = ?`).bind(uid, r.product_id).first()
           : await env.DB.prepare('SELECT * FROM dishes WHERE id = ? AND user_id = ?').bind(r.dish_id, uid).first();
         if (row) items.push(r.product_id ? productOut(row) : dishOut(row));
       }

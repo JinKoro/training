@@ -1,12 +1,12 @@
 import { useEffect, useRef, useState } from 'react';
 import { useApp } from '../app-context';
 import { api, ApiError } from '../lib/api';
-import { MEALS, MEAL_IN, MEAL_RU, fmt, fmtG, kcal, macroLine } from '../lib/calc';
-import { isDayStr, today } from '../lib/dates';
+import { MEALS, MEAL_IN, MEAL_RU, entryMacros, fmt, fmtG, kcal, macroLine, sumMacros } from '../lib/calc';
+import { addDays, dayMonth, diffDays, isDayStr, today } from '../lib/dates';
 import { invalidate, useQuery } from '../lib/query';
 import { go } from '../lib/router';
-import type { FoodItem, Meal } from '../lib/types';
-import { FoodArt } from '../art';
+import type { Entry, FoodItem, Meal } from '../lib/types';
+import { FoodArt, Icon } from '../art';
 import { ErrorBox, Screen, Sheet, Skeleton, errText, toast } from '../ui';
 import { SearchInput } from './ExercisePicker';
 import { Tiles } from './Food';
@@ -20,118 +20,185 @@ const subtitle = (it: FoodItem) => {
   return `${kcal(per100(it))} ккал · ${macroLine(per100(it))}`;
 };
 const n = (s: string) => Number(String(s).replace(',', '.').trim());
+const MEAL_GEN: Record<Meal, string> = { breakfast: 'завтрака', lunch: 'обеда', dinner: 'ужина', snack: 'перекуса' };
+const MEAL_GEN_PL: Record<Meal, string> = { breakfast: 'завтраков', lunch: 'обедов', dinner: 'ужинов', snack: 'перекусов' };
 
-function useItems(q: string) {
-  const s = q.trim();
-  const recent = useQuery<{ items: FoodItem[] }>('/food/recent');
-  const lib = useQuery<{ products: FoodItem[] }>(s.length >= 2 ? `/products?q=${encodeURIComponent(s)}` : '/products');
-  const dishes = useQuery<{ dishes: FoodItem[] }>('/dishes');
-  return { recent, lib, dishes };
+/** Four on/off chips: which meals a food shows up for. At least one stays on. */
+export function MealChips({ value, onChange }: { value: Meal[]; onChange: (v: Meal[]) => void }) {
+  return (
+    <div style={{ display: 'grid', gridTemplateColumns: 'repeat(4, 1fr)', gap: 6 }}>
+      {MEALS.map((m) => {
+        const on = value.includes(m);
+        return (
+          <button key={m} type="button" aria-pressed={on} onClick={() => { const next = on ? value.filter((x) => x !== m) : MEALS.filter((x) => x === m || value.includes(x)); if (next.length) onChange(next); }}
+            style={{ height: 42, borderRadius: 12, fontWeight: 800, fontSize: 14, background: on ? 'var(--acc)' : 'transparent', color: on ? 'var(--onAcc)' : 'var(--ink)', border: on ? 0 : '1px solid var(--track)' }}>
+            {MEAL_RU[m]}
+          </button>
+        );
+      })}
+    </div>
+  );
 }
 
-function ItemRow({ it, href, onPlus, right }: { it: FoodItem; href?: string; onPlus?: () => void; right?: React.ReactNode }) {
-  const inner = (
-    <>
-      <FoodArt kind={it.icon} size={48} />
-      <div className="grow"><b>{it.name}</b><div className="sub ell">{subtitle(it)}</div></div>
-      {right}
-      <span aria-hidden={!onPlus} role={onPlus ? undefined : 'presentation'} style={{ width: 34, height: 34, borderRadius: 17, border: '2px solid var(--acc)', color: 'var(--acc)', display: 'inline-flex', alignItems: 'center', justifyContent: 'center', fontWeight: 800, flex: 'none' }}>+</span>
-    </>
+const PLUS: React.CSSProperties = { width: 36, height: 36, borderRadius: 18, border: '2px solid var(--acc)', color: 'var(--acc)', display: 'inline-flex', alignItems: 'center', justifyContent: 'center', fontWeight: 800, fontSize: 18, flex: 'none' };
+
+/** A food row: tap opens the weight screen, "+" adds it right away with the given grams. */
+function ItemRow({ it, href, sub, onAdd }: { it: FoodItem; href: string; sub?: string; onAdd?: () => void }) {
+  return (
+    <div className="row a-in" style={{ minHeight: 56, gap: 12 }}>
+      <a href={href} className="row grow" style={{ gap: 12, minWidth: 0 }}>
+        <FoodArt kind={it.icon} size={44} />
+        <div className="grow" style={{ minWidth: 0 }}><b>{it.name}</b><div className="sub ell">{sub ?? subtitle(it)}</div></div>
+      </a>
+      {onAdd ? <button aria-label={`Добавить ${it.name}`} onClick={onAdd} style={PLUS}>+</button> : null}
+    </div>
   );
-  if (href) return <a className="row a-in" style={{ minHeight: 56, gap: 12 }} href={href}>{inner}</a>;
-  return <button className="row a-in" style={{ minHeight: 56, gap: 12, width: '100%', textAlign: 'left' }} onClick={onPlus}>{inner}</button>;
+}
+
+const WHEN = (date: string, d: string) => { const k = diffDays(d, date); return k === 0 ? 'сегодня' : k === 1 ? 'вчера' : k === 2 ? 'позавчера' : dayMonth(date); };
+const gramsText = (it: FoodItem, g: number) => (it.portionName === 'шт' && it.portionG ? `${fmtG(g / it.portionG)} шт` : `${fmtG(g)} г`);
+const kcalAt = (it: { protein: number; fat: number; carbs: number }, g: number) => kcal([it.protein * g / 100, it.fat * g / 100, it.carbs * g / 100]);
+const entryItem = (e: Entry): FoodItem | null => (e.productId || e.dishId ? {
+  type: e.dishId ? 'dish' : 'product', id: (e.dishId ?? e.productId)!, name: e.name, protein: e.protein, fat: e.fat, carbs: e.carbs,
+  portionName: e.portionName, portionG: e.portionG, icon: e.icon,
+} : null);
+
+const SCAN_ICON = 'M4 7V5a1 1 0 0 1 1-1h2M17 4h2a1 1 0 0 1 1 1v2M20 17v2a1 1 0 0 1-1 1h-2M7 20H5a1 1 0 0 1-1-1v-2M8 8v8M11 8v8M14 8v8M17 8v8';
+const BOWL_ICON = 'M3 12h18a9 9 0 0 1-18 0zM8 8c0-2 2-2 2-4M13 8c0-2 2-2 2-4';
+type Tab = 'recent' | 'yesterday' | 'library' | 'dishes';
+const TABS: [Tab, string][] = [['recent', 'Недавние'], ['yesterday', 'Вчера'], ['library', 'Библиотека'], ['dishes', 'Блюда']];
+
+/** Search, scan, dish and the four lists for adding food to one meal. Shared by phone and desktop. */
+function AddPanel({ date: d, meal: m }: { date: string; meal: Meal }) {
+  const [q, setQ] = useState('');
+  const [tab, setTab] = useState<Tab>('recent');
+  const searchRef = useRef<HTMLDivElement>(null);
+  const s = q.trim();
+  const y = addDays(d, -1);
+  const recent = useQuery<{ items: FoodItem[] }>(`/food/recent?meal=${m}&date=${d}`);
+  const yday = useQuery<{ entries: Entry[] }>(tab === 'yesterday' ? `/diary?from=${y}&to=${y}` : null);
+  const lib = useQuery<{ products: FoodItem[] }>(s.length >= 2 ? `/products?q=${encodeURIComponent(s)}` : tab === 'library' ? `/products?meal=${m}` : null);
+  const dishes = useQuery<{ dishes: FoodItem[] }>('/dishes');
+  const itemHref = (it: FoodItem) => `#/food/${d}/item/${it.type}/${it.id}/${m}`;
+  const quick = (it: FoodItem, g: number) => async () => {
+    try {
+      await api('POST', '/diary', { date: d, meal: m, itemType: it.type, itemId: it.id, grams: g, portions: it.portionG && Math.abs(g / it.portionG - Math.round(g / it.portionG)) < 1e-6 && Math.round(g / it.portionG) > 0 ? Math.round(g / it.portionG) : null });
+      invalidate('/diary', '/food/recent');
+      toast(`${it.name} — ${MEAL_IN[m]}`);
+    } catch (e) { toast(errText(e)); }
+  };
+  const defGrams = (it: FoodItem) => it.lastGrams ?? it.portionG ?? 100;
+  const newProduct = `#/food/${d}/new-product/${m}/${encodeURIComponent(s ? `name:${s}` : '-')}`;
+
+  let body: React.ReactNode;
+  if (s) {
+    const low = s.toLowerCase();
+    const found = lib.data && dishes.data ? [...dishes.data.dishes.filter((x) => x.name.toLowerCase().includes(low)), ...(s.length >= 2 ? lib.data.products : [])] : undefined;
+    body = !found ? <Skeleton n={4} /> : (
+      <div className="col" style={{ gap: 4 }}>
+        {found.map((it) => <ItemRow key={`${it.type}${it.id}`} it={it} href={itemHref(it)} sub={`${subtitle(it)}${it.type === 'product' && it.base === false ? ' · добавлен пользователем' : ''}`} onAdd={quick(it, defGrams(it))} />)}
+        {!found.length ? <span className="muted" style={{ padding: '12px 0' }}>Ничего не нашлось</span> : null}
+        <a className="link" href={newProduct} style={{ minHeight: 44, display: 'flex', alignItems: 'center' }}>{found.length ? 'Нет нужного? Добавить продукт ›' : 'Не нашли? Добавить продукт ›'}</a>
+      </div>
+    );
+  } else if (tab === 'recent') {
+    body = !recent.data ? <Skeleton n={4} /> : recent.data.items.length ? (
+      <div className="col" style={{ gap: 4 }}>
+        {recent.data.items.map((it) => <ItemRow key={`${it.type}${it.id}`} it={it} href={itemHref(it)} sub={`${WHEN(it.lastDate!, d)} · ${gramsText(it, it.lastGrams!)} · ${fmt(kcalAt(it, it.lastGrams!))} ккал`} onAdd={quick(it, it.lastGrams!)} />)}
+      </div>
+    ) : <div className="empty">За последние 3 дня {MEAL_GEN_PL[m]} не было</div>;
+  } else if (tab === 'yesterday') {
+    const entries = yday.data?.entries;
+    body = !entries ? <Skeleton n={4} /> : entries.length ? (
+      <div className="col" style={{ gap: 14 }}>
+        {MEALS.map((mm) => {
+          const list = entries.filter((e) => e.meal === mm);
+          if (!list.length) return null;
+          return (
+            <div key={mm} className="col">
+              <div className="col" style={{ borderBottom: '1px solid var(--line)', paddingBottom: 6 }}>
+                <b style={{ fontSize: 16 }}>{MEAL_RU[mm]}</b><span className="muted" style={{ fontSize: 13, fontWeight: 700 }}>{fmt(kcal(sumMacros(list.map(entryMacros))))} ккал</span>
+              </div>
+              {list.map((e) => {
+                const it = entryItem(e);
+                const sub = `${gramsText({ ...(it ?? { portionName: e.portionName, portionG: e.portionG }) } as FoodItem, e.grams)} · ${fmt(kcalAt(e, e.grams))} ккал`;
+                return it ? <ItemRow key={e.id} it={it} href={itemHref(it)} sub={sub} onAdd={quick(it, e.grams)} /> : null;
+              })}
+            </div>
+          );
+        })}
+      </div>
+    ) : <div className="empty">Вчера ничего не записано</div>;
+  } else if (tab === 'library') {
+    body = !lib.data ? <Skeleton n={5} /> : (
+      <div className="col" style={{ gap: 4 }}>
+        {lib.data.products.map((it) => <ItemRow key={it.id} it={it} href={itemHref(it)} onAdd={quick(it, defGrams(it))} />)}
+        <div className="card col" style={{ marginTop: 10, gap: 6, alignItems: 'flex-start' }}>
+          <b style={{ fontWeight: 700 }}>Остальные продукты, в том числе добавленные другими, ищи через поиск.</b>
+          <button className="link" style={{ minHeight: 36 }} onClick={() => { searchRef.current?.querySelector('input')?.focus(); searchRef.current?.scrollIntoView({ block: 'center' }); }}>Найти в поиске ›</button>
+        </div>
+      </div>
+    );
+  } else {
+    const list = dishes.data?.dishes.filter((x) => !x.meals || x.meals.includes(m));
+    body = !list ? <Skeleton n={3} /> : (
+      <div className="col" style={{ gap: 4 }}>
+        {list.map((it) => <ItemRow key={it.id} it={it} href={itemHref(it)} onAdd={quick(it, defGrams(it))} />)}
+        {!list.length ? <span className="muted" style={{ padding: '12px 0' }}>Для {MEAL_GEN[m]} блюд пока нет</span> : null}
+        <a className="link" href={`#/food/${d}/dish/${m}`} style={{ minHeight: 44, display: 'flex', alignItems: 'center' }}>+ Новое блюдо</a>
+      </div>
+    );
+  }
+
+  return (
+    <div className="col" style={{ gap: 12 }}>
+      <div ref={searchRef}><SearchInput id="food-search" value={q} onChange={setQ} placeholder="Поиск по всем продуктам" /></div>
+      {!s ? (
+        <>
+          <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 8 }}>
+            {([['Штрихкод', SCAN_ICON, `#/food/${d}/scan/${m}`, true], ['Блюдо', BOWL_ICON, `#/food/${d}/dish/${m}`, false]] as const).map(([l, ic, h, blue]) => (
+              <a key={l} href={h} className="row a-in" style={{ height: 56, borderRadius: 16, padding: '0 14px', gap: 10, background: blue ? '#2438C9' : 'var(--card)', color: blue ? '#fff' : 'var(--ink)', border: blue ? 0 : '1px solid var(--cardBorder)' }}>
+                <span style={{ width: 32, height: 32, borderRadius: 10, background: blue ? 'rgba(255,255,255,.18)' : 'var(--btn)', display: 'inline-flex', alignItems: 'center', justifyContent: 'center', flex: 'none' }}><Icon d={ic} size={20} /></span>
+                <b style={{ fontSize: 16 }}>{l}</b>
+              </a>
+            ))}
+          </div>
+          <div role="tablist" className="row" style={{ gap: 16, borderBottom: '1px solid var(--line)', overflowX: 'auto' }}>
+            {TABS.map(([k, l]) => (
+              <button key={k} role="tab" aria-selected={tab === k} onClick={() => setTab(k)} style={{ flex: 'none', padding: '10px 0', fontWeight: 800, color: tab === k ? 'var(--ink)' : 'var(--muted)', borderBottom: `3px solid ${tab === k ? 'var(--acc)' : 'transparent'}` }}>{l}</button>
+            ))}
+          </div>
+        </>
+      ) : null}
+      {body}
+    </div>
+  );
 }
 
 export function AddFoodScreen({ date, meal }: { date?: string; meal?: string }) {
   const { wide } = useApp();
   const d = asDate(date), m = asMeal(meal);
-  const [q, setQ] = useState('');
-  const { recent, lib, dishes } = useItems(q);
-  const [tab, setTab] = useState<0 | 1 | 2 | null>(null);
-  const curTab = tab ?? (recent.data && !recent.data.items.length ? 1 : 0);
-  const itemHref = (it: FoodItem) => `#/food/${d}/item/${it.type}/${it.id}/${m}`;
-  const s = q.trim().toLowerCase();
-  const searching = s.length > 0;
-  const list: FoodItem[] | undefined = searching
-    ? (lib.data && dishes.data ? [...dishes.data.dishes.filter((x) => x.name.toLowerCase().includes(s)), ...lib.data.products.filter((x) => s.length >= 2 || x.name.toLowerCase().includes(s))] : undefined)
-    : curTab === 0 ? recent.data?.items : curTab === 1 ? lib.data?.products : dishes.data?.dishes;
-
   if (wide) return <DesktopAdd date={d} meal={m} />;
-
   return (
     <Screen className="modal">
       <div className="between"><a className="link" href={`#/food/${d}`}>‹ Еда</a><b>{MEAL_RU[m]}</b><span style={{ width: 44 }} /></div>
-      <SearchInput id="food-search" value={q} onChange={setQ} placeholder="Поиск по общей библиотеке" />
-      <div style={{ display: 'grid', gridTemplateColumns: 'repeat(3, 1fr)', gap: 8 }}>
-        {[['Штрихкод', '▥', `#/food/${d}/scan/${m}`, true], ['Вручную', '✎', `#/food/${d}/new-product/${m}`, false], ['Блюдо', '◔', `#/food/${d}/dish/${m}`, false]].map(([l, ic, href, blue]) => (
-          <a key={String(l)} href={String(href)} className="col a-in" style={{ minHeight: 86, borderRadius: 16, padding: 10, justifyContent: 'space-between', background: blue ? '#2438C9' : 'var(--card)', color: blue ? '#fff' : 'var(--ink)', border: blue ? 0 : '1px solid var(--cardBorder)' }}>
-            <span style={{ width: 30, height: 30, borderRadius: 9, background: blue ? 'rgba(255,255,255,.18)' : 'var(--btn)', display: 'inline-flex', alignItems: 'center', justifyContent: 'center' }}>{ic}</span>
-            <b>{l}</b>
-          </a>
-        ))}
-      </div>
-      {!searching ? (
-        <div className="row" style={{ gap: 16, borderBottom: '1px solid var(--line)' }}>
-          {['Недавние', 'Библиотека', 'Мои блюда'].map((l, i) => (
-            <button key={l} onClick={() => setTab(i as 0 | 1 | 2)} style={{ padding: '10px 0', fontWeight: 800, color: curTab === i ? 'var(--ink)' : 'var(--muted)', borderBottom: `3px solid ${curTab === i ? 'var(--acc)' : 'transparent'}` }}>{l}</button>
-          ))}
-        </div>
-      ) : null}
-      {!list ? <Skeleton n={5} /> : list.length ? <div className="col" style={{ gap: 4 }}>{list.map((it) => <ItemRow key={`${it.type}${it.id}`} it={it} href={itemHref(it)} />)}</div>
-        : searching ? <div className="empty">Ничего не найдено</div> : curTab === 2 ? null : <div className="empty">Пока пусто</div>}
+      <AddPanel date={d} meal={m} />
     </Screen>
   );
 }
 
 function DesktopAdd({ date, meal }: { date: string; meal: Meal }) {
-  const [q, setQ] = useState('');
-  const { recent, lib, dishes } = useItems(q);
-  const [grams, setGrams] = useState<Record<string, string>>({});
-  const [added, setAdded] = useState<string | null>(null);
-  const [fresh, setFresh] = useState<FoodItem[]>([]);
-  const s = q.trim().toLowerCase();
-  const base = s ? [...(dishes.data?.dishes ?? []).filter((x) => x.name.toLowerCase().includes(s)), ...(lib.data?.products ?? [])]
-    : [...fresh, ...(recent.data?.items ?? []), ...(lib.data?.products ?? [])];
-  const seen = new Set<string>();
-  const list = base.filter((it) => { const k = `${it.type}${it.id}`; if (seen.has(k)) return false; seen.add(k); return true; });
-  const add = async (it: FoodItem) => {
-    const k = `${it.type}${it.id}`;
-    const g = n(grams[k] ?? String(it.portionG ?? 100));
-    if (!(g >= 1 && g <= 5000)) return;
-    try {
-      await api('POST', '/diary', { date, meal, itemType: it.type, itemId: it.id, grams: g, portions: it.portionG && g === it.portionG ? 1 : null });
-      invalidate('/diary', '/food/recent');
-      setAdded(k); setTimeout(() => setAdded((x) => (x === k ? null : x)), 1200);
-    } catch (e) { toast(errText(e)); }
-  };
   return (
     <Screen>
       <div style={{ display: 'flex', flexWrap: 'wrap', gap: 24, alignItems: 'flex-start' }}>
-        <section className="col" style={{ flex: '1 1 360px', minWidth: 0, gap: 12 }}>
+        <section className="col" style={{ flex: '1 1 420px', minWidth: 0, maxWidth: 640, gap: 12 }}>
           <a className="link" href={`#/food/${date}`}>‹ Дневник</a>
           <h1 className="display" style={{ fontSize: 28 }}>Добавить {MEAL_IN[meal]}</h1>
-          <SearchInput value={q} onChange={setQ} placeholder="Поиск по общей библиотеке" />
-          {list.slice(0, 40).map((it) => {
-            const k = `${it.type}${it.id}`;
-            return (
-              <div key={k} className="item" style={{ borderRadius: 14, padding: '8px 12px' }}>
-                <FoodArt kind={it.icon} size={48} />
-                <div className="grow"><b>{it.name}</b><div className="sub ell">{subtitle(it)}</div></div>
-                <span className="row" style={{ height: 36, borderRadius: 10, background: 'var(--bg)', padding: '0 8px', gap: 2 }}>
-                  <input aria-label="Граммы" inputMode="numeric" value={grams[k] ?? String(it.portionG ?? 100)} onChange={(e) => setGrams((g) => ({ ...g, [k]: e.target.value.replace(/\D/g, '').slice(0, 4) }))} style={{ width: 44, border: 0, background: 'none', textAlign: 'right', fontWeight: 800, outline: 'none' }} /><b>г</b>
-                </span>
-                <button aria-label={`Добавить ${it.name}`} onClick={() => void add(it)} style={{ width: 36, height: 36, borderRadius: 18, border: `2px solid ${added === k ? 'var(--good)' : 'var(--acc)'}`, color: added === k ? 'var(--good)' : 'var(--acc)', fontWeight: 800 }}>{added === k ? '✓' : '+'}</button>
-              </div>
-            );
-          })}
+          <AddPanel date={date} meal={meal} />
         </section>
         <section className="card" style={{ flex: '1 1 320px', minWidth: 0, borderRadius: 22, padding: 18 }}>
           <h2 className="display" style={{ fontSize: 20, marginBottom: 12 }}>Новый продукт</h2>
-          <ProductForm compact onSaved={(p) => { setFresh((f) => [p, ...f]); toast('Продукт в библиотеке'); }} />
-        </section>
-        <section className="card" style={{ flex: '1 1 320px', minWidth: 0, borderRadius: 22, padding: 18 }}>
-          <h2 className="display" style={{ fontSize: 20, marginBottom: 12 }}>Новое блюдо</h2>
-          <DishForm compact onSaved={(dsh) => { setFresh((f) => [dsh, ...f]); toast('Блюдо сохранено'); }} />
+          <ProductForm compact onSaved={() => toast('Продукт в библиотеке')} />
         </section>
       </div>
     </Screen>
@@ -146,7 +213,13 @@ export function ItemScreen({ date, type, id, meal }: { date?: string; type: 'pro
   const [grams, setGrams] = useState<string | null>(null);
   const [mealSheet, setMealSheet] = useState(false);
   const [busy, setBusy] = useState(false);
+  const [tags, setTags] = useState<Meal[] | null>(null);
   const it = q.data?.product ?? q.data?.dish;
+  const saveTags = async (v: Meal[]) => {
+    setTags(v);
+    try { await api('PUT', `/${type === 'dish' ? 'dishes' : 'products'}/${id}/meals`, { meals: v }); invalidate('/products', '/dishes', '/food/recent'); }
+    catch (e) { toast(errText(e)); setTags(null); }
+  };
   useEffect(() => {
     if (it && last.data && grams === null) setGrams(String(Math.round(last.data.grams ?? it.portionG ?? 100)));
   }, [it, last.data, grams]);
@@ -187,6 +260,10 @@ export function ItemScreen({ date, type, id, meal }: { date?: string; type: 'pro
         </div>
       </div>
       <Tiles m={m100} big />
+      <div className="col" style={{ gap: 6 }}>
+        <span className="label">Приёмы пищи</span>
+        <MealChips value={tags ?? it.meals ?? MEALS} onChange={(v) => void saveTags(v)} />
+      </div>
       <button className="card between" style={{ borderRadius: 16, padding: '12px 14px', width: '100%' }} onClick={() => setMealSheet(true)}>
         <span style={{ fontWeight: 700 }}>Приём пищи</span><b style={{ color: 'var(--acc)' }}>{MEAL_RU[m]} ›</b>
       </button>
@@ -199,8 +276,11 @@ export function ItemScreen({ date, type, id, meal }: { date?: string; type: 'pro
   );
 }
 
-function ProductForm({ barcode: initialBarcode, onSaved, compact, onScan }: { barcode?: string; onSaved: (p: FoodItem) => void; compact?: boolean; onScan?: () => void }) {
-  const [f, setF] = useState({ barcode: initialBarcode ?? '', name: '', p: '', fat: '', c: '', pn: '', pg: '' });
+function ProductForm({ barcode: initialBarcode, name: initialName, defaultMeals, onSaved, compact, onScan }: {
+  barcode?: string; name?: string; defaultMeals?: Meal[]; onSaved: (p: FoodItem) => void; compact?: boolean; onScan?: () => void;
+}) {
+  const [f, setF] = useState({ barcode: initialBarcode ?? '', name: initialName ?? '', p: '', fat: '', c: '', pn: '', pg: '' });
+  const [meals, setMeals] = useState<Meal[]>(defaultMeals ?? MEALS);
   const [dup, setDup] = useState<FoodItem | null>(null);
   const [busy, setBusy] = useState(false);
   // Where the prefilled numbers came from, so the user knows to double-check them.
@@ -252,7 +332,7 @@ function ProductForm({ barcode: initialBarcode, onSaved, compact, onScan }: { ba
     try {
       const { product } = await api<{ product: FoodItem }>('POST', '/products', {
         name: f.name.trim(), barcode: f.barcode.trim() || null, protein: n(f.p), fat: n(f.fat), carbs: n(f.c),
-        portionName: f.pn.trim() || null, portionG: f.pn.trim() ? n(f.pg) : null,
+        portionName: f.pn.trim() || null, portionG: f.pn.trim() ? n(f.pg) : null, meals,
       });
       invalidate('/products', '/food/recent');
       onSaved(product);
@@ -314,6 +394,8 @@ function ProductForm({ barcode: initialBarcode, onSaved, compact, onScan }: { ba
           <input aria-label="Граммов в порции" className="input" inputMode="numeric" placeholder="г" value={f.pg} onChange={set('pg')} style={{ height: compact ? 44 : 50, borderRadius: 12, width: 100, flex: 'none' }} aria-invalid={errs.portion} />
         </div>
       </div>
+      <div className="col" style={{ gap: 6 }}><span className="label">Приёмы пищи</span><MealChips value={meals} onChange={setMeals} /></div>
+      <span className="muted" style={{ fontSize: 14 }}>Продукт попадёт в общую библиотеку и будет находиться через поиск.</span>
       <button className={compact ? 'btn small' : 'btn big'} disabled={!valid || busy} onClick={save}>{compact ? 'Сохранить в библиотеку' : 'Сохранить и выбрать вес'}</button>
     </div>
   );
@@ -324,7 +406,7 @@ export function ProductNewScreen({ date, meal, barcode }: { date?: string; meal?
   return (
     <Screen className="modal">
       <div className="between"><a className="link" href={`#/food/${d}/add/${m}`}>Отмена</a><b>Новый продукт</b><span style={{ width: 60 }} /></div>
-      <ProductForm barcode={barcode && /^\d+$/.test(barcode) ? barcode : undefined} onScan={() => go('food', d, 'scan', m)}
+      <ProductForm barcode={barcode && /^\d+$/.test(barcode) ? barcode : undefined} name={barcode?.startsWith('name:') ? barcode.slice(5) : undefined} onScan={() => go('food', d, 'scan', m)}
         onSaved={(p) => go('food', d, 'item', 'product', p.id, m)} />
     </Screen>
   );
@@ -332,9 +414,10 @@ export function ProductNewScreen({ date, meal, barcode }: { date?: string; meal?
 
 interface Ing { product: FoodItem; grams: string }
 
-function DishForm({ onSaved, compact }: { onSaved: (d: FoodItem) => void; compact?: boolean }) {
+function DishForm({ onSaved, compact, initial, defaultMeals }: { onSaved: (d: FoodItem) => void; compact?: boolean; initial?: Ing[]; defaultMeals?: Meal[] }) {
   const [name, setName] = useState('');
-  const [ings, setIngs] = useState<Ing[]>([]);
+  const [ings, setIngs] = useState<Ing[]>(initial ?? []);
+  const [meals, setMeals] = useState<Meal[]>(defaultMeals ?? MEALS);
   const [cooked, setCooked] = useState<string | null>(null);
   const [picking, setPicking] = useState(false);
   const [busy, setBusy] = useState(false);
@@ -347,7 +430,7 @@ function DishForm({ onSaved, compact }: { onSaved: (d: FoodItem) => void; compac
     if (!valid || busy) return;
     setBusy(true);
     try {
-      const { dish } = await api<{ dish: FoodItem }>('POST', '/dishes', { name: name.trim(), cookedWeight: cw, ingredients: ings.map((i) => ({ productId: i.product.id, grams: n(i.grams) })) });
+      const { dish } = await api<{ dish: FoodItem }>('POST', '/dishes', { name: name.trim(), cookedWeight: cw, meals, ingredients: ings.map((i) => (i.product.type === 'dish' ? { dishId: i.product.id, grams: n(i.grams) } : { productId: i.product.id, grams: n(i.grams) })) });
       invalidate('/dishes', '/food/recent');
       onSaved(dish);
       if (compact) { setName(''); setIngs([]); setCooked(null); }
@@ -391,6 +474,7 @@ function DishForm({ onSaved, compact }: { onSaved: (d: FoodItem) => void; compac
           ))}
         </div>
       </div>
+      <div className="col" style={{ gap: 6 }}><span className="label">Приёмы пищи</span><MealChips value={meals} onChange={setMeals} /></div>
       {compact ? <button className="btn small" disabled={!valid || busy} onClick={save}>Сохранить в мои блюда</button> : (
         <button className="btn big" disabled={!valid || busy} onClick={save}>Готово</button>
       )}
@@ -406,17 +490,31 @@ function ProductPicker({ onBack, onPick }: { onBack: () => void; onPick: (p: Foo
     <div className="col" style={{ gap: 12 }}>
       <div><button className="link" onClick={onBack}>‹ Назад</button></div>
       <SearchInput value={q} onChange={setQ} placeholder="Поиск по общей библиотеке" />
-      {!lib.data ? <Skeleton n={4} /> : lib.data.products.length ? lib.data.products.map((p) => <ItemRow key={p.id} it={p} onPlus={() => onPick(p)} />) : <div className="empty">Ничего не найдено</div>}
+      {!lib.data ? <Skeleton n={4} /> : lib.data.products.length ? lib.data.products.map((p) => (
+        <button key={p.id} className="row a-in" style={{ minHeight: 56, gap: 12, width: '100%', textAlign: 'left' }} onClick={() => onPick(p)}>
+          <FoodArt kind={p.icon} size={44} /><div className="grow" style={{ minWidth: 0 }}><b>{p.name}</b><div className="sub ell">{subtitle(p)}</div></div><span style={PLUS}>+</span>
+        </button>
+      )) : <div className="empty">Ничего не найдено</div>}
     </div>
   );
 }
 
-export function DishNewScreen({ date, meal }: { date?: string; meal?: string }) {
+/** New dish from scratch (all meals by default), or from a meal of the day ("from-meal": its food, tagged for that meal). */
+export function DishNewScreen({ date, meal, from }: { date?: string; meal?: string; from?: string }) {
   const d = asDate(date), m = asMeal(meal);
+  const fromMeal = from === 'from-meal';
+  const day = useQuery<{ entries: Entry[] }>(fromMeal ? `/diary?from=${d}&to=${d}` : null);
+  const initial = fromMeal && day.data
+    ? day.data.entries.filter((e) => e.meal === m).map((e) => ({ item: entryItem(e), grams: String(Math.round(e.grams)) })).filter((x) => x.item).map((x) => ({ product: x.item!, grams: x.grams }))
+    : undefined;
+  const back = fromMeal ? `#/food/${d}` : `#/food/${d}/add/${m}`;
   return (
     <Screen className="modal">
-      <div className="between"><a className="link" href={`#/food/${d}/add/${m}`}>Отмена</a><b>Новое блюдо</b><span style={{ width: 60 }} /></div>
-      <DishForm onSaved={(dish) => go('food', d, 'item', 'dish', dish.id, m)} />
+      <div className="between"><a className="link" href={back}>Отмена</a><b>{fromMeal ? `Блюдо из ${MEAL_GEN[m]}` : 'Новое блюдо'}</b><span style={{ width: 60 }} /></div>
+      {fromMeal && !day.data ? <Skeleton n={3} /> : (
+        <DishForm initial={initial} defaultMeals={fromMeal ? [m] : undefined}
+          onSaved={(dish) => { if (fromMeal) { toast(`Блюдо «${dish.name}» сохранено`); go('food', d); } else go('food', d, 'item', 'dish', dish.id, m); }} />
+      )}
     </Screen>
   );
 }
