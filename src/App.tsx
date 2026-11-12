@@ -116,7 +116,8 @@ function Shell() {
   const nav = navFor(r);
   const fullscreen = r[0] === 'workout';
   const content = <Routes r={r} />;
-  if (fullscreen) return content;
+  if (fullscreen && wide) return content;
+  if (fullscreen) return <div className="shell-m"><div className="scroller">{content}</div></div>;
   if (wide) {
     return (
       <div className="shell-d">
@@ -126,8 +127,8 @@ function Shell() {
     );
   }
   return (
-    <div className="shell-m">
-      {content}
+    <div className={`shell-m ${nav.bar ? 'has-bar' : ''}`}>
+      <div className="scroller">{content}</div>
       {nav.bar ? <TabBar active={nav.tab} /> : null}
     </div>
   );

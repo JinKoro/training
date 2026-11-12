@@ -8,7 +8,7 @@ export function parseHash(hash = location.hash): string[] {
 export function useRoute(): string[] {
   const [route, setRoute] = useState(parseHash);
   useEffect(() => {
-    const onChange = () => { setRoute(parseHash()); window.scrollTo(0, 0); };
+    const onChange = () => { setRoute(parseHash()); scrollTop(); };
     window.addEventListener('hashchange', onChange);
     return () => window.removeEventListener('hashchange', onChange);
   }, []);
@@ -29,4 +29,9 @@ export function replace(...parts: (string | number)[]) {
 export function back(...fallback: (string | number)[]) {
   if (history.length > 1 && document.referrer !== '' ) history.back();
   else go(...fallback);
+}
+
+export function scrollTop() {
+  const el = document.querySelector('.scroller');
+  if (el) el.scrollTo(0, 0); else window.scrollTo(0, 0);
 }

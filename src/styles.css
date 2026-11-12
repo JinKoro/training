@@ -54,7 +54,9 @@ a:active, button:active { transform: scale(.97); }
 /* ---------- layout ---------- */
 :root { --cardBorder: transparent; }
 :root[data-theme="light"] { --cardBorder: #E1E5EB; }
-.shell-m { min-height: 100dvh; }
+.shell-m { position: fixed; inset: 0; display: flex; flex-direction: column; overflow: hidden; }
+.scroller { flex: 1; min-height: 0; overflow-y: auto; overflow-x: hidden; overscroll-behavior: contain; -webkit-overflow-scrolling: touch; }
+.shell-m.has-bar .page { padding-bottom: 24px; }
 .page { padding: calc(16px + var(--safe-top)) max(16px, env(safe-area-inset-right)) calc(104px + var(--safe-bottom)) max(16px, env(safe-area-inset-left)); display: flex; flex-direction: column; gap: 14px; max-width: 640px; margin: 0 auto; }
 .page.modal { padding-bottom: calc(32px + var(--safe-bottom)); }
 .page.fixed-cta { padding-bottom: calc(120px + var(--safe-bottom)); }
@@ -123,7 +125,7 @@ a:active, button:active { transform: scale(.97); }
 .shell-d .sheet .grab { display: none; }
 
 /* ---------- nav ---------- */
-.tabbar { position: fixed; left: 0; right: 0; bottom: 0; z-index: 20; background: var(--side); border-top: 1px solid var(--line); display: grid; grid-template-columns: repeat(5, 1fr); padding: 8px 6px max(18px, var(--safe-bottom)); }
+.tabbar { flex: none; position: relative; z-index: 20; background: var(--side); border-top: 1px solid var(--line); display: grid; grid-template-columns: repeat(5, 1fr); padding: 8px 6px max(18px, var(--safe-bottom)); }
 .tabbar a { display: flex; flex-direction: column; align-items: center; gap: 4px; font-size: 12px; font-weight: 800; color: var(--muted); }
 .tabbar a > span { width: 44px; height: 30px; border-radius: 15px; display: flex; align-items: center; justify-content: center; }
 .tabbar a[aria-current="page"] { color: var(--ink); }

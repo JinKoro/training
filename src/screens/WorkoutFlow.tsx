@@ -3,7 +3,7 @@ import { useApp } from '../app-context';
 import { api } from '../lib/api';
 import { mmss, showKg } from '../lib/calc';
 import { invalidate, useQuery } from '../lib/query';
-import { go } from '../lib/router';
+import { go, scrollTop } from '../lib/router';
 import { enqueue, drained } from '../lib/sync';
 import { pushStart, pushStop } from '../lib/push';
 import type { Workout } from '../lib/types';
@@ -67,7 +67,7 @@ function Flow({ workout }: { workout: Workout }) {
 
   // persist UI state so a reload in the gym resumes in place
   useEffect(() => { try { localStorage.setItem(KEY(workout.id), JSON.stringify({ ...s, menu: false, confirm: false })); } catch { /* */ } }, [s, workout.id]);
-  useEffect(() => { window.scrollTo(0, 0); }, [s.screen, s.ei]);
+  useEffect(() => { scrollTop(); }, [s.screen, s.ei]);
 
   // rest countdown from an end timestamp (setInterval sleeps on a locked phone)
   const left = s.screen === 'rest' && s.restEndsAt ? Math.max(0, Math.ceil((s.restEndsAt - Date.now()) / 1000)) : s.left;
