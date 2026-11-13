@@ -135,7 +135,7 @@ export function ProfileEditScreen() {
   );
   return (
     <Screen className="modal">
-      <div className="between">
+      <div className="navbar">
         <a className="link" href="#/profile">Отмена</a><b>Данные и замеры</b>
         <button className="link" disabled={!valid || busy} onClick={save} style={{ color: valid ? 'var(--acc)' : '#5A6371' }}>Сохранить</button>
       </div>

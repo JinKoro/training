@@ -224,9 +224,9 @@ function Editor({ mode, program }: { mode: 'new' | 'edit'; program?: Program }) 
 
   return (
     <Screen className="modal">
-      <div className="between">
+      <div className="navbar">
         <a className="link" href={backHref}>Отмена</a>
-        <b style={{ fontSize: 17 }}>{mode === 'new' ? 'Новая программа' : 'Изменить программу'}</b>
+        <b>{mode === 'new' ? 'Новая программа' : 'Изменить программу'}</b>
         <button className="link" disabled={!canSave} onClick={save} style={{ color: canSave ? 'var(--acc)' : 'var(--muted)' }}>{mode === 'new' ? 'Создать' : 'Сохранить'}</button>
       </div>
       {wide ? (

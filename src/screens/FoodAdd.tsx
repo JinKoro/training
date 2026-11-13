@@ -455,7 +455,7 @@ export function ProductNewScreen({ date, meal, barcode }: { date?: string; meal?
   const d = asDate(date), m = asMeal(meal);
   return (
     <Screen className="modal">
-      <div className="between"><a className="link" href={`#/food/${d}/add/${m}`}>Отмена</a><b>Новый продукт</b><span style={{ width: 60 }} /></div>
+      <div className="navbar"><a className="link" href={`#/food/${d}/add/${m}`}>Отмена</a><b>Новый продукт</b><span style={{ width: 60 }} /></div>
       <ProductForm barcode={barcode && /^\d+$/.test(barcode) ? barcode : undefined} name={barcode?.startsWith('name:') ? barcode.slice(5) : undefined} onScan={() => go('food', d, 'scan', m)}
         onSaved={(p) => go('food', d, 'item', 'product', p.id, m)} />
     </Screen>
@@ -560,7 +560,7 @@ export function DishNewScreen({ date, meal, from }: { date?: string; meal?: stri
   const back = fromMeal ? `#/food/${d}` : `#/food/${d}/add/${m}`;
   return (
     <Screen className="modal">
-      <div className="between"><a className="link" href={back}>Отмена</a><b>{fromMeal ? `Блюдо из ${MEAL_GEN[m]}` : 'Новое блюдо'}</b><span style={{ width: 60 }} /></div>
+      <div className="navbar"><a className="link" href={back}>Отмена</a><b>{fromMeal ? `Блюдо из ${MEAL_GEN[m]}` : 'Новое блюдо'}</b><span style={{ width: 60 }} /></div>
       {fromMeal && !day.data ? <Skeleton n={3} /> : (
         <DishForm initial={initial} defaultMeals={fromMeal ? [m] : undefined}
           onSaved={(dish) => { if (fromMeal) { toast(`Блюдо «${dish.name}» сохранено`); go('food', d); } else go('food', d, 'item', 'dish', dish.id, m); }} />

@@ -79,6 +79,10 @@ html:has(.shell-m) body, html:has(.shell-m) #root { min-height: 0; height: 0; }
 .h2 { font-family: var(--display); font-weight: 800; font-size: 20px; line-height: 1.15; }
 .label { font-size: 13px; font-weight: 800; letter-spacing: .06em; text-transform: uppercase; color: var(--muted); }
 .row { display: flex; align-items: center; gap: 10px; }
+.navbar { display: grid; grid-template-columns: auto minmax(0, 1fr) auto; align-items: center; gap: 8px; }
+/* Cancel · title · Save header: the title always stays on one line between the two links */
+.navbar > :nth-child(2) { text-align: center; font-size: 17px; font-weight: 800; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.navbar > .link, .navbar > button { white-space: nowrap; }
 .between { display: flex; align-items: center; justify-content: space-between; gap: 10px; }
 .col { display: flex; flex-direction: column; gap: 10px; }
 .grow { flex: 1; min-width: 0; }

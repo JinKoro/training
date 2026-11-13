@@ -173,7 +173,7 @@ export function ExerciseFormScreen({ id }: { id?: number }) {
   return (
     <Screen className="modal">
       <div className="col" style={{ gap: 26, padding: '0 4px' }}>
-        <div className="between">
+        <div className="navbar">
           <a className="link" href={back}>Отмена</a>
           <b>{id ? 'Изменить упражнение' : 'Новое упражнение'}</b>
           <button className="link" disabled={!valid || busy} onClick={save} style={{ color: valid ? 'var(--acc)' : 'var(--muted)' }}>Готово</button>

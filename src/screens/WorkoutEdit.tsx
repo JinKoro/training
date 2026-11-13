@@ -65,7 +65,7 @@ function Editor({ w, onDone, onCancel, wide }: { w: Workout; onDone: () => void;
   return (
     <div className="col" style={{ gap: 12 }}>
       {!wide ? (
-        <div className="between">
+        <div className="navbar">
           <button className="link" onClick={onCancel}>Отмена</button>
           <b>{shortDate(w.date)}</b>
           <button className="link" onClick={save} disabled={invalid || busy} style={{ color: invalid ? 'var(--muted)' : 'var(--acc)' }}>Сохранить</button>
