@@ -6,7 +6,7 @@ import { invalidate } from '../lib/query';
 import { go } from '../lib/router';
 import type { Exercise } from '../lib/types';
 import { ExerciseArt, KINDS, Muscles } from '../art';
-import { Screen, Sheet, errText, toast } from '../ui';
+import { MoreButton, Screen, Sheet, errText, menuRow, toast } from '../ui';
 import { GROUP_CHIPS, SearchInput, filterExercises } from './ExercisePicker';
 
 const muscleLine = (e: Exercise) => {
@@ -18,11 +18,15 @@ const muscleLine = (e: Exercise) => {
 function ExerciseCard({ e, wide }: { e: Exercise; wide?: boolean }) {
   const steps = e.steps.length ? e.steps : (e.description ?? '').split('\n').map((x) => x.trim()).filter(Boolean);
   const [del, setDel] = useState(false);
+  const [menu, setMenu] = useState(false);
   return (
     <div className="col" style={{ gap: 14 }}>
-      <div>
-        <h1 className="display a-h" style={{ fontSize: wide ? 22 : 24 }}>{e.name}</h1>
-        <div className="muted" style={{ fontSize: 14 }}>{muscleLine(e)}</div>
+      <div className="row" style={{ alignItems: 'flex-start' }}>
+        <div className="grow">
+          <h1 className="display a-h" style={{ fontSize: wide ? 22 : 24 }}>{e.name}</h1>
+          <div className="muted" style={{ fontSize: 14 }}>{muscleLine(e)}</div>
+        </div>
+        {e.own ? <MoreButton onClick={() => setMenu(true)} /> : null}
       </div>
       <div className="card col a-in" style={{ gap: 12 }}>
         <b>Как выполнять</b>
@@ -37,10 +41,18 @@ function ExerciseCard({ e, wide }: { e: Exercise; wide?: boolean }) {
       <div className="a-in" style={{ background: 'var(--sub)', borderRadius: 20, padding: 14, display: 'flex', justifyContent: 'center' }}>
         <Muscles primary={e.primary} secondary={e.secondary} />
       </div>
-      {wide ? (e.own ? (
-        <div className="row"><a className="btn small" href={`#/exercise/${e.id}`}>Изменить</a><button className="btn small outline" style={{ color: 'var(--warn)' }} onClick={() => setDel(true)}>Удалить</button></div>
-      ) : <span className="muted" style={{ fontSize: 14 }}>Базовое упражнение: менять и удалять можно только свои</span>) : null}
-      {e.own ? <DeleteExercise e={e} open={del} onClose={() => setDel(false)} /> : null}
+      {e.own ? (
+        <>
+          <Sheet open={menu} onClose={() => setMenu(false)} label="Упражнение">
+            <b style={{ fontSize: 18 }}>Упражнение</b>
+            <div className="col" style={{ gap: 0 }}>
+              <a href={`#/exercise/${e.id}`} style={menuRow}>Изменить</a>
+              <button onClick={() => { setMenu(false); setDel(true); }} style={{ ...menuRow, color: 'var(--warn)', borderBottom: 0 }}>Удалить упражнение</button>
+            </div>
+          </Sheet>
+          <DeleteExercise e={e} open={del} onClose={() => setDel(false)} />
+        </>
+      ) : null}
     </div>
   );
 }
@@ -71,10 +83,7 @@ export function LibraryScreen({ mine, selected }: { mine: boolean; selected: num
   if (!wide && sel) {
     return (
       <Screen className="modal">
-        <div className="between">
-          <a className="link" href={`#/exercises${mine ? '/mine' : ''}`}>‹ {mine ? 'Мои упражнения' : 'Упражнения'}</a>
-          {sel.own ? <a className="link" href={`#/exercise/${sel.id}`}>Изменить</a> : null}
-        </div>
+        <a className="link" href={`#/exercises${mine ? '/mine' : ''}`}>‹ {mine ? 'Мои упражнения' : 'Упражнения'}</a>
         <ExerciseCard e={sel} />
       </Screen>
     );
