@@ -43,6 +43,7 @@ function canScroll(el: Element | null): boolean {
 document.addEventListener('touchmove', (e) => {
   if (!document.querySelector('.shell-m')) return;
   if (e.touches.length > 1) return; // pinch zoom stays possible
+  if ((e.target as Element).closest?.('.sheet')) return; // sheets scroll on their own (long lists, e.g. categories)
   if (!canScroll(e.target as Element)) e.preventDefault();
 }, { passive: false });
 
