@@ -263,8 +263,10 @@ function maskOf(list, field) {
 /** Products joined with the current user's meal tags (column my_meals). */
 const PRODUCT_SELECT = 'SELECT p.*, pm.meals AS my_meals FROM products p LEFT JOIN product_meals pm ON pm.product_id = p.id AND pm.user_id = ?';
 
+/** Shown name = «brand · name»; `title` and `brand` are the parts (for editing). */
+const fullName = (r) => (r.brand ? `${r.brand} · ${r.name}` : r.name);
 const productOut = (r) => ({
-  type: 'product', id: r.id, name: r.name, barcode: r.barcode, protein: r.protein, fat: r.fat, carbs: r.carbs, kcal: r.kcal ?? null,
+  type: 'product', id: r.id, name: fullName(r), title: r.name, brand: r.brand ?? null, barcode: r.barcode, protein: r.protein, fat: r.fat, carbs: r.carbs, kcal: r.kcal ?? null,
   portionName: r.portion_name, portionG: r.portion_g, icon: r.icon, meals: mealsOf(r.my_meals), base: r.created_by === null, createdBy: r.created_by,
 });
 const dishOut = (r) => ({
@@ -282,6 +284,7 @@ const kcalIn = (v) => num(v, 'kcal', { min: 0, max: 900, optional: true });
 const kcalOf = (r) => r.kcal ?? r.protein * 4 + r.fat * 9 + r.carbs * 4;
 
 /** Product picture = its sub-category (guessed from the name when the client sent none). */
+const brandIn = (v) => { const b = String(v ?? '').trim(); return b ? str(b, 'brand', { max: 40 }) : null; };
 function iconFor(name, picked) {
   if (picked && SUB_IDS.includes(picked)) return picked;
   return guessSub(name) ?? 'other';
@@ -580,8 +583,11 @@ export async function handleApi(request, env, path) {
         // SQLite's LIKE ignores case only for Latin letters, so "абрик" would miss "Абрикос": filter in JS instead.
         const needle = q.toLowerCase().replace(/ё/g, 'е');
         const { results } = await env.DB.prepare(`${PRODUCT_SELECT} ORDER BY p.name COLLATE NOCASE`).bind(uid).all();
-        const hits = results.filter((r) => r.name.toLowerCase().replace(/ё/g, 'е').includes(needle));
-        hits.sort((a, b) => Number(!a.name.toLowerCase().startsWith(needle)) - Number(!b.name.toLowerCase().startsWith(needle)));
+        // Search the full name (brand + name), so «савушкин йогурт» and «йогурт» both find it.
+        const norm = (r) => fullName(r).toLowerCase().replace(/ё/g, 'е');
+        const words = needle.split(/\s+/).filter(Boolean);
+        const hits = results.filter((r) => { const n = norm(r); return words.every((w) => n.includes(w)); });
+        hits.sort((a, b) => Number(!a.name.toLowerCase().startsWith(needle) && !norm(a).startsWith(needle)) - Number(!b.name.toLowerCase().startsWith(needle) && !norm(b).startsWith(needle)));
         return ok({ products: hits.slice(0, 50).map(productOut) });
       }
       // Browsing: the user's own products (?mine=1), or the base library — most used first, ?limit=N.
@@ -613,9 +619,9 @@ export async function handleApi(request, env, path) {
       const mealMask = body.meals === undefined ? 15 : maskOf(body.meals, 'meals');
       const portionName = null, portionG = null; // everything is per 100 g; portions were removed
       const r = await env.DB.prepare(
-        `INSERT INTO products (name, barcode, protein, fat, carbs, kcal, portion_name, portion_g, icon, created_by, created_at)
-         VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?) RETURNING *`,
-      ).bind(name, barcode, p, f, c, k, portionName, portionG, iconFor(name, body.icon), uid, now).first();
+        `INSERT INTO products (name, brand, barcode, protein, fat, carbs, kcal, portion_name, portion_g, icon, created_by, created_at)
+         VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?) RETURNING *`,
+      ).bind(name, brandIn(body.brand), barcode, p, f, c, k, portionName, portionG, iconFor(name, body.icon), uid, now).first();
       if (mealMask !== 15) await env.DB.prepare('INSERT INTO product_meals (user_id, product_id, meals) VALUES (?, ?, ?)').bind(uid, r.id, mealMask).run();
       return ok({ product: productOut({ ...r, my_meals: mealMask }) }, 201);
     }
@@ -641,6 +647,7 @@ export async function handleApi(request, env, path) {
         await env.DB.prepare('UPDATE products SET icon = ? WHERE id = ?').bind(icon, id).run();
       } else {
         const name = str(body.name ?? cur.name, 'name', { min: 2, max: 80 });
+        const brand = body.brand === undefined ? cur.brand : brandIn(body.brand);
         const p = num(body.protein ?? cur.protein, 'protein', { min: 0, max: 100 });
         const f = num(body.fat ?? cur.fat, 'fat', { min: 0, max: 100 });
         const c = num(body.carbs ?? cur.carbs, 'carbs', { min: 0, max: 100 });
@@ -652,8 +659,8 @@ export async function handleApi(request, env, path) {
           const dup = await env.DB.prepare(`${PRODUCT_SELECT} WHERE p.barcode = ? AND p.id != ?`).bind(uid, barcode, id).first();
           if (dup) return json(request, { error: 'barcode_taken', field: 'barcode', product: productOut(dup) }, 409);
         }
-        await env.DB.prepare('UPDATE products SET name = ?, barcode = ?, protein = ?, fat = ?, carbs = ?, kcal = ?, icon = ? WHERE id = ?')
-          .bind(name, barcode, p, f, c, k, icon, id).run();
+        await env.DB.prepare('UPDATE products SET name = ?, brand = ?, barcode = ?, protein = ?, fat = ?, carbs = ?, kcal = ?, icon = ? WHERE id = ?')
+          .bind(name, brand, barcode, p, f, c, k, icon, id).run();
       }
       // Diary entries keep their own name and numbers (history); only the picture follows the product.
       await env.DB.prepare('UPDATE diary_entries SET icon = ? WHERE product_id = ?').bind(icon, id).run();
@@ -874,9 +881,8 @@ async function openFoodFacts(code) {
     const kcal = typeof kv === 'number' && Number.isFinite(kv) && kv >= 0 && kv <= 900 ? Math.round(kv * 10) / 10 : null;
     const name = String(p.product_name_ru || p.product_name || '').trim();
     const brand = String(p.brands || '').split(',')[0].trim();
-    const full = (brand && name && !name.toLowerCase().includes(brand.toLowerCase()) ? `${name} ${brand}` : name).slice(0, 80);
-    if (!full && protein === null && fat === null && carbs === null) return null;
-    return { name: full || null, protein, fat, carbs, kcal };
+    if (!name && protein === null && fat === null && carbs === null) return null;
+    return { name: name.slice(0, 80) || null, brand: brand.slice(0, 40) || null, protein, fat, carbs, kcal };
   } catch {
     return null;
   }

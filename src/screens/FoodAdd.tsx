@@ -420,8 +420,8 @@ function ProductForm({ barcode: initialBarcode, name: initialName, onSaved, comp
   barcode?: string; name?: string; onSaved: (p: FoodItem) => void; compact?: boolean; onScan?: () => void; edit?: FoodItem;
 }) {
   const [f, setF] = useState(edit
-    ? { barcode: edit.barcode ?? '', name: edit.name, p: numStr(edit.protein), fat: numStr(edit.fat), c: numStr(edit.carbs), k: edit.kcal != null ? numStr(edit.kcal) : '', pn: '', pg: '' }
-    : { barcode: initialBarcode ?? '', name: initialName ?? '', p: '', fat: '', c: '', k: '', pn: '', pg: '' });
+    ? { barcode: edit.barcode ?? '', brand: edit.brand ?? '', name: edit.title ?? edit.name, p: numStr(edit.protein), fat: numStr(edit.fat), c: numStr(edit.carbs), k: edit.kcal != null ? numStr(edit.kcal) : '', pn: '', pg: '' }
+    : { barcode: initialBarcode ?? '', brand: '', name: initialName ?? '', p: '', fat: '', c: '', k: '', pn: '', pg: '' });
   const [dup, setDup] = useState<FoodItem | null>(null);
   const [busy, setBusy] = useState(false);
   // Where the prefilled numbers came from, so the user knows to double-check them.
@@ -433,9 +433,10 @@ function ProductForm({ barcode: initialBarcode, name: initialName, onSaved, comp
   // Nothing matched → «Другое» (once there is a name).
   const sub = picked ?? guessSub(f.name) ?? (f.name.trim() ? 'other' : null);
   const [catOpen, setCatOpen] = useState(false);
-  const fill = (v: { name?: string | null; protein: number | null; fat: number | null; carbs: number | null; kcal?: number | null }) => setF((x) => ({
+  const fill = (v: { name?: string | null; brand?: string | null; protein: number | null; fat: number | null; carbs: number | null; kcal?: number | null }) => setF((x) => ({
     ...x,
     name: v.name && !x.name.trim() ? v.name : x.name,
+    brand: v.brand && !x.brand.trim() ? v.brand : x.brand,
     p: v.protein !== null ? String(v.protein).replace('.', ',') : x.p,
     fat: v.fat !== null ? String(v.fat).replace('.', ',') : x.fat,
     c: v.carbs !== null ? String(v.carbs).replace('.', ',') : x.c,
@@ -477,13 +478,13 @@ function ProductForm({ barcode: initialBarcode, name: initialName, onSaved, comp
     if (!valid || busy) return;
     setBusy(true);
     try {
-      const body = { name: f.name.trim(), barcode: f.barcode.trim() || null, protein: n(f.p), fat: n(f.fat), carbs: n(f.c), kcal: touched(f.k) ? n(f.k) : null, icon: sub ?? undefined };
+      const body = { name: f.name.trim(), brand: f.brand.trim() || null, barcode: f.barcode.trim() || null, protein: n(f.p), fat: n(f.fat), carbs: n(f.c), kcal: touched(f.k) ? n(f.k) : null, icon: sub ?? undefined };
       const { product } = edit
         ? await api<{ product: FoodItem }>('PUT', `/products/${edit.id}`, body)
         : await api<{ product: FoodItem }>('POST', '/products', body);
       invalidate('/products', '/food/recent', '/diary');
       onSaved(product);
-      if (compact) { setF({ barcode: '', name: '', p: '', fat: '', c: '', k: '', pn: '', pg: '' }); setPicked(null); }
+      if (compact) { setF({ barcode: '', brand: '', name: '', p: '', fat: '', c: '', k: '', pn: '', pg: '' }); setPicked(null); }
     } catch (e) {
       if (e instanceof ApiError && e.code === 'barcode_taken') {
         const r = await api<{ product: FoodItem | null }>('GET', `/products?barcode=${f.barcode.trim()}`).catch(() => null);
@@ -516,6 +517,12 @@ function ProductForm({ barcode: initialBarcode, name: initialName, onSaved, comp
       <div className="field">
         <label htmlFor="pn-name">Название</label>
         <input id="pn-name" className="input" value={f.name} onChange={set('name')} maxLength={80} style={{ height: compact ? 44 : 50, borderRadius: 12 }} />
+      </div>
+      <div className="field">
+        <label htmlFor="pn-brand"><span>Бренд</span><span className="muted">необязательно</span></label>
+        <input id="pn-brand" className="input" value={f.brand} onChange={set('brand')} maxLength={40} style={{ height: compact ? 44 : 50, borderRadius: 12 }} />
+        {/* How the product will be called in the library and search. */}
+        {f.name.trim() ? <span className="muted" style={{ fontSize: 14 }}>В библиотеке: <b style={{ color: 'var(--ink)' }}>{f.brand.trim() ? `${f.brand.trim()} · ${f.name.trim()}` : f.name.trim()}</b></span> : null}
       </div>
       <div className="field">
         <span style={{ fontWeight: 700 }}>Категория</span>

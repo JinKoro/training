@@ -44,6 +44,8 @@ export interface FoodItem {
   meals?: Meal[];
   /** Shared base library product (not added by a user). */
   base?: boolean;
+  /** Products: name without brand, and the brand (`name` is «brand · title»). */
+  title?: string; brand?: string | null;
   /** Author of a product (null = shared base library). */
   createdBy?: number | null;
   /** From /food/recent?meal=: amount and date of the latest such entry. */
