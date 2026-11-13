@@ -7,7 +7,8 @@ import { go } from '../lib/router';
 import { ErrorBox, Screen, Skeleton } from '../ui';
 import { FoodCard, WorkoutCard } from './Week';
 
-export function CalendarScreen({ date }: { date?: string }) {
+/** Month calendar. `food`: opened from the food diary — same grid, the panel shows that day's food with a button to open it. */
+export function CalendarScreen({ date, food }: { date?: string; food?: boolean }) {
   const { wide } = useApp();
   const t = today();
   const anchor = date && isDayStr(date) ? date : t;
@@ -21,7 +22,8 @@ export function CalendarScreen({ date }: { date?: string }) {
   const selected = sel && inMonth(sel) ? sel : (inMonth(anchor) ? anchor : first);
   const lead = diffDays(first, weekStart(first));
   const isCurrent = inMonth(t);
-  const shift = (n: number) => { setSel(null); go('calendar', toDay(new Date(a.getFullYear(), a.getMonth() + n, 1))); };
+  const route = food ? 'food-calendar' : 'calendar';
+  const shift = (n: number) => { setSel(null); go(route, toDay(new Date(a.getFullYear(), a.getMonth() + n, 1))); };
 
   if (data.error) return <Screen title="Календарь"><ErrorBox error={data.error} retry={data.reload} /></Screen>;
   if (!data.days) return <Screen title="Календарь"><Skeleton n={4} /></Screen>;
@@ -31,12 +33,12 @@ export function CalendarScreen({ date }: { date?: string }) {
 
   const grid = (
     <>
-      {!wide ? <a className="link" href={`#/week/${Math.round(diffDays(weekStart(selected), weekStart(t)) / 7)}`}>‹ Неделя</a> : null}
+      {food ? <a className="link" href={`#/food/${anchor}`}>‹ Еда</a> : !wide ? <a className="link" href={`#/week/${Math.round(diffDays(weekStart(selected), weekStart(t)) / 7)}`}>‹ Неделя</a> : null}
       <div className="row" style={{ gap: 8 }}>
         <button className="icon-btn" aria-label="Предыдущий месяц" onClick={() => shift(-1)}>‹</button>
         <div className="grow col" style={{ alignItems: 'center', gap: 4 }}>
           <h1 className="display a-h" style={{ fontSize: 24 }}>{MONTH_NOM[a.getMonth()]} {a.getFullYear()}</h1>
-          {!isCurrent ? <button onClick={() => { setSel(null); go('calendar', t); }} style={{ height: 26, padding: '0 10px', borderRadius: 13, background: 'var(--acc)', color: 'var(--onAcc)', fontSize: 12, fontWeight: 800 }}>К сегодня</button> : null}
+          {!isCurrent ? <button onClick={() => { setSel(null); go(route, t); }} style={{ height: 26, padding: '0 10px', borderRadius: 13, background: 'var(--acc)', color: 'var(--onAcc)', fontSize: 12, fontWeight: 800 }}>К сегодня</button> : null}
         </div>
         <button className="icon-btn" aria-label="Следующий месяц" onClick={() => shift(1)}>›</button>
       </div>
@@ -78,11 +80,13 @@ export function CalendarScreen({ date }: { date?: string }) {
         <span className="display" style={{ fontSize: 17 }}>{d.isToday ? `Сегодня, ${dayMonth(d.date)}` : `${WD_CAP[diffDays(d.date, weekStart(d.date))]}, ${dayMonth(d.date)}`}</span>
         <b style={{ fontSize: 14, color: status[1] }}>{status[0]}</b>
       </div>
-      <WorkoutCard d={d} calendar />
+      {!food ? <WorkoutCard d={d} calendar /> : null}
       <FoodCard d={d} title="Еда" meals />
-      <a className="link" href={`#/food/${d.date}`} style={{ minHeight: 36 }}>
-        {d.isToday ? 'Добавить еду ›' : d.isPlan ? 'Запланировать еду ›' : 'Дневник еды за этот день ›'}
-      </a>
+      {food ? <a className="btn" href={`#/food/${d.date}`}>Открыть день ›</a> : (
+        <a className="link" href={`#/food/${d.date}`} style={{ minHeight: 36 }}>
+          {d.isToday ? 'Добавить еду ›' : d.isPlan ? 'Запланировать еду ›' : 'Дневник еды за этот день ›'}
+        </a>
+      )}
     </>
   );
   return (

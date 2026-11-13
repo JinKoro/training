@@ -97,6 +97,7 @@ function navFor(r: string[]): { tab: string | null; side: string; bar: boolean }
   const s = r[0] ?? 'week';
   if (s === 'week' || s === '') return { tab: 'week', side: 'week', bar: true };
   if (s === 'calendar') return { tab: 'week', side: 'calendar', bar: true };
+  if (s === 'food-calendar') return { tab: 'food', side: 'food', bar: true };
   if (s === 'week-macros') return { tab: 'week', side: 'week', bar: false };
   if (s === 'sport') return { tab: 'plan', side: 'plan', bar: true };
   if (s === 'program') return { tab: 'plan', side: 'plan', bar: r[1] !== 'new' && r[2] !== 'edit' };
@@ -141,6 +142,7 @@ function Routes({ r }: { r: string[] }) {
     case undefined: case '': case 'week': return <WeekScreen offset={Number(b) || 0} />;
     case 'week-macros': return <WeekMacrosScreen offset={Number(b) || 0} />;
     case 'calendar': return <CalendarScreen date={b} />;
+    case 'food-calendar': return <CalendarScreen date={b} food />;
     case 'day': return <DayScreen date={b} />;
     case 'workout': return <WorkoutFlow id={Number(b)} />;
     case 'summary': return <SummaryScreen id={Number(b)} back={c} />;

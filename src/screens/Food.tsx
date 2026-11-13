@@ -114,7 +114,6 @@ export function FoodScreen({ date }: { date?: string }) {
   const [edit, setEdit] = useState<Entry | null>(null);
   const [copy, setCopy] = useState<Meal | null>(null);
   const [target, setTarget] = useState<Meal | null>(null);
-  const [cal, setCal] = useState(false);
   useEffect(() => { resetAdded(); }, []);
 
   if (data.error) return <Screen title="Еда"><ErrorBox error={data.error} retry={data.reload} /></Screen>;
@@ -131,7 +130,6 @@ export function FoodScreen({ date }: { date?: string }) {
     <>
       <EntrySheet entry={edit} onClose={() => setEdit(null)} />
       <CopySheet date={d} meal={copy} entries={copy ? byMeal(copy) : []} onClose={() => setCopy(null)} />
-      <MonthSheet open={cal} date={d} onPick={(x) => { setCal(false); go('food', x); }} onClose={() => setCal(false)} />
     </>
   );
 
@@ -202,7 +200,7 @@ export function FoodScreen({ date }: { date?: string }) {
         <a className="icon-btn" aria-label="Предыдущая неделя" href={`#/food/${addDays(d, -7)}`}>‹</a>
         <b className="grow" style={{ textAlign: 'center', fontSize: 17, whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis', minWidth: 0 }}>{weekRange(start)}</b>
         <a className="icon-btn" aria-label="Следующая неделя" href={`#/food/${addDays(d, 7)}`}>›</a>
-        <button className="icon-btn" aria-label="Календарь" onClick={() => setCal(true)}><Icon d="M4 6h16v14H4zM4 10h16M8 3v4M16 3v4" size={20} /></button>
+        <button className="icon-btn" aria-label="Календарь" onClick={() => go('food-calendar', d)}><Icon d="M4 6h16v14H4zM4 10h16M8 3v4M16 3v4" size={20} /></button>
       </div>
       <div style={{ display: 'grid', gridTemplateColumns: 'repeat(7, 1fr)', gap: 4 }}>
         {days.map((x, i) => {
@@ -439,40 +437,3 @@ function WeekMacroCard({ days, d }: { days: ReturnType<typeof useDays>['days']; 
   );
 }
 
-
-/** Month grid for jumping to any day of the food diary. */
-function MonthSheet({ open, date, onPick, onClose }: { open: boolean; date: string; onPick: (d: string) => void; onClose: () => void }) {
-  const [month, setMonth] = useState(() => date.slice(0, 7));
-  useEffect(() => { if (open) setMonth(date.slice(0, 7)); }, [open, date]);
-  const [yy, mm] = month.split('-').map(Number);
-  const first = new Date(yy, mm - 1, 1);
-  const lead = (first.getDay() + 6) % 7;
-  const len = new Date(yy, mm, 0).getDate();
-  const t = today();
-  const shift = (k: number) => { const x = new Date(yy, mm - 1 + k, 1); setMonth(`${x.getFullYear()}-${String(x.getMonth() + 1).padStart(2, '0')}`); };
-  const title = first.toLocaleDateString('ru-RU', { month: 'long', year: 'numeric' }).replace(' г.', '');
-  return (
-    <Sheet open={open} onClose={onClose} label="Календарь">
-      <div className="between">
-        <button className="icon-btn" aria-label="Прошлый месяц" onClick={() => shift(-1)} style={{ background: 'var(--bg)' }}>‹</button>
-        <b className="display" style={{ fontSize: 18 }}>{title[0].toUpperCase() + title.slice(1)}</b>
-        <button className="icon-btn" aria-label="Следующий месяц" onClick={() => shift(1)} style={{ background: 'var(--bg)' }}>›</button>
-      </div>
-      <div style={{ display: 'grid', gridTemplateColumns: 'repeat(7, 1fr)', gap: 4 }}>
-        {WD_SHORT.map((w) => <span key={w} className="sub" style={{ textAlign: 'center', fontSize: 13, fontWeight: 800 }}>{w}</span>)}
-        {Array.from({ length: lead }, (_, i) => <span key={`l${i}`} />)}
-        {Array.from({ length: len }, (_, i) => {
-          const x = `${month}-${String(i + 1).padStart(2, '0')}`;
-          const sel = x === date;
-          return (
-            <button key={x} onClick={() => onPick(x)} aria-pressed={sel} style={{
-              height: 44, borderRadius: 12, fontWeight: 800, background: sel ? 'var(--acc)' : 'var(--bg)', color: sel ? 'var(--onAcc)' : x > t ? 'var(--muted)' : 'var(--ink)',
-              border: x === t && !sel ? '2px solid var(--acc)' : 0,
-            }}>{i + 1}</button>
-          );
-        })}
-      </div>
-      {date !== t ? <button className="btn outline" onClick={() => onPick(t)}>Сегодня</button> : null}
-    </Sheet>
-  );
-}
