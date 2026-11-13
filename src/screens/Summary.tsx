@@ -1,4 +1,4 @@
-import { durationMin, showKg, workoutStats } from '../lib/calc';
+import { donePct, durationMin, showKg, workoutStats } from '../lib/calc';
 import { dayMonth, diffDays, WD_CAP, weekStart } from '../lib/dates';
 import { useState } from 'react';
 import { api } from '../lib/api';
@@ -37,7 +37,7 @@ export function SummaryBody({ w, back, cta }: { w: Workout; back?: string; cta?:
         {w.exercises.map((e) => {
           const plan = e.sets.reduce((a, x) => a + x.plannedReps, 0);
           const dn = e.sets.reduce((a, x) => a + (x.completedAt !== null && x.reps !== null ? Math.min(x.reps, x.plannedReps) : 0), 0);
-          const p = plan ? Math.round((dn / plan) * 100) : 0;
+          const p = donePct(dn, plan);
           return (
             <div key={e.position} className="card col a-in" style={{ borderRadius: 16, gap: 10 }}>
               <div className="between"><b>{e.name}</b><b style={{ color: dn < plan ? 'var(--warnT)' : 'var(--goodT)' }}>{p}%</b></div>
@@ -89,7 +89,7 @@ export function SummaryScreen({ id, back }: { id: number; back?: string }) {
     <div style={{ maxWidth: wide ? 760 : 640, margin: wide ? 0 : '0 auto', width: '100%' }}>
       <SummaryBody w={q.data.workout} back={backHref} />
       <div className="col" style={{ padding: '0 16px 32px', gap: 4, alignItems: 'center' }}>
-        <a className="link" href={`#/workout-edit/${id}`} style={{ minHeight: 44, display: 'flex', alignItems: 'center' }}>Изменить</a>
+        <a className="link" href={back ? `#/workout-edit/${id}/${back}` : `#/workout-edit/${id}`} style={{ minHeight: 44, display: 'flex', alignItems: 'center' }}>Изменить</a>
         <button className="warn-link" onClick={() => setConfirm(true)}>Удалить тренировку</button>
       </div>
       <Sheet open={confirm} onClose={() => setConfirm(false)} label="Удалить тренировку">

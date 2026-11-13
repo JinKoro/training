@@ -201,7 +201,7 @@ export function WorkoutCard({ d, calendar, canTrain }: { d: DayInfo; calendar?: 
     const dur = w.finishedAt ? Math.max(1, Math.round((w.finishedAt - w.startedAt) / 60000)) : null;
     sub = `✓ выполнено ${s.pct}%${calendar && dur ? ` · ${dur} мин` : ''}`;
     btn = { text: calendar ? 'Итог' : 'Итог ›', href: `#/summary/${w.id}` };
-    if (calendar) btn2 = { text: 'Изменить', href: `#/workout-edit/${w.id}` };
+    if (calendar) btn2 = { text: 'Изменить', href: `#/workout-edit/${w.id}/calendar` };
   } else if (w) {
     sub = 'идёт тренировка';
     btn = { text: 'Продолжить', href: `#/workout/${w.id}`, primary: true };

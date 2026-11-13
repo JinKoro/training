@@ -144,7 +144,7 @@ function Routes({ r }: { r: string[] }) {
     case 'day': return <DayScreen date={b} />;
     case 'workout': return <WorkoutFlow id={Number(b)} />;
     case 'summary': return <SummaryScreen id={Number(b)} back={c} />;
-    case 'workout-edit': return <WorkoutEditScreen id={Number(b)} />;
+    case 'workout-edit': return <WorkoutEditScreen id={Number(b)} back={c} />;
     case 'workouts': return <WorkoutsScreen selected={Number(b) || null} />;
     case 'sport': return <SportScreen />;
     case 'program':

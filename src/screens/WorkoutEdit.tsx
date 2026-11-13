@@ -117,14 +117,15 @@ function Editor({ w, onDone, onCancel, wide }: { w: Workout; onDone: () => void;
 
 const Row4 = ({ children }: { children: React.ReactNode }) => <>{children}</>;
 
-export function WorkoutEditScreen({ id }: { id: number }) {
+export function WorkoutEditScreen({ id, back }: { id: number; back?: string }) {
   const { wide } = useApp();
   const q = useQuery<{ workout: Workout }>(`/workouts/${id}`);
   useEffect(() => { if (wide) go('workouts', id); }, [wide, id]);
   if (wide) return null;
   if (q.error) return <Screen className="modal"><ErrorBox error={q.error} retry={q.reload} /></Screen>;
   if (!q.data) return <Screen className="modal"><Skeleton n={3} /></Screen>;
-  const backTo = () => go('calendar', q.data!.workout.date);
+  // Saving or cancelling returns to the workout's summary (which keeps where it was opened from).
+  const backTo = () => (back ? go('summary', id, back) : go('summary', id));
   return <Screen className="modal"><Editor w={q.data.workout} onDone={backTo} onCancel={backTo} /></Screen>;
 }
 

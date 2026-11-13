@@ -110,6 +110,13 @@ export function setWeights(kg: string, sets: number): (number | null)[] {
   return Array.from({ length: sets }, (_, i) => (nums.length ? nums[Math.min(i, nums.length - 1)] : null));
 }
 
+/** Done share in %, rounded; 100 only when everything is done (99.6 % shows as 99). */
+export function donePct(done: number, plan: number): number {
+  if (plan <= 0) return 0;
+  if (done >= plan) return 100;
+  return Math.min(99, Math.round((done / plan) * 100));
+}
+
 export const showKg = (n: number | null | undefined) => (n == null ? '—' : String(Math.round(n * 100) / 100).replace('.', ','));
 export const mmss = (t: number) => `${Math.floor(t / 60)}:${String(Math.max(0, t) % 60).padStart(2, '0')}`;
 
@@ -168,7 +175,7 @@ export function workoutStats(w: Workout) {
       }
     }
   }
-  return { done, total, D, P, pct: P ? Math.round((D / P) * 100) : 0 };
+  return { done, total, D, P, pct: donePct(D, P) };
 }
 export const durationMin = (w: Workout) => (w.finishedAt ? Math.max(1, Math.round((w.finishedAt - w.startedAt) / 60000)) : null);
 
