@@ -149,3 +149,9 @@ export function AmountInput({ value, onChange, unit, size, label }: { value: str
     </span>
   );
 }
+
+/** «⋯» menu sheet rows (same look as the workout menu): plain rows, the destructive one in warn colour. */
+export const menuRow: React.CSSProperties = { minHeight: 52, textAlign: 'left', fontWeight: 700, borderBottom: '1px solid var(--line)', display: 'flex', alignItems: 'center', width: '100%' };
+export const MoreButton = ({ onClick, color }: { onClick: () => void; color?: string }) => (
+  <button onClick={onClick} aria-label="Меню" style={{ width: 44, height: 44, fontSize: 24, fontWeight: 800, color: color ?? 'var(--ink)', flex: 'none' }}>⋯</button>
+);

@@ -6,16 +6,21 @@ import { invalidate, useQuery } from '../lib/query';
 import { go } from '../lib/router';
 import type { Workout } from '../lib/types';
 import { useApp } from '../app-context';
-import { ErrorBox, Sheet, Skeleton, errText, toast } from '../ui';
+import { ErrorBox, MoreButton, Sheet, Skeleton, errText, menuRow, toast } from '../ui';
 
-export function SummaryBody({ w, back, cta }: { w: Workout; back?: string; cta?: { text: string; onClick: () => void } }) {
+export function SummaryBody({ w, back, cta, onMenu }: { w: Workout; back?: string; cta?: { text: string; onClick: () => void }; onMenu?: () => void }) {
   const s = workoutStats(w);
   const dur = durationMin(w);
   const dateText = `${WD_CAP[diffDays(w.date, weekStart(w.date))]}, ${dayMonth(w.date)}`;
   return (
     <div className="col" style={{ gap: 14, paddingBottom: cta ? 96 : 24 }}>
       <div className="col" style={{ background: '#2438C9', color: '#fff', padding: 'calc(18px + var(--safe-top)) 18px 18px', borderRadius: '0 0 26px 26px', gap: 12 }}>
-        {back ? <a href={back} style={{ fontWeight: 800, minHeight: 44, display: 'inline-flex', alignItems: 'center' }}>‹ Назад</a> : null}
+        {back || onMenu ? (
+          <div className="between">
+            {back ? <a href={back} style={{ fontWeight: 800, minHeight: 44, display: 'inline-flex', alignItems: 'center' }}>‹ Назад</a> : <span />}
+            {onMenu ? <MoreButton onClick={onMenu} color="#fff" /> : null}
+          </div>
+        ) : null}
         <div>
           <div style={{ fontSize: 15, fontWeight: 700 }}>{dateText}{back && dur ? ` · ${dur} мин` : ''}</div>
           <h1 className="display" style={{ fontSize: 24 }}>{back ? w.title : 'Тренировка завершена'}</h1>
@@ -73,6 +78,7 @@ export function SummaryBody({ w, back, cta }: { w: Workout; back?: string; cta?:
 export function SummaryScreen({ id, back }: { id: number; back?: string }) {
   const { wide } = useApp();
   const q = useQuery<{ workout: Workout }>(`/workouts/${id}`);
+  const [menu, setMenu] = useState(false);
   const [confirm, setConfirm] = useState(false);
   const [busy, setBusy] = useState(false);
   // Deleting frees the program day again, so the day screen offers to train it anew.
@@ -87,16 +93,26 @@ export function SummaryScreen({ id, back }: { id: number; back?: string }) {
   if (!q.data) return <div className="page"><Skeleton n={4} /></div>;
   return (
     <div style={{ maxWidth: wide ? 760 : 640, margin: wide ? 0 : '0 auto', width: '100%' }}>
-      <SummaryBody w={q.data.workout} back={backHref} />
-      <div className="col" style={{ padding: '0 16px 32px', gap: 4, alignItems: 'center' }}>
-        <a className="link" href={back ? `#/workout-edit/${id}/${back}` : `#/workout-edit/${id}`} style={{ minHeight: 44, display: 'flex', alignItems: 'center' }}>Изменить</a>
-        <button className="warn-link" onClick={() => setConfirm(true)}>Удалить тренировку</button>
-      </div>
-      <Sheet open={confirm} onClose={() => setConfirm(false)} label="Удалить тренировку">
-        <b className="display" style={{ fontSize: 20 }}>Удалить тренировку?</b>
-        <span className="muted">{q.data.workout.title}</span>
-        <button className="btn" disabled={busy} style={{ background: 'var(--warn)', color: '#fff' }} onClick={() => void remove(q.data!.workout.date)}>Удалить</button>
-        <button className="btn outline" onClick={() => setConfirm(false)}>Отмена</button>
+      <SummaryBody w={q.data.workout} back={backHref} onMenu={() => { setConfirm(false); setMenu(true); }} />
+      {/* Same bottom sheet as the in-workout menu: actions, then the delete confirmation in place. */}
+      <Sheet open={menu} onClose={() => setMenu(false)} label="Тренировка">
+        {!confirm ? (
+          <>
+            <b style={{ fontSize: 18 }}>Тренировка</b>
+            <div className="col" style={{ gap: 0 }}>
+              <a href={back ? `#/workout-edit/${id}/${back}` : `#/workout-edit/${id}`} style={menuRow}>Изменить</a>
+              <button onClick={() => setConfirm(true)} style={{ ...menuRow, color: 'var(--warn)', borderBottom: 0 }}>Удалить тренировку</button>
+            </div>
+          </>
+        ) : (
+          <>
+            <b style={{ fontSize: 18 }}>Удалить тренировку?</b>
+            <div className="col" style={{ gap: 0 }}>
+              <button disabled={busy} onClick={() => void remove(q.data!.workout.date)} style={{ ...menuRow, color: 'var(--warn)' }}>Да, удалить</button>
+              <button onClick={() => setMenu(false)} style={{ ...menuRow, borderBottom: 0 }}>Нет, оставить</button>
+            </div>
+          </>
+        )}
       </Sheet>
     </div>
   );

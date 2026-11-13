@@ -75,9 +75,13 @@ export function DayScreen({ date }: { date?: string }) {
         <a className="link" href={wide ? '#/workouts' : `#/week/${weekOffset}`}>‹ {wide ? 'Тренировки' : 'Неделя'}</a>
         {program ? <a className="link" href={`#/program/${program.id}/edit`}>Изменить</a> : null}
       </div>
-      <div>
-        <div className="muted" style={{ fontSize: 14, fontWeight: 700 }}>{wdName}{planned ? ` · неделя ${planned.week} программы` : ''}</div>
-        <h1 className="display a-h" style={{ fontSize: 24 }}>{planned ? title : 'Тренировки нет'}</h1>
+      {/* Desktop: the main action sits in the header row, not floating under the list. */}
+      <div className="between" style={{ alignItems: 'flex-end', flexWrap: 'wrap' }}>
+        <div>
+          <div className="muted" style={{ fontSize: 14, fontWeight: 700 }}>{wdName}{planned ? ` · неделя ${planned.week} программы` : ''}</div>
+          <h1 className="display a-h" style={{ fontSize: 24 }}>{planned ? title : 'Тренировки нет'}</h1>
+        </div>
+        {wide && planned && rows.length ? <button className="btn blue" style={{ height: 48, borderRadius: 14 }} onClick={start} disabled={busy}>{existing ? (existing.status === 'finished' ? 'Итог ›' : 'Продолжить') : 'Начать тренировку'}</button> : null}
       </div>
       {planned && rows.length ? (
         <>
@@ -117,11 +121,13 @@ export function DayScreen({ date }: { date?: string }) {
             !showOthers ? <button className="link" style={{ minHeight: 44, alignSelf: 'flex-start' }} onClick={() => setShowOthers(true)}>Провести другую тренировку этой недели ›</button>
               : <><span className="label">Другие тренировки этой недели</span>{othersList}</>
           ) : null}
-          <div className="fixed-bottom">
-            <button className="btn big blue" style={{ height: 60 }} onClick={start} disabled={busy}>
-              {existing ? (existing.status === 'finished' ? 'Итог ›' : 'Продолжить') : 'Начать'}
-            </button>
-          </div>
+          {!wide ? (
+            <div className="fixed-bottom">
+              <button className="btn big blue" style={{ height: 60 }} onClick={start} disabled={busy}>
+                {existing ? (existing.status === 'finished' ? 'Итог ›' : 'Продолжить') : 'Начать'}
+              </button>
+            </div>
+          ) : null}
         </>
       ) : (
         <>

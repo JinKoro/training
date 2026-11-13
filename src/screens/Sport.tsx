@@ -7,7 +7,7 @@ import { invalidate } from '../lib/query';
 import { go } from '../lib/router';
 import type { Program } from '../lib/types';
 import { ExerciseArt } from '../art';
-import { Screen, Sheet, errText, toast } from '../ui';
+import { MoreButton, Screen, Sheet, errText, menuRow, toast } from '../ui';
 import { TodayWorkout } from './Week';
 
 const MONTH_PREP = ['январе', 'феврале', 'марте', 'апреле', 'мае', 'июне', 'июле', 'августе', 'сентябре', 'октябре', 'ноябре', 'декабре'];
@@ -98,13 +98,14 @@ export function ProgramScreen({ id }: { id: number }) {
   const pr = p ? programProgress(p) : null;
   const [sel, setSel] = useState<number>(() => (pr ? (pr.finished ? p!.weeks : pr.started ? pr.currentWeek : 1) : 1));
   const [del, setDel] = useState(false);
+  const [menu, setMenu] = useState(false);
   useEffect(() => { if (wide && p) go('program', p.id, 'edit'); }, [wide, p]);
   if (!p || !pr) return <Screen className="modal"><a className="link" href="#/sport">‹ Спорт</a><div className="empty">Программа не найдена</div></Screen>;
   const cur = pr.finished ? p.weeks + 1 : pr.started ? pr.currentWeek : 0;
   const week = p.plan[String(sel)] ?? {};
   return (
     <Screen className="modal">
-      <div className="between"><a className="link" href="#/sport">‹ Спорт</a><a className="link" href={`#/program/${p.id}/edit`}>Изменить</a></div>
+      <div className="between"><a className="link" href="#/sport">‹ Спорт</a><MoreButton onClick={() => setMenu(true)} /></div>
       <h1 className="display a-h" style={{ fontSize: 26 }}>{p.name}</h1>
       <div style={p.weeks > 13 ? { display: 'flex', gap: 4, overflowX: 'auto' } : { display: 'grid', gridTemplateColumns: `repeat(${p.weeks}, minmax(0, 1fr))`, gap: 3 }}>
         {Array.from({ length: p.weeks }, (_, i) => i + 1).map((n) => {
@@ -141,7 +142,13 @@ export function ProgramScreen({ id }: { id: number }) {
           </div>
         );
       })}
-      <button className="warn-link" onClick={() => setDel(true)}>Удалить программу</button>
+      <Sheet open={menu} onClose={() => setMenu(false)} label="Программа">
+        <b style={{ fontSize: 18 }}>Программа</b>
+        <div className="col" style={{ gap: 0 }}>
+          <a href={`#/program/${p.id}/edit`} style={menuRow}>Изменить</a>
+          <button onClick={() => { setMenu(false); setDel(true); }} style={{ ...menuRow, color: 'var(--warn)', borderBottom: 0 }}>Удалить программу</button>
+        </div>
+      </Sheet>
       <DeleteProgram p={p} open={del} onClose={() => setDel(false)} />
     </Screen>
   );
