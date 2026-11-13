@@ -166,7 +166,7 @@ export function FoodCard({ d, title, meals }: { d: DayInfo; title?: string; meal
           {MEALS.map((m) => (
             <div key={m} style={{ background: 'var(--sub)', borderRadius: 10, padding: '6px 8px' }}>
               <div className="sub" style={{ fontSize: 12, fontWeight: 800 }}>{MEAL_RU[m]}</div>
-              <b className="num" style={{ fontSize: 14 }}>{fmt(kcal(d.meals![m]))}</b>
+              <b className="num" style={{ fontSize: 14 }}>{fmt(d.mealKcal![m])}</b>
             </div>
           ))}
         </div>

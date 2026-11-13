@@ -191,21 +191,36 @@ export const MEAL_IN: Record<Meal, string> = { breakfast: 'в завтрак', l
 export const entryMacros = (e: { protein: number; fat: number; carbs: number; grams: number }): Macros =>
   [(e.protein * e.grams) / 100, (e.fat * e.grams) / 100, (e.carbs * e.grams) / 100];
 
+/** Effective kcal per 100 g: the label value when stored, else computed from macros. */
+export const kcal100 = (x: { protein: number; fat: number; carbs: number; kcal?: number | null }) => x.kcal ?? kcal([x.protein, x.fat, x.carbs]);
+/** Kcal of an amount in grams (not rounded). */
+export const kcalAt = (x: { protein: number; fat: number; carbs: number; kcal?: number | null }, grams: number) =>
+  ((x.kcal ?? x.protein * 4 + x.fat * 9 + x.carbs * 4) * grams) / 100;
+export const entryKcal = (e: { protein: number; fat: number; carbs: number; kcal?: number | null; grams: number }) => kcalAt(e, e.grams);
+export const sumKcal = (list: { protein: number; fat: number; carbs: number; kcal?: number | null; grams: number }[]) =>
+  list.reduce((a, e) => a + entryKcal(e), 0);
+
 export function sumMacros(list: Macros[]): Macros {
   return list.reduce<Macros>((a, m) => [a[0] + m[0], a[1] + m[1], a[2] + m[2]], [0, 0, 0]);
 }
 
 export function dayTotals(entries: Entry[]) {
-  const byDate = new Map<Day, { macros: Macros; meals: Record<Meal, Macros>; count: number }>();
+  const byDate = new Map<Day, { macros: Macros; kcal: number; meals: Record<Meal, Macros>; mealKcal: Record<Meal, number>; count: number }>();
   for (const e of entries) {
     let d = byDate.get(e.date);
     if (!d) {
-      d = { macros: [0, 0, 0], meals: { breakfast: [0, 0, 0], lunch: [0, 0, 0], snack: [0, 0, 0], dinner: [0, 0, 0] }, count: 0 };
+      d = {
+        macros: [0, 0, 0], kcal: 0, meals: { breakfast: [0, 0, 0], lunch: [0, 0, 0], snack: [0, 0, 0], dinner: [0, 0, 0] },
+        mealKcal: { breakfast: 0, lunch: 0, snack: 0, dinner: 0 }, count: 0,
+      };
       byDate.set(e.date, d);
     }
     const m = entryMacros(e);
     d.macros = sumMacros([d.macros, m]);
     d.meals[e.meal] = sumMacros([d.meals[e.meal], m]);
+    const k = entryKcal(e);
+    d.kcal += k;
+    d.mealKcal[e.meal] += k;
     d.count += 1;
   }
   return byDate;
@@ -218,7 +233,7 @@ export const fmtG = (n: number) => (n >= 10 || Number.isInteger(n) ? String(Math
 // ---------- week ----------
 export interface DayInfo {
   date: Day; isTraining: boolean; isPlan: boolean; isToday: boolean;
-  norm: Macros; eaten: Macros | null; kcal: number | null; meals: Record<Meal, Macros> | null;
+  norm: Macros; eaten: Macros | null; kcal: number | null; meals: Record<Meal, Macros> | null; mealKcal: Record<Meal, number> | null;
   workout: Workout | null; planned: { week: number; weekday: number; rows: PlanRow[] } | null;
 }
 
@@ -246,8 +261,8 @@ export function buildDays(days: Day[], me: Me, program: Program | undefined, wor
       date, isTraining, isPlan, isToday: date === t,
       norm: normFor(me, date, isTraining ? 'training' : 'rest'),
       eaten: isPlan ? null : tot?.macros ?? [0, 0, 0],
-      kcal: isPlan ? null : kcal(tot?.macros ?? [0, 0, 0]),
-      meals: tot?.meals ?? null,
+      kcal: isPlan ? null : Math.round(tot?.kcal ?? 0),
+      meals: tot?.meals ?? null, mealKcal: tot?.mealKcal ?? null,
       workout, planned,
     };
   });

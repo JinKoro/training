@@ -1,7 +1,7 @@
 import { useEffect, useRef, useState } from 'react';
 import { useApp } from '../app-context';
 import { api, ApiError } from '../lib/api';
-import { MEALS, MEAL_IN, MEAL_RU, entryMacros, fmt, fmtG, kcal, macroLine, sumMacros } from '../lib/calc';
+import { MEALS, MEAL_IN, MEAL_RU, fmt, fmtG, kcal, kcal100, kcalAt, macroLine, sumKcal } from '../lib/calc';
 import { addDays, dayMonth, diffDays, isDayStr, today } from '../lib/dates';
 import { invalidate, useQuery } from '../lib/query';
 import { go } from '../lib/router';
@@ -16,9 +16,9 @@ const asMeal = (m?: string): Meal => (MEALS.includes(m as Meal) ? (m as Meal) : 
 const asDate = (d?: string) => (isDayStr(d) ? d : today());
 const per100 = (it: FoodItem): [number, number, number] => [it.protein, it.fat, it.carbs];
 const subtitle = (it: FoodItem) => {
-  if (it.type === 'dish') return `своё блюдо · ${kcal(per100(it))} ккал на 100 г`;
-  if (it.portionName === 'шт' && it.portionG) return `${kcal(per100(it).map((x) => (x * it.portionG!) / 100) as [number, number, number])} ккал за штуку`;
-  return `${kcal(per100(it))} ккал · ${macroLine(per100(it))}`;
+  if (it.type === 'dish') return `своё блюдо · ${Math.round(kcal100(it))} ккал на 100 г`;
+  if (it.portionName === 'шт' && it.portionG) return `${Math.round(kcalAt(it, it.portionG))} ккал за штуку`;
+  return `${Math.round(kcal100(it))} ккал · ${macroLine(per100(it))}`;
 };
 const n = (s: string) => Number(String(s).replace(',', '.').trim());
 const MEAL_GEN: Record<Meal, string> = { breakfast: 'завтрака', lunch: 'обеда', dinner: 'ужина', snack: 'перекуса' };
@@ -102,9 +102,8 @@ const panelState = new Map<string, { q: string; tab: Tab }>();
 
 const WHEN = (date: string, d: string) => { const k = diffDays(d, date); return k === 0 ? 'сегодня' : k === 1 ? 'вчера' : k === 2 ? 'позавчера' : dayMonth(date); };
 const gramsText = (it: FoodItem, g: number) => (it.portionName === 'шт' && it.portionG ? `${fmtG(g / it.portionG)} шт` : `${fmtG(g)} г`);
-const kcalAt = (it: { protein: number; fat: number; carbs: number }, g: number) => kcal([it.protein * g / 100, it.fat * g / 100, it.carbs * g / 100]);
 const entryItem = (e: Entry): FoodItem | null => (e.productId || e.dishId ? {
-  type: e.dishId ? 'dish' : 'product', id: (e.dishId ?? e.productId)!, name: e.name, protein: e.protein, fat: e.fat, carbs: e.carbs,
+  type: e.dishId ? 'dish' : 'product', id: (e.dishId ?? e.productId)!, name: e.name, protein: e.protein, fat: e.fat, carbs: e.carbs, kcal: e.kcal,
   portionName: e.portionName, portionG: e.portionG, icon: e.icon,
 } : null);
 
@@ -168,7 +167,7 @@ function AddPanel({ date: d, meal: m }: { date: string; meal: Meal }) {
           return (
             <div key={mm} className="col">
               <div className="col" style={{ borderBottom: '1px solid var(--line)', paddingBottom: 6 }}>
-                <b style={{ fontSize: 16 }}>{MEAL_RU[mm]}</b><span className="muted" style={{ fontSize: 13, fontWeight: 700 }}>{fmt(kcal(sumMacros(list.map(entryMacros))))} ккал</span>
+                <b style={{ fontSize: 16 }}>{MEAL_RU[mm]}</b><span className="muted" style={{ fontSize: 13, fontWeight: 700 }}>{fmt(sumKcal(list))} ккал</span>
               </div>
               {list.map((e) => {
                 const it = entryItem(e);
@@ -368,7 +367,7 @@ export function ItemScreen({ date, type, id, meal }: { date?: string; type: 'pro
           {chips.map(([l, v]) => <button key={l} className="chip" aria-pressed={g === v} onClick={() => setGrams(String(v))}>{l}</button>)}
         </div>
       </div>
-      <Tiles m={m100} big />
+      <Tiles m={m100} k={kcalAt(it, g)} big />
       {it.type === 'dish' ? (
         <div className="col" style={{ gap: 6 }}>
           <span className="label">Приёмы пищи</span>
@@ -421,8 +420,8 @@ function ProductForm({ barcode: initialBarcode, name: initialName, onSaved, comp
   barcode?: string; name?: string; onSaved: (p: FoodItem) => void; compact?: boolean; onScan?: () => void; edit?: FoodItem;
 }) {
   const [f, setF] = useState(edit
-    ? { barcode: edit.barcode ?? '', name: edit.name, p: numStr(edit.protein), fat: numStr(edit.fat), c: numStr(edit.carbs), pn: '', pg: '' }
-    : { barcode: initialBarcode ?? '', name: initialName ?? '', p: '', fat: '', c: '', pn: '', pg: '' });
+    ? { barcode: edit.barcode ?? '', name: edit.name, p: numStr(edit.protein), fat: numStr(edit.fat), c: numStr(edit.carbs), k: edit.kcal != null ? numStr(edit.kcal) : '', pn: '', pg: '' }
+    : { barcode: initialBarcode ?? '', name: initialName ?? '', p: '', fat: '', c: '', k: '', pn: '', pg: '' });
   const [dup, setDup] = useState<FoodItem | null>(null);
   const [busy, setBusy] = useState(false);
   // Where the prefilled numbers came from, so the user knows to double-check them.
@@ -434,17 +433,18 @@ function ProductForm({ barcode: initialBarcode, name: initialName, onSaved, comp
   // Nothing matched → «Другое» (once there is a name).
   const sub = picked ?? guessSub(f.name) ?? (f.name.trim() ? 'other' : null);
   const [catOpen, setCatOpen] = useState(false);
-  const fill = (v: { name?: string | null; protein: number | null; fat: number | null; carbs: number | null }) => setF((x) => ({
+  const fill = (v: { name?: string | null; protein: number | null; fat: number | null; carbs: number | null; kcal?: number | null }) => setF((x) => ({
     ...x,
     name: v.name && !x.name.trim() ? v.name : x.name,
     p: v.protein !== null ? String(v.protein).replace('.', ',') : x.p,
     fat: v.fat !== null ? String(v.fat).replace('.', ',') : x.fat,
     c: v.carbs !== null ? String(v.carbs).replace('.', ',') : x.c,
+    k: v.kcal != null ? numStr(v.kcal) : x.k,
   }));
   useEffect(() => {
     if (!initialBarcode) return;
     let alive = true;
-    api<{ product: { name: string | null; protein: number | null; fat: number | null; carbs: number | null } | null }>('GET', `/products/lookup?barcode=${initialBarcode}`)
+    api<{ product: { name: string | null; protein: number | null; fat: number | null; carbs: number | null; kcal?: number | null } | null }>('GET', `/products/lookup?barcode=${initialBarcode}`)
       .then((r) => { if (alive && r.product) { fill(r.product); setSource('Заполнено из базы Open Food Facts — проверь цифры с упаковкой'); } })
       .catch(() => {});
     return () => { alive = false; };
@@ -464,25 +464,26 @@ function ProductForm({ barcode: initialBarcode, name: initialName, onSaved, comp
   };
   const set = (k: keyof typeof f) => (e: React.ChangeEvent<HTMLInputElement>) => { setF((x) => ({ ...x, [k]: e.target.value })); if (k === 'barcode') setDup(null); };
   const okMacro = (s: string) => s.trim() !== '' && /^\d{1,3}([.,]\d)?$/.test(s.trim()) && n(s) <= 100;
+  const touched = (s: string) => s.trim() !== '';
   const errs = {
     name: f.name.trim().length < 2 || f.name.trim().length > 80,
     p: !okMacro(f.p), fat: !okMacro(f.fat), c: !okMacro(f.c) || n(f.p) + n(f.fat) + n(f.c) > 100,
     barcode: f.barcode.trim() !== '' && !/^(\d{8}|\d{12,14})$/.test(f.barcode.trim()),
+    k: touched(f.k) && !(/^\d{1,3}([.,]\d)?$/.test(f.k.trim()) && n(f.k) <= 900),
   };
   const valid = !Object.values(errs).some(Boolean);
-  const k = okMacro(f.p) && okMacro(f.fat) && okMacro(f.c) ? kcal([n(f.p), n(f.fat), n(f.c)]) : null;
-  const touched = (s: string) => s.trim() !== '';
+  const auto = okMacro(f.p) && okMacro(f.fat) && okMacro(f.c) ? kcal([n(f.p), n(f.fat), n(f.c)]) : null;
   const save = async () => {
     if (!valid || busy) return;
     setBusy(true);
     try {
-      const body = { name: f.name.trim(), barcode: f.barcode.trim() || null, protein: n(f.p), fat: n(f.fat), carbs: n(f.c), icon: sub ?? undefined };
+      const body = { name: f.name.trim(), barcode: f.barcode.trim() || null, protein: n(f.p), fat: n(f.fat), carbs: n(f.c), kcal: touched(f.k) ? n(f.k) : null, icon: sub ?? undefined };
       const { product } = edit
         ? await api<{ product: FoodItem }>('PUT', `/products/${edit.id}`, body)
         : await api<{ product: FoodItem }>('POST', '/products', body);
       invalidate('/products', '/food/recent', '/diary');
       onSaved(product);
-      if (compact) { setF({ barcode: '', name: '', p: '', fat: '', c: '', pn: '', pg: '' }); setPicked(null); }
+      if (compact) { setF({ barcode: '', name: '', p: '', fat: '', c: '', k: '', pn: '', pg: '' }); setPicked(null); }
     } catch (e) {
       if (e instanceof ApiError && e.code === 'barcode_taken') {
         const r = await api<{ product: FoodItem | null }>('GET', `/products?barcode=${f.barcode.trim()}`).catch(() => null);
@@ -490,10 +491,10 @@ function ProductForm({ barcode: initialBarcode, name: initialName, onSaved, comp
       } else toast(errText(e));
     } finally { setBusy(false); }
   };
-  const box = (key: 'p' | 'fat' | 'c', label: string, color: string) => (
+  const box = (key: 'k' | 'p' | 'fat' | 'c', label: string, color: string, placeholder?: string) => (
     <div className="field">
       <label htmlFor={`pn-${key}`} className="sub" style={{ fontSize: 13 }}><span>{label}</span></label>
-      <input id={`pn-${key}`} inputMode="decimal" className="input" value={f[key]} onChange={set(key)} aria-invalid={touched(f[key]) && errs[key]}
+      <input id={`pn-${key}`} inputMode="decimal" className="input" value={f[key]} onChange={set(key)} aria-invalid={touched(f[key]) && errs[key]} placeholder={placeholder}
         style={{ height: compact ? 44 : 48, borderRadius: 10, borderLeft: `4px solid ${color}`, fontWeight: 800 }} />
     </div>
   );
@@ -535,10 +536,7 @@ function ProductForm({ barcode: initialBarcode, name: initialName, onSaved, comp
       </div>
       {source ? <span className="muted" style={{ fontSize: 14 }}>{source}</span> : null}
       <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 8 }}>
-        <div className="field">
-          <span className="sub" style={{ fontSize: 13 }}>Калории</span>
-          <div className="input ro" style={{ height: compact ? 44 : 48, borderRadius: 10, borderLeft: '4px solid var(--acc)', fontWeight: 800 }}>{k ?? '—'}</div>
-        </div>
+        {box('k', 'Калории', 'var(--acc)', auto !== null ? String(auto) : undefined)}
         {box('p', 'Белки, г', 'var(--chart)')}
         {box('fat', 'Жиры, г', 'var(--warn)')}
         {box('c', 'Углеводы, г', 'var(--good)')}
@@ -611,6 +609,7 @@ function DishForm({ onSaved, compact, initial, defaultMeals }: { onSaved: (d: Fo
   const cw = cooked === null ? sumRaw : n(cooked) || 0;
   const tot = ings.reduce<[number, number, number]>((a, i) => { const g = n(i.grams) || 0; return [a[0] + (i.product.protein * g) / 100, a[1] + (i.product.fat * g) / 100, a[2] + (i.product.carbs * g) / 100]; }, [0, 0, 0]);
   const p100 = cw > 0 ? (tot.map((x) => (x / cw) * 100) as [number, number, number]) : [0, 0, 0] as [number, number, number];
+  const k100 = cw > 0 ? (ings.reduce((a, i) => a + kcalAt(i.product, n(i.grams) || 0), 0) / cw) * 100 : 0;
   const valid = name.trim().length >= 2 && ings.length > 0 && ings.every((i) => n(i.grams) >= 1 && n(i.grams) <= 5000) && cw >= 1 && cw <= 20000;
   const save = async () => {
     if (!valid || busy) return;
@@ -655,7 +654,7 @@ function DishForm({ onSaved, compact, initial, defaultMeals }: { onSaved: (d: Fo
       <div style={{ background: '#2438C9', color: '#fff', borderRadius: 18, padding: 14 }}>
         <b>На 100 г готового блюда</b>
         <div style={{ display: 'grid', gridTemplateColumns: 'repeat(4, 1fr)', marginTop: 8 }}>
-          {[kcal(p100), ...p100.map((x) => Math.round(x))].map((v, i) => (
+          {[k100, ...p100.map((x) => Math.round(x))].map((v, i) => (
             <div key={i}><div className="display num" style={{ fontSize: 20 }}>{fmt(v)}</div><div style={{ fontSize: 13, fontWeight: 700 }}>{['ккал', 'белки', 'жиры', 'углев.'][i]}</div></div>
           ))}
         </div>
@@ -784,7 +783,7 @@ export function ScanScreen({ date, meal }: { date?: string; meal?: string }) {
               <div className="grow">
                 <b style={{ color: 'var(--good)', fontSize: 14 }}>Есть в общей библиотеке</b>
                 <div style={{ fontWeight: 800, fontSize: 19 }}>{found.name}{found.portionName ? `, ${found.portionName} ${fmtG(found.portionG ?? 0)} г` : ''}</div>
-                <div className="muted" style={{ fontSize: 14 }}>{kcal(per100(found))} ккал · Б {fmtG(found.protein)} · Ж {fmtG(found.fat)} · У {fmtG(found.carbs)} на 100 г</div>
+                <div className="muted" style={{ fontSize: 14 }}>{Math.round(kcal100(found))} ккал · Б {fmtG(found.protein)} · Ж {fmtG(found.fat)} · У {fmtG(found.carbs)} на 100 г</div>
               </div>
             </div>
             <a className="btn" href={`#/food/${d}/item/product/${found.id}/${m}`}>Выбрать вес и добавить</a>

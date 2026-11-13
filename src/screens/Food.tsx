@@ -1,7 +1,7 @@
 import { useEffect, useMemo, useRef, useState } from 'react';
 import { useApp } from '../app-context';
 import { api } from '../lib/api';
-import { MEALS, MEAL_IN, MEAL_RU, entryMacros, fmt, fmtG, kcal, macroLine, sumMacros, weekRange } from '../lib/calc';
+import { MEALS, MEAL_IN, MEAL_RU, entryKcal, entryMacros, fmt, fmtG, kcal, kcal100, macroLine, sumKcal, sumMacros, weekRange } from '../lib/calc';
 import { addDays, dayMonth, diffDays, fromDay, isDayStr, plural, today, WD_CAP, WD_SHORT, weekDays, weekStart } from '../lib/dates';
 import { useDays } from '../lib/hooks';
 import { go } from '../lib/router';
@@ -121,7 +121,7 @@ export function FoodScreen({ date }: { date?: string }) {
   const info = data.days.find((x) => x.date === d)!;
   const entries = data.entries.filter((e) => e.date === d);
   const eaten = info.eaten ?? sumMacros(entries.map(entryMacros));
-  const eatenK = kcal(eaten), normK = kcal(info.norm);
+  const eatenK = info.kcal ?? Math.round(sumKcal(entries)), normK = kcal(info.norm);
   const over = eatenK > normK + 100;
   const byMeal = (m: Meal) => entries.filter((e) => e.meal === m);
   const defaultTarget = target ?? MEALS.find((m) => !byMeal(m).length) ?? 'dinner';
@@ -152,7 +152,7 @@ export function FoodScreen({ date }: { date?: string }) {
                 <tbody>
                   {MEALS.map((m) => {
                     const list = byMeal(m);
-                    const mk = kcal(sumMacros(list.map(entryMacros)));
+                    const mk = sumKcal(list);
                     return [
                       <tr key={m} style={{ borderTop: '1px solid var(--track)', cursor: 'pointer' }} onClick={() => setTarget(m)}>
                         <td style={{ padding: '10px 6px', fontWeight: 800, color: 'var(--acc)' }}>
@@ -170,7 +170,7 @@ export function FoodScreen({ date }: { date?: string }) {
                           <tr key={e.id} style={{ borderTop: '1px solid var(--line)', cursor: 'pointer' }} onClick={() => setEdit(e)}>
                             <td style={{ padding: '10px 6px' }}>{e.name}</td>
                             <td style={{ textAlign: 'right', padding: '10px 6px' }}>{amount(e)}</td>
-                            <td style={{ textAlign: 'right', padding: '10px 6px' }}>{fmt(kcal(mm))}</td>
+                            <td style={{ textAlign: 'right', padding: '10px 6px' }}>{fmt(entryKcal(e))}</td>
                             {mm.map((v, i) => <td key={i} style={{ textAlign: 'right', padding: '10px 6px' }}>{Math.round(v)}</td>)}
                           </tr>
                         );
@@ -238,7 +238,7 @@ export function FoodScreen({ date }: { date?: string }) {
       </div>
       {MEALS.map((m) => {
         const list = byMeal(m);
-        const mk = kcal(sumMacros(list.map(entryMacros)));
+        const mk = sumKcal(list);
         return (
           <div key={m} className="card col a-in" style={{ borderRadius: 18, padding: '10px 12px', gap: 8 }}>
             <div className="row">
@@ -253,7 +253,7 @@ export function FoodScreen({ date }: { date?: string }) {
                 <SwipeToDelete key={e.id} onDelete={() => deleteEntry(e)} onTap={() => setEdit(e)}>
                   <FoodArt kind={e.icon} size={40} />
                   <div className="grow"><div style={{ fontWeight: 700, fontSize: 15 }}>{e.name}</div><div className="sub">{amount(e)} · {e.dishId ? 'своё блюдо' : macroLine(mm)}</div></div>
-                  <b style={{ fontSize: 15 }}>{fmt(kcal(mm))}</b>
+                  <b style={{ fontSize: 15 }}>{fmt(entryKcal(e))}</b>
                 </SwipeToDelete>
               );
             })}
@@ -289,7 +289,7 @@ function EntrySheet({ entry, onClose }: { entry: Entry | null; onClose: () => vo
   if (!entry) return null;
   const g = Number(grams) || 0;
   const m = entryMacros({ ...entry, grams: g });
-  const per100 = kcal([entry.protein, entry.fat, entry.carbs]);
+  const per100 = Math.round(kcal100(entry));
   const save = async () => {
     onClose();
     try { await api('PATCH', `/diary/${entry.id}`, { grams: g }); invalidate('/diary'); } catch (e) { toast(errText(e)); }
@@ -308,15 +308,15 @@ function EntrySheet({ entry, onClose }: { entry: Entry | null; onClose: () => vo
         </div>
         <button className="icon-btn" aria-label="Больше" style={{ height: 52, width: 52, borderRadius: 14, border: '1px solid var(--track)' }} onClick={() => setGrams(String(Math.min(5000, g + 50)))}>+</button>
       </div>
-      <Tiles m={m} />
+      <Tiles m={m} k={entryKcal({ ...entry, grams: g })} />
       <button className="btn" disabled={g < 1 || g > 5000} onClick={save}>Сохранить</button>
       <button className="btn danger" onClick={remove}>Удалить из дневника</button>
     </Sheet>
   );
 }
 
-export function Tiles({ m, big }: { m: [number, number, number]; big?: boolean }) {
-  const vals = [kcal(m), ...m.map((x) => Math.round(x))];
+export function Tiles({ m, k, big }: { m: [number, number, number]; k: number; big?: boolean }) {
+  const vals = [k, ...m.map((x) => Math.round(x))];
   return (
     <div style={{ display: 'grid', gridTemplateColumns: 'repeat(4, 1fr)', gap: 8 }}>
       {['ккал', 'белки', 'жиры', 'углев.'].map((l, i) => (
@@ -340,7 +340,7 @@ function CopySheet({ date, meal, entries, onClose }: { date: string; meal: Meal 
   const t = today();
   const days = weekDays(wk);
   const canPrev = addDays(wk, -1) >= t;
-  const mk = kcal(sumMacros(entries.map(entryMacros)));
+  const mk = sumKcal(entries);
   const run = async () => {
     setBusy(true);
     try {
@@ -406,7 +406,7 @@ function QuickAdd({ date, meal }: { date: string; meal: Meal }) {
       {items.slice(0, 6).map((it) => (
         <div key={`${it.type}${it.id}`} className="row">
           <FoodArt kind={it.icon} size={44} />
-          <div className="grow"><b>{it.name}</b><div className="sub">{it.type === 'dish' ? 'своё блюдо' : `${kcal([it.protein, it.fat, it.carbs])} ккал на 100 г`}</div></div>
+          <div className="grow"><b>{it.name}</b><div className="sub">{it.type === 'dish' ? 'своё блюдо' : `${Math.round(kcal100(it))} ккал на 100 г`}</div></div>
           <button aria-label={`Добавить ${it.name}`} onClick={() => void add(it)} style={{ width: 34, height: 34, borderRadius: 17, border: '2px solid var(--acc)', color: 'var(--acc)', fontWeight: 800 }}>+</button>
         </div>
       ))}

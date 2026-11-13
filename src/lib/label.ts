@@ -2,7 +2,7 @@
  * Reads protein / fat / carbs per 100 g from a photo of a nutrition label, on the phone (Tesseract, no server).
  * The OCR engine and Russian language data are downloaded on first use and then cached by the browser.
  */
-export interface LabelMacros { protein: number | null; fat: number | null; carbs: number | null; text: string }
+export interface LabelMacros { protein: number | null; fat: number | null; carbs: number | null; kcal: number | null; text: string }
 
 /** Downscale and grayscale the photo: faster OCR and fewer misreads on glossy packaging. */
 async function prepare(file: File): Promise<HTMLCanvasElement> {
@@ -42,5 +42,9 @@ export function parseLabel(raw: string): Omit<LabelMacros, 'text'> {
     const v = Number(m[1].replace(',', '.'));
     return Number.isFinite(v) && v <= 100 ? Math.round(v * 10) / 10 : null;
   };
-  return { protein: after(/белк|белок/), fat: after(/жир/), carbs: after(/углевод/) };
+  // "250 ккал" / "1046 кДж / 250 kcal" (kcal reads as «ксаl» after the look-alike swap); else "ккал: 250".
+  const kc = t.match(/(?:^|[^\d.,])(\d{1,3}(?:[.,]\d{1,2})?)\s*к[кс]а[лl]/) ?? t.match(/к[кс]а[лl][^0-9]{0,12}?(\d{1,3}(?:[.,]\d{1,2})?)/);
+  const kv = kc ? Number(kc[1].replace(',', '.')) : NaN;
+  const kcal = Number.isFinite(kv) && kv <= 900 ? Math.round(kv * 10) / 10 : null;
+  return { protein: after(/белк|белок/), fat: after(/жир/), carbs: after(/углевод/), kcal };
 }

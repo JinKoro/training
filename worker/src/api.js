@@ -264,18 +264,22 @@ function maskOf(list, field) {
 const PRODUCT_SELECT = 'SELECT p.*, pm.meals AS my_meals FROM products p LEFT JOIN product_meals pm ON pm.product_id = p.id AND pm.user_id = ?';
 
 const productOut = (r) => ({
-  type: 'product', id: r.id, name: r.name, barcode: r.barcode, protein: r.protein, fat: r.fat, carbs: r.carbs,
+  type: 'product', id: r.id, name: r.name, barcode: r.barcode, protein: r.protein, fat: r.fat, carbs: r.carbs, kcal: r.kcal ?? null,
   portionName: r.portion_name, portionG: r.portion_g, icon: r.icon, meals: mealsOf(r.my_meals), base: r.created_by === null, createdBy: r.created_by,
 });
 const dishOut = (r) => ({
-  type: 'dish', id: r.id, name: r.name, protein: r.protein, fat: r.fat, carbs: r.carbs,
+  type: 'dish', id: r.id, name: r.name, protein: r.protein, fat: r.fat, carbs: r.carbs, kcal: r.kcal ?? null,
   cookedWeight: r.cooked_weight_g, icon: 'dish', portionName: null, portionG: null, meals: mealsOf(r.meals),
 });
 const entryOut = (r) => ({
   id: r.id, date: r.date, meal: r.meal, position: r.position, productId: r.product_id, dishId: r.dish_id,
   grams: r.grams, portions: r.portions, name: r.name, icon: r.icon, protein: r.protein, fat: r.fat,
-  carbs: r.carbs, portionName: r.portion_name, portionG: r.portion_g,
+  carbs: r.carbs, kcal: r.kcal ?? null, portionName: r.portion_name, portionG: r.portion_g,
 });
+/** Label kcal per 100 g: null/absent = computed from macros. */
+const kcalIn = (v) => num(v, 'kcal', { min: 0, max: 900, optional: true });
+/** Effective kcal per 100 g: the stored label value, else 4·P + 9·F + 4·C. */
+const kcalOf = (r) => r.kcal ?? r.protein * 4 + r.fat * 9 + r.carbs * 4;
 
 /** Product picture = its sub-category (guessed from the name when the client sent none). */
 function iconFor(name, picked) {
@@ -599,6 +603,7 @@ export async function handleApi(request, env, path) {
       const f = num(body.fat, 'fat', { min: 0, max: 100 });
       const c = num(body.carbs, 'carbs', { min: 0, max: 100 });
       if (p + f + c > 100.0001) fail(400, 'invalid_macros', 'carbs');
+      const k = kcalIn(body.kcal);
       const barcode = str(body.barcode ?? '', 'barcode', { max: 14, optional: true });
       if (barcode && !/^(\d{8}|\d{12,14})$/.test(barcode)) fail(400, 'invalid_barcode', 'barcode');
       if (barcode) {
@@ -608,9 +613,9 @@ export async function handleApi(request, env, path) {
       const mealMask = body.meals === undefined ? 15 : maskOf(body.meals, 'meals');
       const portionName = null, portionG = null; // everything is per 100 g; portions were removed
       const r = await env.DB.prepare(
-        `INSERT INTO products (name, barcode, protein, fat, carbs, portion_name, portion_g, icon, created_by, created_at)
-         VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?) RETURNING *`,
-      ).bind(name, barcode, p, f, c, portionName, portionG, iconFor(name, body.icon), uid, now).first();
+        `INSERT INTO products (name, barcode, protein, fat, carbs, kcal, portion_name, portion_g, icon, created_by, created_at)
+         VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?) RETURNING *`,
+      ).bind(name, barcode, p, f, c, k, portionName, portionG, iconFor(name, body.icon), uid, now).first();
       if (mealMask !== 15) await env.DB.prepare('INSERT INTO product_meals (user_id, product_id, meals) VALUES (?, ?, ?)').bind(uid, r.id, mealMask).run();
       return ok({ product: productOut({ ...r, my_meals: mealMask }) }, 201);
     }
@@ -640,14 +645,15 @@ export async function handleApi(request, env, path) {
         const f = num(body.fat ?? cur.fat, 'fat', { min: 0, max: 100 });
         const c = num(body.carbs ?? cur.carbs, 'carbs', { min: 0, max: 100 });
         if (p + f + c > 100.0001) fail(400, 'invalid_macros', 'carbs');
+        const k = body.kcal === undefined ? cur.kcal : kcalIn(body.kcal);
         const barcode = body.barcode === undefined ? cur.barcode : str(body.barcode ?? '', 'barcode', { max: 14, optional: true }) || null;
         if (barcode && !/^(\d{8}|\d{12,14})$/.test(barcode)) fail(400, 'invalid_barcode', 'barcode');
         if (barcode && barcode !== cur.barcode) {
           const dup = await env.DB.prepare(`${PRODUCT_SELECT} WHERE p.barcode = ? AND p.id != ?`).bind(uid, barcode, id).first();
           if (dup) return json(request, { error: 'barcode_taken', field: 'barcode', product: productOut(dup) }, 409);
         }
-        await env.DB.prepare('UPDATE products SET name = ?, barcode = ?, protein = ?, fat = ?, carbs = ?, icon = ? WHERE id = ?')
-          .bind(name, barcode, p, f, c, icon, id).run();
+        await env.DB.prepare('UPDATE products SET name = ?, barcode = ?, protein = ?, fat = ?, carbs = ?, kcal = ?, icon = ? WHERE id = ?')
+          .bind(name, barcode, p, f, c, k, icon, id).run();
       }
       // Diary entries keep their own name and numbers (history); only the picture follows the product.
       await env.DB.prepare('UPDATE diary_entries SET icon = ? WHERE product_id = ?').bind(icon, id).run();
@@ -695,15 +701,15 @@ export async function handleApi(request, env, path) {
         }
       }
       if (ings.length > 120) fail(400, 'invalid_array', 'ingredients');
-      let tp = 0; let tf = 0; let tc = 0;
+      let tp = 0; let tf = 0; let tc = 0; let tk = 0;
       for (const i of ings) {
         const p = await env.DB.prepare('SELECT * FROM products WHERE id = ?').bind(i.productId).first();
         if (!p) fail(400, 'invalid_product', 'ingredients');
-        tp += (p.protein * i.grams) / 100; tf += (p.fat * i.grams) / 100; tc += (p.carbs * i.grams) / 100;
+        tp += (p.protein * i.grams) / 100; tf += (p.fat * i.grams) / 100; tc += (p.carbs * i.grams) / 100; tk += (kcalOf(p) * i.grams) / 100;
       }
       const r = await env.DB.prepare(
-        'INSERT INTO dishes (user_id, name, cooked_weight_g, protein, fat, carbs, meals, created_at) VALUES (?, ?, ?, ?, ?, ?, ?, ?) RETURNING *',
-      ).bind(uid, name, cooked, (tp / cooked) * 100, (tf / cooked) * 100, (tc / cooked) * 100, mealMask, now).first();
+        'INSERT INTO dishes (user_id, name, cooked_weight_g, protein, fat, carbs, kcal, meals, created_at) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?) RETURNING *',
+      ).bind(uid, name, cooked, (tp / cooked) * 100, (tf / cooked) * 100, (tc / cooked) * 100, (tk / cooked) * 100, mealMask, now).first();
       await env.DB.batch(ings.map((i, k) => env.DB.prepare(
         'INSERT INTO dish_ingredients (dish_id, position, product_id, grams) VALUES (?, ?, ?, ?)',
       ).bind(r.id, k, i.productId, i.grams)));
@@ -795,11 +801,11 @@ export async function handleApi(request, env, path) {
       const pos = await env.DB.prepare('SELECT COALESCE(MAX(position), -1) + 1 AS p FROM diary_entries WHERE user_id = ? AND date = ? AND meal = ?')
         .bind(uid, date, meal).first();
       const r = await env.DB.prepare(
-        `INSERT INTO diary_entries (user_id, date, meal, position, product_id, dish_id, grams, portions, name, icon, protein, fat, carbs, portion_name, portion_g, created_at)
-         VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?) RETURNING *`,
+        `INSERT INTO diary_entries (user_id, date, meal, position, product_id, dish_id, grams, portions, name, icon, protein, fat, carbs, kcal, portion_name, portion_g, created_at)
+         VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?) RETURNING *`,
       ).bind(
         uid, date, meal, pos.p, type === 'product' ? item.id : null, type === 'dish' ? item.id : null, grams, portions,
-        item.name, FOOD_ICONS.includes(item.icon) ? item.icon : 'dish', item.protein, item.fat, item.carbs,
+        item.name, FOOD_ICONS.includes(item.icon) ? item.icon : 'dish', item.protein, item.fat, item.carbs, item.kcal,
         item.portionName, item.portionG, now,
       ).first();
       return ok({ entry: entryOut(r) }, 201);
@@ -820,9 +826,9 @@ export async function handleApi(request, env, path) {
       for (const t of targets) {
         if (mode === 'replace') stmts.push(env.DB.prepare('DELETE FROM diary_entries WHERE user_id = ? AND date = ? AND meal = ?').bind(uid, t, meal));
         src.forEach((e, k) => stmts.push(env.DB.prepare(
-          `INSERT INTO diary_entries (user_id, date, meal, position, product_id, dish_id, grams, portions, name, icon, protein, fat, carbs, portion_name, portion_g, created_at)
-           VALUES (?, ?, ?, (SELECT COALESCE(MAX(position), -1) + 1 FROM diary_entries WHERE user_id = ? AND date = ? AND meal = ?), ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`,
-        ).bind(uid, t, meal, uid, t, meal, e.product_id, e.dish_id, e.grams, e.portions, e.name, e.icon, e.protein, e.fat, e.carbs, e.portion_name, e.portion_g, now + k)));
+          `INSERT INTO diary_entries (user_id, date, meal, position, product_id, dish_id, grams, portions, name, icon, protein, fat, carbs, kcal, portion_name, portion_g, created_at)
+           VALUES (?, ?, ?, (SELECT COALESCE(MAX(position), -1) + 1 FROM diary_entries WHERE user_id = ? AND date = ? AND meal = ?), ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`,
+        ).bind(uid, t, meal, uid, t, meal, e.product_id, e.dish_id, e.grams, e.portions, e.name, e.icon, e.protein, e.fat, e.carbs, e.kcal, e.portion_name, e.portion_g, now + k)));
       }
       await env.DB.batch(stmts);
       return ok();
@@ -864,11 +870,13 @@ async function openFoodFacts(code) {
     const n = p.nutriments ?? {};
     const g = (v) => (typeof v === 'number' && Number.isFinite(v) && v >= 0 && v <= 100 ? Math.round(v * 10) / 10 : typeof v === 'string' && v.trim() !== '' ? g(Number(v.replace(',', '.'))) : null);
     const protein = g(n.proteins_100g), fat = g(n.fat_100g), carbs = g(n.carbohydrates_100g);
+    const kv = typeof n['energy-kcal_100g'] === 'string' ? Number(n['energy-kcal_100g'].replace(',', '.')) : n['energy-kcal_100g'];
+    const kcal = typeof kv === 'number' && Number.isFinite(kv) && kv >= 0 && kv <= 900 ? Math.round(kv * 10) / 10 : null;
     const name = String(p.product_name_ru || p.product_name || '').trim();
     const brand = String(p.brands || '').split(',')[0].trim();
     const full = (brand && name && !name.toLowerCase().includes(brand.toLowerCase()) ? `${name} ${brand}` : name).slice(0, 80);
     if (!full && protein === null && fat === null && carbs === null) return null;
-    return { name: full || null, protein, fat, carbs };
+    return { name: full || null, protein, fat, carbs, kcal };
   } catch {
     return null;
   }

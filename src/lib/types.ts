@@ -37,6 +37,8 @@ export interface Workout {
 export type Meal = 'breakfast' | 'lunch' | 'snack' | 'dinner';
 export interface FoodItem {
   type: 'product' | 'dish'; id: number; name: string; protein: number; fat: number; carbs: number;
+  /** Label kcal per 100 g; null = computed from macros. */
+  kcal?: number | null;
   portionName: string | null; portionG: number | null; icon: string; barcode?: string | null; cookedWeight?: number;
   /** Meals this food is offered for (the current user's tags for shared products). */
   meals?: Meal[];
@@ -49,5 +51,5 @@ export interface FoodItem {
 }
 export interface Entry {
   id: number; date: string; meal: Meal; position: number; productId: number | null; dishId: number | null; grams: number;
-  portions: number | null; name: string; icon: string; protein: number; fat: number; carbs: number; portionName: string | null; portionG: number | null;
+  portions: number | null; name: string; icon: string; protein: number; fat: number; carbs: number; kcal?: number | null; portionName: string | null; portionG: number | null;
 }
