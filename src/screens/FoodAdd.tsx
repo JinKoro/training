@@ -8,7 +8,7 @@ import { go } from '../lib/router';
 import type { Entry, FoodItem, Meal } from '../lib/types';
 import { FOOD_CATS, SUB_INFO, guessSub } from '../lib/categories';
 import { FoodArt, Icon } from '../art';
-import { AmountInput, ErrorBox, Screen, Sheet, Skeleton, TOAST_MS, errText, toast } from '../ui';
+import { AmountInput, ErrorBox, MoreButton, Screen, Sheet, Skeleton, TOAST_MS, errText, menuRow, toast } from '../ui';
 import { SearchInput } from './ExercisePicker';
 import { Tiles } from './Food';
 
@@ -286,7 +286,16 @@ export function ItemScreen({ date, type, id, meal }: { date?: string; type: 'pro
   const [grams, setGrams] = useState<string | null>(null);
   const [busy, setBusy] = useState(false);
   const [tags, setTags] = useState<Meal[] | null>(null);
+  const [menu, setMenu] = useState(false);
+  const [confirmDel, setConfirmDel] = useState(false);
+  const { me } = useApp();
   const it = q.data?.product ?? q.data?.dish;
+  const removeProduct = async () => {
+    if (busy) return;
+    setBusy(true);
+    try { await api('DELETE', `/products/${id}`); invalidate('/products', '/food/recent', '/diary'); toast('Продукт удалён'); history.back(); }
+    catch (e) { toast(e instanceof ApiError && e.code === 'product_in_dish' ? 'Продукт есть в блюде, сначала убери его оттуда' : errText(e)); setBusy(false); setMenu(false); }
+  };
   const saveTags = async (v: Meal[]) => {
     setTags(v);
     try { await api('PUT', `/${type === 'dish' ? 'dishes' : 'products'}/${id}/meals`, { meals: v }); invalidate('/products', '/dishes', '/food/recent'); }
@@ -316,9 +325,28 @@ export function ItemScreen({ date, type, id, meal }: { date?: string; type: 'pro
   const chips: [string, number][] = [['100 г', 100], ['150 г', 150], ['200 г', 200], ...(it.portionG ? [['порция', it.portionG] as [string, number]] : [])];
   return (
     <Screen className="modal fixed-cta">
+      <Sheet open={menu} onClose={() => setMenu(false)} label="Продукт">
+        {!confirmDel ? (
+          <>
+            <b style={{ fontSize: 18 }}>Продукт</b>
+            <div className="col" style={{ gap: 0 }}>
+              <a href={`#/food/${d}/product-edit/${it.id}`} style={{ ...menuRow, ...(it.createdBy === me.user.id ? {} : { borderBottom: 0 }) }}>Изменить</a>
+              {it.createdBy === me.user.id ? <button onClick={() => setConfirmDel(true)} style={{ ...menuRow, color: 'var(--warn)', borderBottom: 0 }}>Удалить продукт</button> : null}
+            </div>
+          </>
+        ) : (
+          <>
+            <b style={{ fontSize: 18 }}>Удалить «{it.name}»?</b>
+            <div className="col" style={{ gap: 0 }}>
+              <button disabled={busy} onClick={() => void removeProduct()} style={{ ...menuRow, color: 'var(--warn)' }}>Да, удалить</button>
+              <button onClick={() => setMenu(false)} style={{ ...menuRow, borderBottom: 0 }}>Нет, оставить</button>
+            </div>
+          </>
+        )}
+      </Sheet>
       <div className="between">
         <button className="link" onClick={() => history.back()}>‹ Назад</button>
-        {it.type === 'product' ? <a className="link" href={`#/food/${d}/product-edit/${it.id}`}>Изменить</a> : null}
+        {it.type === 'product' ? <MoreButton onClick={() => { setConfirmDel(false); setMenu(true); }} /> : null}
       </div>
       <div className="col" style={{ alignItems: 'center', gap: 8, textAlign: 'center' }}>
         <FoodArt kind={it.icon} size={150} />

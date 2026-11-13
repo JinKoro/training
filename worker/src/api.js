@@ -614,6 +614,17 @@ export async function handleApi(request, env, path) {
       if (mealMask !== 15) await env.DB.prepare('INSERT INTO product_meals (user_id, product_id, meals) VALUES (?, ?, ?)').bind(uid, r.id, mealMask).run();
       return ok({ product: productOut({ ...r, my_meals: mealMask }) }, 201);
     }
+    // Delete one's own product. Diary entries keep their copy (product link cleared); a product used in a dish stays.
+    if (seg.length === 2 && method === 'DELETE') {
+      const id = num(seg[1], 'id', { min: 1, int: true });
+      const cur = await env.DB.prepare('SELECT * FROM products WHERE id = ?').bind(id).first();
+      if (!cur) fail(404, 'not_found');
+      if (cur.created_by !== uid) fail(403, 'forbidden');
+      const used = await env.DB.prepare('SELECT d.name FROM dish_ingredients di JOIN dishes d ON d.id = di.dish_id WHERE di.product_id = ? LIMIT 1').bind(id).first();
+      if (used) return json(request, { error: 'product_in_dish', dish: used.name }, 409);
+      await env.DB.prepare('DELETE FROM products WHERE id = ?').bind(id).run();
+      return ok({ ok: true });
+    }
     // Edit a product: its author can change everything; anyone can change the category (picture) of a shared product.
     if (seg.length === 2 && method === 'PUT') {
       const id = num(seg[1], 'id', { min: 1, int: true });
