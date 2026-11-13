@@ -110,7 +110,6 @@ const entryItem = (e: Entry): FoodItem | null => (e.productId || e.dishId ? {
 
 const SCAN_ICON = 'M4 7V5a1 1 0 0 1 1-1h2M17 4h2a1 1 0 0 1 1 1v2M20 17v2a1 1 0 0 1-1 1h-2M7 20H5a1 1 0 0 1-1-1v-2M8 8v8M11 8v8M14 8v8M17 8v8';
 const PLUS_ICON = 'M12 5v14M5 12h14';
-const BOWL_ICON = 'M3 12h18a9 9 0 0 1-18 0zM8 8c0-2 2-2 2-4M13 8c0-2 2-2 2-4';
 type Tab = 'recent' | 'yesterday' | 'library' | 'dishes';
 const TABS: [Tab, string][] = [['recent', 'Недавние'], ['yesterday', 'Вчера'], ['library', 'Библиотека'], ['dishes', 'Блюда']];
 
@@ -126,7 +125,8 @@ function AddPanel({ date: d, meal: m }: { date: string; meal: Meal }) {
   const y = addDays(d, -1);
   const recent = useQuery<{ items: FoodItem[] }>(`/food/recent?meal=${m}&date=${d}`);
   const yday = useQuery<{ entries: Entry[] }>(tab === 'yesterday' ? `/diary?from=${y}&to=${y}` : null);
-  const lib = useQuery<{ products: FoodItem[] }>(s.length >= 2 ? `/products?q=${encodeURIComponent(s)}` : tab === 'library' ? '/products' : null);
+  const lib = useQuery<{ products: FoodItem[] }>(s.length >= 2 ? `/products?q=${encodeURIComponent(s)}` : tab === 'library' ? '/products?limit=50' : null);
+  const mine = useQuery<{ products: FoodItem[] }>(!s && tab === 'library' ? '/products?mine=1' : null);
   const dishes = useQuery<{ dishes: FoodItem[] }>('/dishes');
   const itemHref = (it: FoodItem) => `#/food/${d}/item/${it.type}/${it.id}/${m}`;
   const rowKey = (it: FoodItem) => `${key}:${it.type}${it.id}`;
@@ -181,8 +181,15 @@ function AddPanel({ date: d, meal: m }: { date: string; meal: Meal }) {
       </div>
     ) : <div className="empty">Вчера ничего не записано</div>;
   } else if (tab === 'library') {
-    body = !lib.data ? <Skeleton n={5} /> : (
+    body = !lib.data || !mine.data ? <Skeleton n={5} /> : (
       <div className="col" style={{ gap: 4 }}>
+        {mine.data.products.length ? (
+          <>
+            <span className="label" style={{ marginTop: 4 }}>Мои продукты</span>
+            {mine.data.products.map((it) => <ItemRow key={it.id} it={it} href={itemHref(it)} />)}
+            <span className="label" style={{ marginTop: 14 }}>Библиотека</span>
+          </>
+        ) : null}
         {lib.data.products.map((it) => <ItemRow key={it.id} it={it} href={itemHref(it)} />)}
         <div className="card col" style={{ marginTop: 10, gap: 6, alignItems: 'flex-start' }}>
           <b style={{ fontWeight: 700 }}>Остальные продукты, в том числе добавленные другими, ищи через поиск.</b>
@@ -207,11 +214,12 @@ function AddPanel({ date: d, meal: m }: { date: string; meal: Meal }) {
       {!s ? (
         <>
           {/* Phone: a quick «new product» tile first (desktop has the product form beside the list). */}
-          <div style={{ display: 'grid', gridTemplateColumns: `repeat(${wide ? 2 : 3}, 1fr)`, gap: 8 }}>
-            {([...(wide ? [] : [['Продукт', PLUS_ICON, `#/food/${d}/new-product/${m}/-`, false]]), ['Штрихкод', SCAN_ICON, `#/food/${d}/scan/${m}`, true], ['Блюдо', BOWL_ICON, `#/food/${d}/dish/${m}`, false]] as [string, string, string, boolean][]).map(([l, ic, h, blue]) => (
-              <a key={l} href={h} className={wide ? 'row a-in' : 'col a-in'} style={{ ...(wide ? { height: 56, padding: '0 14px', gap: 10 } : { height: 72, padding: 8, gap: 4, justifyContent: 'center', alignItems: 'center' }), borderRadius: 16, background: blue ? '#2438C9' : 'var(--card)', color: blue ? '#fff' : 'var(--ink)', border: blue ? 0 : '1px solid var(--cardBorder)' }}>
+          {/* Штрихкод left, new product right (desktop has the product form beside the list). Dishes live in the «Блюда» tab. */}
+          <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 8 }}>
+            {([['Штрихкод', SCAN_ICON, `#/food/${d}/scan/${m}`, true], ...(wide ? [] : [['Продукт', PLUS_ICON, `#/food/${d}/new-product/${m}/-`, false]])] as [string, string, string, boolean][]).map(([l, ic, h, blue]) => (
+              <a key={l} href={h} className="row a-in" style={{ height: 56, padding: '0 14px', gap: 10, borderRadius: 16, background: blue ? '#2438C9' : 'var(--card)', color: blue ? '#fff' : 'var(--ink)', border: blue ? 0 : '1px solid var(--cardBorder)' }}>
                 <span style={{ width: 32, height: 32, borderRadius: 10, background: blue ? 'rgba(255,255,255,.18)' : 'var(--btn)', display: 'inline-flex', alignItems: 'center', justifyContent: 'center', flex: 'none' }}><Icon d={ic} size={20} /></span>
-                <b style={{ fontSize: wide ? 16 : 14 }}>{l}</b>
+                <b style={{ fontSize: 16 }}>{l}</b>
               </a>
             ))}
           </div>

@@ -580,10 +580,16 @@ export async function handleApi(request, env, path) {
         hits.sort((a, b) => Number(!a.name.toLowerCase().startsWith(needle)) - Number(!b.name.toLowerCase().startsWith(needle)));
         return ok({ products: hits.slice(0, 50).map(productOut) });
       }
-      // Browsing shows only the base library, optionally just the products tagged for one meal.
+      // Browsing: the user's own products (?mine=1), or the base library — most used first, ?limit=N.
       const bit = meal ? MEAL_BITS[oneOf(meal, 'meal', MEALS)] : 15;
-      const { results } = await env.DB.prepare(`${PRODUCT_SELECT} WHERE p.created_by IS NULL AND (COALESCE(pm.meals, 15) & ?) != 0 ORDER BY p.name COLLATE NOCASE LIMIT 1000`)
-        .bind(uid, bit).all();
+      if (url.searchParams.get('mine') === '1') {
+        const { results } = await env.DB.prepare(`${PRODUCT_SELECT} WHERE p.created_by = ? ORDER BY p.name COLLATE NOCASE`).bind(uid, uid).all();
+        return ok({ products: results.map(productOut) });
+      }
+      const limit = Math.min(1000, Math.max(1, Number(url.searchParams.get('limit')) || 1000));
+      const { results } = await env.DB.prepare(`${PRODUCT_SELECT} WHERE p.created_by IS NULL AND (COALESCE(pm.meals, 15) & ?) != 0
+        ORDER BY (SELECT COUNT(*) FROM diary_entries d WHERE d.product_id = p.id) DESC, p.name COLLATE NOCASE LIMIT ?`)
+        .bind(uid, bit, limit).all();
       return ok({ products: results.map(productOut) });
     }
     if (seg.length === 1 && method === 'POST') {
