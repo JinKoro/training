@@ -573,8 +573,20 @@ export async function handleApi(request, env, path) {
       const url = new URL(request.url);
       const barcode = url.searchParams.get('barcode');
       if (barcode) {
-        const r = await env.DB.prepare(`${PRODUCT_SELECT} WHERE p.barcode = ?`).bind(uid, barcode).first();
-        return ok({ product: r ? productOut(r) : null });
+        // A 12-digit UPC-A is the same code as a 13-digit EAN with a leading 0.
+        const codes = [barcode, barcode.length === 12 ? `0${barcode}` : barcode.length === 13 && barcode.startsWith('0') ? barcode.slice(1) : barcode];
+        const r = await env.DB.prepare(`${PRODUCT_SELECT} WHERE p.barcode IN (?, ?)`).bind(uid, codes[0], codes[1]).first();
+        if (r || url.searchParams.get('auto') !== '1') return ok({ product: r ? productOut(r) : null });
+        // Scanner: unknown here but complete in Open Food Facts → add it to the library at once (the scanner's user owns it and can fix it).
+        if (!/^(\d{8}|\d{12,14})$/.test(barcode)) return ok({ product: null });
+        const o = await openFoodFacts(barcode);
+        if (!o || !o.name || o.name.length < 2 || o.protein === null || o.fat === null || o.carbs === null || o.protein + o.fat + o.carbs > 100.5) return ok({ product: null, off: o });
+        const name = o.name.charAt(0).toUpperCase() + o.name.slice(1);
+        const ins = await env.DB.prepare(
+          `INSERT INTO products (name, brand, barcode, protein, fat, carbs, kcal, icon, created_by, created_at)
+           VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?) RETURNING *`,
+        ).bind(name, o.brand, barcode, o.protein, o.fat, o.carbs, o.kcal, iconFor(name), uid, Date.now()).first();
+        return ok({ product: productOut({ ...ins, my_meals: null }), created: true });
       }
       const q = (url.searchParams.get('q') ?? '').trim();
       const meal = url.searchParams.get('meal');
@@ -880,7 +892,7 @@ async function openFoodFacts(code) {
     const kv = typeof n['energy-kcal_100g'] === 'string' ? Number(n['energy-kcal_100g'].replace(',', '.')) : n['energy-kcal_100g'];
     const kcal = typeof kv === 'number' && Number.isFinite(kv) && kv >= 0 && kv <= 900 ? Math.round(kv * 10) / 10 : null;
     const name = String(p.product_name_ru || p.product_name || '').trim();
-    const brand = String(p.brands || '').split(',')[0].trim();
+    const brand = String(p.brands || '').split(',')[0].replace(/^((СП|ОАО|ЗАО|ООО|ОДО|ЧУП|УП|СООО|ИООО)\s+)+/i, '').replace(/["«»]/g, '').trim();
     if (!name && protein === null && fat === null && carbs === null) return null;
     return { name: name.slice(0, 80) || null, brand: brand.slice(0, 40) || null, protein, fat, carbs, kcal };
   } catch {

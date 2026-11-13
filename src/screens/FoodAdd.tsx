@@ -4,7 +4,7 @@ import { api, ApiError } from '../lib/api';
 import { MEALS, MEAL_IN, MEAL_RU, fmt, fmtG, kcal, kcal100, kcalAt, macroLine, sumKcal } from '../lib/calc';
 import { addDays, dayMonth, diffDays, isDayStr, today } from '../lib/dates';
 import { invalidate, useQuery } from '../lib/query';
-import { go } from '../lib/router';
+import { go, replace } from '../lib/router';
 import type { Entry, FoodItem, Meal } from '../lib/types';
 import { FOOD_CATS, SUB_INFO, guessSub } from '../lib/categories';
 import { FoodArt, Icon } from '../art';
@@ -711,55 +711,82 @@ export function DishNewScreen({ date, meal, from }: { date?: string; meal?: stri
   );
 }
 
+/** EAN-8/13 and UPC-A check digit, so one clean read is enough (no need to wait for a repeat). */
+const validEan = (c: string) => {
+  if (!/^(\d{8}|\d{12}|\d{13})$/.test(c)) return false;
+  const d = c.split('').map(Number), last = d.pop()!;
+  const sum = d.reverse().reduce((a, x, i) => a + x * (i % 2 === 0 ? 3 : 1), 0);
+  return (10 - (sum % 10)) % 10 === last;
+};
+
 export function ScanScreen({ date, meal }: { date?: string; meal?: string }) {
   const d = asDate(date), m = asMeal(meal);
   const video = useRef<HTMLVideoElement>(null);
-  const [found, setFound] = useState<FoodItem | null>(null);
   const [denied, setDenied] = useState(false);
-  const [paused, setPaused] = useState(false);
-  const pausedRef = useRef(false);
-  pausedRef.current = paused;
+  const [busy, setBusy] = useState(false);
+  const busyRef = useRef(false);
 
   useEffect(() => {
     let stop = () => {};
     let cancelled = false;
-    let lastCode = '', hits = 0;
     const onCode = async (code: string) => {
-      if (pausedRef.current) return;
-      if (code === lastCode) hits += 1; else { lastCode = code; hits = 1; }
-      if (hits < 2) return;
-      setPaused(true); pausedRef.current = true;
+      if (busyRef.current || !validEan(code)) return;
+      busyRef.current = true; setBusy(true);
       navigator.vibrate?.(50);
       try {
-        const r = await api<{ product: FoodItem | null }>('GET', `/products?barcode=${encodeURIComponent(code)}`);
-        if (r.product) setFound(r.product);
-        else go('food', d, 'new-product', m, code);
-      } catch (e) { toast(errText(e)); setPaused(false); }
+        // Known here, or complete in Open Food Facts (then added at once) → straight to choosing grams.
+        const r = await api<{ product: FoodItem | null; created?: boolean }>('GET', `/products?barcode=${encodeURIComponent(code)}&auto=1`);
+        if (r.product) {
+          if (r.created) { invalidate('/products'); toast('Добавлен в библиотеку'); }
+          replace('food', d, 'item', 'product', r.product.id, m);
+        } else replace('food', d, 'new-product', m, code);
+      } catch (e) { toast(errText(e)); busyRef.current = false; setBusy(false); }
     };
     (async () => {
       try {
-        const stream = await navigator.mediaDevices.getUserMedia({ video: { facingMode: 'environment' }, audio: false });
+        // High resolution + continuous focus: small barcodes read without bringing the phone close.
+        const stream = await navigator.mediaDevices.getUserMedia({
+          video: { facingMode: 'environment', width: { ideal: 1920 }, height: { ideal: 1080 } }, audio: false,
+        });
         if (cancelled) { stream.getTracks().forEach((t) => t.stop()); return; }
+        const track = stream.getVideoTracks()[0];
+        try { await track.applyConstraints({ advanced: [{ focusMode: 'continuous' } as MediaTrackConstraintSet] }); } catch { /* not supported */ }
         const v = video.current!;
         v.srcObject = stream;
         await v.play();
-        const BD = (window as unknown as { BarcodeDetector?: new (o: unknown) => { detect: (v: HTMLVideoElement) => Promise<{ rawValue: string }[]> } }).BarcodeDetector;
-        let timer = 0;
+        // Decode only the band under the frame, scaled up: much easier for the decoder than the whole picture.
+        const canvas = document.createElement('canvas');
+        const ctx = canvas.getContext('2d', { willReadFrequently: true })!;
+        const grab = () => {
+          const w = v.videoWidth, h = v.videoHeight;
+          if (!w || !h) return false;
+          const cw = Math.round(w * 0.9), ch = Math.round(Math.min(h, w) * 0.45);
+          canvas.width = 1280; canvas.height = Math.round(1280 * ch / cw);
+          ctx.drawImage(v, (w - cw) / 2, (h - ch) / 2, cw, ch, 0, 0, canvas.width, canvas.height);
+          return true;
+        };
+        const BD = (window as unknown as { BarcodeDetector?: new (o: unknown) => { detect: (s: CanvasImageSource) => Promise<{ rawValue: string }[]> } }).BarcodeDetector;
+        let decode: () => Promise<string | null>;
         if (BD) {
           const det = new BD({ formats: ['ean_13', 'ean_8', 'upc_a', 'upc_e'] });
-          const loop = async () => {
-            if (cancelled) return;
-            try { const r = await det.detect(v); if (r[0]) await onCode(r[0].rawValue); } catch { /* frame not ready */ }
-            timer = window.setTimeout(loop, 150);
-          };
-          void loop();
-          stop = () => { clearTimeout(timer); stream.getTracks().forEach((t) => t.stop()); };
+          decode = async () => { const r = await det.detect(v); return r[0]?.rawValue ?? null; };
         } else {
           const { BrowserMultiFormatReader } = await import('@zxing/browser');
-          const reader = new BrowserMultiFormatReader();
-          const controls = await reader.decodeFromVideoElement(v, (res) => { if (res) void onCode(res.getText()); });
-          stop = () => { controls.stop(); stream.getTracks().forEach((t) => t.stop()); };
+          const { BarcodeFormat, DecodeHintType } = await import('@zxing/library');
+          const hints = new Map();
+          hints.set(DecodeHintType.POSSIBLE_FORMATS, [BarcodeFormat.EAN_13, BarcodeFormat.EAN_8, BarcodeFormat.UPC_A, BarcodeFormat.UPC_E]);
+          hints.set(DecodeHintType.TRY_HARDER, true);
+          const reader = new BrowserMultiFormatReader(hints);
+          decode = async () => { if (!grab()) return null; try { return reader.decodeFromCanvas(canvas).getText(); } catch { return null; } };
         }
+        let timer = 0;
+        const loop = async () => {
+          if (cancelled) return;
+          try { const c = await decode(); if (c) await onCode(c); } catch { /* frame not ready */ }
+          timer = window.setTimeout(loop, 80);
+        };
+        void loop();
+        stop = () => { clearTimeout(timer); stream.getTracks().forEach((t) => t.stop()); };
       } catch { setDenied(true); }
     })();
     return () => { cancelled = true; stop(); };
@@ -767,10 +794,10 @@ export function ScanScreen({ date, meal }: { date?: string; meal?: string }) {
 
   return (
     <div style={{ position: 'fixed', inset: 0, background: '#07090C', color: '#fff', zIndex: 30 }}>
-      <video ref={video} playsInline muted style={{ position: 'absolute', inset: 0, width: '100%', height: '100%', objectFit: 'cover' }} onClick={() => { if (found) { setFound(null); setPaused(false); } }} />
+      <video ref={video} playsInline muted style={{ position: 'absolute', inset: 0, width: '100%', height: '100%', objectFit: 'cover' }} />
       <div className="between" style={{ position: 'absolute', left: 16, right: 16, top: 'calc(18px + var(--safe-top))' }}>
         <a aria-label="Закрыть" href={`#/food/${d}/add/${m}`} style={{ width: 44, height: 44, borderRadius: 22, background: 'rgba(0,0,0,.5)', display: 'flex', alignItems: 'center', justifyContent: 'center' }}>✕</a>
-        <span style={{ background: 'rgba(0,0,0,.5)', borderRadius: 14, padding: '8px 12px', fontWeight: 800 }}>Наведи на штрихкод</span>
+        <span style={{ background: 'rgba(0,0,0,.5)', borderRadius: 14, padding: '8px 12px', fontWeight: 800 }}>{busy ? 'Ищу товар…' : 'Наведи на штрихкод'}</span>
         <span style={{ width: 44 }} />
       </div>
       {denied ? (
@@ -779,24 +806,10 @@ export function ScanScreen({ date, meal }: { date?: string; meal?: string }) {
           <a className="btn" style={{ background: '#A9CBFA', color: '#10151C' }} href={`#/food/${d}/new-product/${m}`}>Ввести вручную</a>
         </div>
       ) : (
-        <div style={{ position: 'absolute', left: '50%', top: 140, transform: 'translateX(-50%)', width: 'min(310px, 84vw)', height: 240, borderRadius: 26, border: '3px solid #A9CBFA' }}>
+        <div style={{ position: 'absolute', left: '50%', top: '50%', transform: 'translate(-50%, -50%)', width: '90vw', maxWidth: 420, height: 'min(45vw, 200px)', borderRadius: 26, border: '3px solid #A9CBFA' }}>
           <i className="a-pulse" style={{ position: 'absolute', left: 12, right: 12, top: '50%', height: 3, background: '#A9CBFA', boxShadow: '0 0 16px #A9CBFA' }} />
         </div>
       )}
-      <Sheet open={!!found} onClose={() => { setFound(null); setPaused(false); }} label="Продукт найден">
-        {found ? (
-          <>
-            <div className="row"><FoodArt kind={found.icon} size={64} />
-              <div className="grow">
-                <b style={{ color: 'var(--good)', fontSize: 14 }}>Есть в общей библиотеке</b>
-                <div style={{ fontWeight: 800, fontSize: 19 }}>{found.name}{found.portionName ? `, ${found.portionName} ${fmtG(found.portionG ?? 0)} г` : ''}</div>
-                <div className="muted" style={{ fontSize: 14 }}>{Math.round(kcal100(found))} ккал · Б {fmtG(found.protein)} · Ж {fmtG(found.fat)} · У {fmtG(found.carbs)} на 100 г</div>
-              </div>
-            </div>
-            <a className="btn" href={`#/food/${d}/item/product/${found.id}/${m}`}>Выбрать вес и добавить</a>
-          </>
-        ) : null}
-      </Sheet>
     </div>
   );
 }
