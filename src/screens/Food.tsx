@@ -287,19 +287,18 @@ function Ring({ eaten, norm, over }: { eaten: number; norm: number; over: boolea
 
 function EntrySheet({ entry, onClose }: { entry: Entry | null; onClose: () => void }) {
   const [grams, setGrams] = useState('');
-  const [busy, setBusy] = useState(false);
   useEffect(() => { if (entry) setGrams(String(Math.round(entry.grams))); }, [entry]);
   if (!entry) return null;
   const g = Number(grams) || 0;
   const m = entryMacros({ ...entry, grams: g });
   const per100 = kcal([entry.protein, entry.fat, entry.carbs]);
   const save = async () => {
-    setBusy(true);
-    try { await api('PATCH', `/diary/${entry.id}`, { grams: g }); invalidate('/diary'); onClose(); } catch (e) { toast(errText(e)); } finally { setBusy(false); }
+    onClose();
+    try { await api('PATCH', `/diary/${entry.id}`, { grams: g }); invalidate('/diary'); } catch (e) { toast(errText(e)); }
   };
   const remove = async () => {
-    setBusy(true);
-    try { await api('DELETE', `/diary/${entry.id}`); invalidate('/diary'); onClose(); } catch (e) { toast(errText(e)); } finally { setBusy(false); }
+    onClose();
+    try { await api('DELETE', `/diary/${entry.id}`); invalidate('/diary'); } catch (e) { toast(errText(e)); }
   };
   return (
     <Sheet open onClose={onClose} label={entry.name}>
@@ -312,8 +311,8 @@ function EntrySheet({ entry, onClose }: { entry: Entry | null; onClose: () => vo
         <button className="icon-btn" aria-label="Больше" style={{ height: 52, width: 52, borderRadius: 14, border: '1px solid var(--track)' }} onClick={() => setGrams(String(Math.min(5000, g + 50)))}>+</button>
       </div>
       <Tiles m={m} />
-      <button className="btn" disabled={busy || g < 1 || g > 5000} onClick={save}>Сохранить</button>
-      <button className="warn-link" disabled={busy} onClick={remove}>Удалить из дневника</button>
+      <button className="btn" disabled={g < 1 || g > 5000} onClick={save}>Сохранить</button>
+      <button className="warn-link" onClick={remove}>Удалить из дневника</button>
     </Sheet>
   );
 }

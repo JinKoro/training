@@ -127,14 +127,14 @@ function AddPanel({ date: d, meal: m }: { date: string; meal: Meal }) {
   const dishes = useQuery<{ dishes: FoodItem[] }>('/dishes');
   const itemHref = (it: FoodItem) => `#/food/${d}/item/${it.type}/${it.id}/${m}`;
   const rowKey = (it: FoodItem) => `${key}:${it.type}${it.id}`;
+  // Optimistic: the tick and toast show at once, the request goes in the background (an error still shows a toast).
   const quick = (it: FoodItem, g: number) => async (): Promise<boolean> => {
-    try {
-      await api('POST', '/diary', { date: d, meal: m, itemType: it.type, itemId: it.id, grams: g, portions: it.portionG && Math.abs(g / it.portionG - Math.round(g / it.portionG)) < 1e-6 && Math.round(g / it.portionG) > 0 ? Math.round(g / it.portionG) : null });
-      invalidate('/diary', '/food/recent');
-      toast(`${it.name} — ${MEAL_IN[m]}`);
-      markAdded(key, rowKey(it));
-      return true;
-    } catch (e) { toast(errText(e)); return false; }
+    toast(`${it.name} — ${MEAL_IN[m]}`);
+    markAdded(key, rowKey(it));
+    api('POST', '/diary', { date: d, meal: m, itemType: it.type, itemId: it.id, grams: g, portions: it.portionG && Math.abs(g / it.portionG - Math.round(g / it.portionG)) < 1e-6 && Math.round(g / it.portionG) > 0 ? Math.round(g / it.portionG) : null })
+      .then(() => invalidate('/diary', '/food/recent'))
+      .catch((e) => toast(errText(e)));
+    return true;
   };
   const newProduct = `#/food/${d}/new-product/${m}/${encodeURIComponent(s ? `name:${s}` : '-')}`;
 
@@ -292,14 +292,14 @@ export function ItemScreen({ date, type, id, meal }: { date?: string; type: 'pro
   const add = async () => {
     if (g < 1 || g > 5000 || busy) return;
     setBusy(true);
-    try {
-      await api('POST', '/diary', { date: d, meal: m, itemType: it.type, itemId: it.id, grams: g, portions: it.portionG && Math.abs(g / it.portionG - Math.round(g / it.portionG)) < 1e-6 && Math.round(g / it.portionG) > 0 ? Math.round(g / it.portionG) : null });
-      invalidate('/diary', '/food/recent');
-      toast(`${it.name} — ${MEAL_IN[m]}`);
-      markAdded(`${d}/${m}`);
-      // Back to where it was picked (search, recent, library...) rather than to the day.
-      if (cameFromAdd) { cameFromAdd = false; history.back(); } else go('food', d, 'add', m);
-    } catch (e) { toast(errText(e)); setBusy(false); }
+    // Optimistic: go back at once, the request finishes in the background (an error still shows a toast).
+    api('POST', '/diary', { date: d, meal: m, itemType: it.type, itemId: it.id, grams: g, portions: it.portionG && Math.abs(g / it.portionG - Math.round(g / it.portionG)) < 1e-6 && Math.round(g / it.portionG) > 0 ? Math.round(g / it.portionG) : null })
+      .then(() => invalidate('/diary', '/food/recent'))
+      .catch((e) => toast(errText(e)));
+    toast(`${it.name} — ${MEAL_IN[m]}`);
+    markAdded(`${d}/${m}`);
+    // Back to where it was picked (search, recent, library...) rather than to the day.
+    if (cameFromAdd) { cameFromAdd = false; history.back(); } else go('food', d, 'add', m);
   };
   const chips: [string, number][] = [['100 г', 100], ['150 г', 150], ['200 г', 200], ...(it.portionG ? [['порция', it.portionG] as [string, number]] : [])];
   return (

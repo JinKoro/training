@@ -50,7 +50,7 @@ h1, h2, h3 { margin: 0; text-wrap: balance; }
 .a-pulse { transform-origin: 50% 50%; animation: a-pulse 2.4s ease-in-out infinite; }
 .a-h { animation: a-h .3s cubic-bezier(.2,.8,.2,1) backwards; }
 a, button { transition: transform .15s ease, filter .15s ease, background-color .15s ease; }
-a:active, button:active { transform: scale(.95); filter: brightness(.88); }
+a:active, button:active { transform: scale(.95); filter: brightness(.88); transition-duration: 0s; }
 @media (hover: hover) { a:hover, button:hover { filter: brightness(1.08); } }
 @media (prefers-reduced-motion: reduce) { * { animation: none !important; transition: none !important; } }
 
