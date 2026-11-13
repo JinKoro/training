@@ -179,7 +179,8 @@ function TabBar({ active }: { active: string | null }) {
   return (
     <nav className="tabbar" aria-label="Разделы">
       {TABS.map(([k, label, to]) => (
-        <a key={k} href={to} aria-current={active === k ? 'page' : undefined}>
+        // Switch on touch-down, not on the click that iOS sends only after the finger lifts: fast tab taps feel instant.
+        <a key={k} href={to} aria-current={active === k ? 'page' : undefined} onPointerDown={(e) => { if (e.button === 0 && location.hash !== to) location.hash = to; }}>
           <span><Icon html={(TAB_ICONS as Record<string, string>)[k]} /></span>{label}
         </a>
       ))}
