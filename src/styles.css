@@ -125,6 +125,9 @@ html:has(.shell-m) body, html:has(.shell-m) #root { min-height: 0; height: 0; }
 .toast { position: fixed; left: 50%; top: calc(10px + var(--safe-top)); transform: translateX(-50%); background: var(--ink); color: var(--bg); padding: 10px 16px; border-radius: 14px; font-weight: 800; z-index: 60; animation: a-down .3s; max-width: calc(100% - 32px); text-align: center; box-shadow: 0 8px 24px rgba(0,0,0,.25); }
 @keyframes a-down { from { opacity: 0; transform: translate(-50%, -12px); } }
 
+/* desktop profile: sections are cards, so controls inside them sit on the page colour */
+.desk-sec .input:not(.ro), .desk-sec .seg, .desk-sec .card { background: var(--bg); }
+
 /* ---------- sheet ---------- */
 .scrim { position: fixed; inset: 0; background: rgba(0,0,0,.5); z-index: 40; animation: a-fade .2s; border: 0; width: 100%; }
 .sheet { position: fixed; left: 0; right: 0; bottom: 0; z-index: 41; background: var(--card); border-radius: 28px 28px 0 0; padding: 14px 16px calc(26px + var(--safe-bottom)); display: flex; flex-direction: column; gap: 14px; max-height: 92dvh; overflow-y: auto; animation: a-sheet .28s cubic-bezier(.2,.8,.2,1); max-width: 640px; margin: 0 auto; }

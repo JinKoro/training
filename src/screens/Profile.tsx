@@ -321,7 +321,7 @@ function DesktopProfile() {
   const btnStyle: React.CSSProperties = state === 'saved' && !dirty && valid ? { background: 'var(--good)', color: '#fff' } : {};
   const markDirty = <T,>(fn: (e: T) => void) => (e: T) => { fn(e); setState('idle'); };
   const section = (title: string, body: React.ReactNode) => (
-    <div style={{ display: 'flex', flexWrap: 'wrap', gap: 24, padding: '24px 0', borderTop: '1px solid var(--line)' }}>
+    <div className="card a-in desk-sec" style={{ display: 'flex', flexWrap: 'wrap', gap: 24, padding: '20px 24px' }}>
       <b style={{ flex: '0 1 260px', fontSize: 18 }}>{title}</b>
       <div style={{ flex: '1 1 480px', minWidth: 0 }}>{body}</div>
     </div>
@@ -339,7 +339,7 @@ function DesktopProfile() {
         <h1 className="h1 a-h" style={{ fontSize: 30 }}>Профиль</h1>
         <button className="btn small" style={{ height: 48, borderRadius: 14, ...btnStyle }} disabled={!valid || (!dirty && state !== 'saved') || busy} onClick={save}>{label}</button>
       </div>
-      <div style={{ maxWidth: 1100 }}>
+      <div className="col" style={{ maxWidth: 1100, gap: 14 }}>
         {section('Личные данные', (
           <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fill, minmax(200px, 1fr))', gap: 12 }}>
             <div className="field"><span className="sub" style={{ fontSize: 13, fontWeight: 800 }}>Почта</span><div className="input ro" style={{ height: 46, borderRadius: 10 }}>{me.user.email}</div></div>
@@ -374,4 +374,3 @@ function DesktopProfile() {
   );
 }
 
-/** Temporary: what the phone reports about its screen, to fix the tab bar position on the installed app. */
