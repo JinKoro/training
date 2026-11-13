@@ -308,7 +308,10 @@ export function ItemScreen({ date, type, id, meal }: { date?: string; type: 'pro
   const chips: [string, number][] = [['100 г', 100], ['150 г', 150], ['200 г', 200], ...(it.portionG ? [['порция', it.portionG] as [string, number]] : [])];
   return (
     <Screen className="modal fixed-cta">
-      <div><button className="link" onClick={() => history.back()}>‹ Назад</button></div>
+      <div className="between">
+        <button className="link" onClick={() => history.back()}>‹ Назад</button>
+        {it.type === 'product' ? <a className="link" href={`#/food/${d}/product-edit/${it.id}`}>Изменить</a> : null}
+      </div>
       <div className="col" style={{ alignItems: 'center', gap: 8, textAlign: 'center' }}>
         <FoodArt kind={it.icon} size={150} />
         <h1 className="display" style={{ fontSize: 24 }}>{it.name}</h1>
@@ -376,10 +379,14 @@ function CategoryPicker({ open, value, onClose, onPick }: { open: boolean; value
   );
 }
 
-function ProductForm({ barcode: initialBarcode, name: initialName, onSaved, compact, onScan }: {
-  barcode?: string; name?: string; onSaved: (p: FoodItem) => void; compact?: boolean; onScan?: () => void;
+const numStr = (v: number) => String(Math.round(v * 10) / 10).replace('.', ',');
+
+function ProductForm({ barcode: initialBarcode, name: initialName, onSaved, compact, onScan, edit }: {
+  barcode?: string; name?: string; onSaved: (p: FoodItem) => void; compact?: boolean; onScan?: () => void; edit?: FoodItem;
 }) {
-  const [f, setF] = useState({ barcode: initialBarcode ?? '', name: initialName ?? '', p: '', fat: '', c: '', pn: '', pg: '' });
+  const [f, setF] = useState(edit
+    ? { barcode: edit.barcode ?? '', name: edit.name, p: numStr(edit.protein), fat: numStr(edit.fat), c: numStr(edit.carbs), pn: '', pg: '' }
+    : { barcode: initialBarcode ?? '', name: initialName ?? '', p: '', fat: '', c: '', pn: '', pg: '' });
   const [dup, setDup] = useState<FoodItem | null>(null);
   const [busy, setBusy] = useState(false);
   // Where the prefilled numbers came from, so the user knows to double-check them.
@@ -387,7 +394,7 @@ function ProductForm({ barcode: initialBarcode, name: initialName, onSaved, comp
   const [ocr, setOcr] = useState<number | null>(null);
   const fileRef = useRef<HTMLInputElement>(null);
   // Category follows the name until the user picks one by hand.
-  const [picked, setPicked] = useState<string | null>(null);
+  const [picked, setPicked] = useState<string | null>(edit && SUB_INFO[edit.icon] ? edit.icon : null);
   const sub = picked ?? guessSub(f.name);
   const [catOpen, setCatOpen] = useState(false);
   const fill = (v: { name?: string | null; protein: number | null; fat: number | null; carbs: number | null }) => setF((x) => ({
@@ -432,10 +439,11 @@ function ProductForm({ barcode: initialBarcode, name: initialName, onSaved, comp
     if (!valid || busy) return;
     setBusy(true);
     try {
-      const { product } = await api<{ product: FoodItem }>('POST', '/products', {
-        name: f.name.trim(), barcode: f.barcode.trim() || null, protein: n(f.p), fat: n(f.fat), carbs: n(f.c), icon: sub,
-      });
-      invalidate('/products', '/food/recent');
+      const body = { name: f.name.trim(), barcode: f.barcode.trim() || null, protein: n(f.p), fat: n(f.fat), carbs: n(f.c), icon: sub ?? undefined };
+      const { product } = edit
+        ? await api<{ product: FoodItem }>('PUT', `/products/${edit.id}`, body)
+        : await api<{ product: FoodItem }>('POST', '/products', body);
+      invalidate('/products', '/food/recent', '/diary');
       onSaved(product);
       if (compact) { setF({ barcode: '', name: '', p: '', fat: '', c: '', pn: '', pg: '' }); setPicked(null); }
     } catch (e) {
@@ -498,9 +506,47 @@ function ProductForm({ barcode: initialBarcode, name: initialName, onSaved, comp
         {box('fat', 'Жиры, г', 'var(--warn)')}
         {box('c', 'Углеводы, г', 'var(--good)')}
       </div>
-      <span className="muted" style={{ fontSize: 14 }}>Продукт попадёт в общую библиотеку и будет находиться через поиск.</span>
-      <button className={compact ? 'btn small' : 'btn big'} disabled={!valid || busy} onClick={save}>{compact ? 'Сохранить в библиотеку' : 'Сохранить и выбрать вес'}</button>
+      {!edit ? <span className="muted" style={{ fontSize: 14 }}>Продукт попадёт в общую библиотеку и будет находиться через поиск.</span> : null}
+      <button className={compact ? 'btn small' : 'btn big'} disabled={!valid || busy} onClick={save}>{edit ? 'Сохранить' : compact ? 'Сохранить в библиотеку' : 'Сохранить и выбрать вес'}</button>
     </div>
+  );
+}
+
+/** Edit a product: the author edits everything; a shared product only gets its category changed. */
+export function ProductEditScreen({ id }: { id: number }) {
+  const { me } = useApp();
+  const q = useQuery<{ product: FoodItem }>(`/products/${id}`);
+  const [sub, setSub] = useState<string | null>(null);
+  const [open, setOpen] = useState(false);
+  const [busy, setBusy] = useState(false);
+  if (q.error) return <Screen className="modal"><ErrorBox error={q.error} retry={q.reload} /></Screen>;
+  if (!q.data) return <Screen className="modal"><Skeleton n={3} /></Screen>;
+  const p = q.data.product;
+  const done = () => { invalidate('/products', '/food/recent', '/diary'); history.back(); };
+  const header = <div className="navbar"><button className="link" onClick={() => history.back()}>Отмена</button><b>Изменить продукт</b><span style={{ width: 60 }} /></div>;
+  if (p.createdBy === me.user.id) return <Screen className="modal">{header}<ProductForm edit={p} onSaved={done} /></Screen>;
+  const cur = sub ?? (SUB_INFO[p.icon] ? p.icon : null);
+  const save = async () => {
+    if (!cur || busy) return;
+    setBusy(true);
+    try { await api('PUT', `/products/${id}`, { icon: cur }); done(); } catch (e) { toast(errText(e)); setBusy(false); }
+  };
+  return (
+    <Screen className="modal">
+      {header}
+      <div className="row" style={{ gap: 12 }}><FoodArt kind={cur ?? p.icon} size={60} /><b className="grow" style={{ fontSize: 19 }}>{p.name}</b></div>
+      <div className="field">
+        <span style={{ fontWeight: 700 }}>Категория</span>
+        <button type="button" className="input row" onClick={() => setOpen(true)} style={{ height: 60, borderRadius: 12, gap: 12, textAlign: 'left', padding: '0 12px' }}>
+          {cur ? <FoodArt kind={cur} size={44} /> : <span style={{ width: 44, height: 44, borderRadius: '50%', border: '2px dashed var(--track)', flex: 'none' }} />}
+          {cur ? <span className="grow" style={{ minWidth: 0 }}><b className="ell" style={{ display: 'block' }}>{SUB_INFO[cur].name}</b><span className="sub">{SUB_INFO[cur].catName}</span></span>
+            : <b className="grow" style={{ color: 'var(--acc)' }}>Выбрать категорию</b>}
+          <span className="muted" style={{ fontWeight: 800 }}>›</span>
+        </button>
+      </div>
+      <CategoryPicker open={open} value={cur} onClose={() => setOpen(false)} onPick={(v) => { setSub(v); setOpen(false); }} />
+      <button className="btn big" disabled={!cur || busy || cur === p.icon} onClick={save}>Сохранить</button>
+    </Screen>
   );
 }
 

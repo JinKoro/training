@@ -265,7 +265,7 @@ const PRODUCT_SELECT = 'SELECT p.*, pm.meals AS my_meals FROM products p LEFT JO
 
 const productOut = (r) => ({
   type: 'product', id: r.id, name: r.name, barcode: r.barcode, protein: r.protein, fat: r.fat, carbs: r.carbs,
-  portionName: r.portion_name, portionG: r.portion_g, icon: r.icon, meals: mealsOf(r.my_meals), base: r.created_by === null,
+  portionName: r.portion_name, portionG: r.portion_g, icon: r.icon, meals: mealsOf(r.my_meals), base: r.created_by === null, createdBy: r.created_by,
 });
 const dishOut = (r) => ({
   type: 'dish', id: r.id, name: r.name, protein: r.protein, fat: r.fat, carbs: r.carbs,
@@ -606,6 +606,34 @@ export async function handleApi(request, env, path) {
       ).bind(name, barcode, p, f, c, portionName, portionG, iconFor(name, body.icon), uid, now).first();
       if (mealMask !== 15) await env.DB.prepare('INSERT INTO product_meals (user_id, product_id, meals) VALUES (?, ?, ?)').bind(uid, r.id, mealMask).run();
       return ok({ product: productOut({ ...r, my_meals: mealMask }) }, 201);
+    }
+    // Edit a product: its author can change everything; anyone can change the category (picture) of a shared product.
+    if (seg.length === 2 && method === 'PUT') {
+      const id = num(seg[1], 'id', { min: 1, int: true });
+      const cur = await env.DB.prepare('SELECT * FROM products WHERE id = ?').bind(id).first();
+      if (!cur) fail(404, 'not_found');
+      const body = await readJson(request);
+      const icon = body.icon === undefined ? cur.icon : oneOf(body.icon, 'icon', SUB_IDS);
+      if (cur.created_by !== uid) {
+        await env.DB.prepare('UPDATE products SET icon = ? WHERE id = ?').bind(icon, id).run();
+      } else {
+        const name = str(body.name ?? cur.name, 'name', { min: 2, max: 80 });
+        const p = num(body.protein ?? cur.protein, 'protein', { min: 0, max: 100 });
+        const f = num(body.fat ?? cur.fat, 'fat', { min: 0, max: 100 });
+        const c = num(body.carbs ?? cur.carbs, 'carbs', { min: 0, max: 100 });
+        if (p + f + c > 100.0001) fail(400, 'invalid_macros', 'carbs');
+        const barcode = body.barcode === undefined ? cur.barcode : str(body.barcode ?? '', 'barcode', { max: 14, optional: true }) || null;
+        if (barcode && !/^(\d{8}|\d{12,14})$/.test(barcode)) fail(400, 'invalid_barcode', 'barcode');
+        if (barcode && barcode !== cur.barcode) {
+          const dup = await env.DB.prepare(`${PRODUCT_SELECT} WHERE p.barcode = ? AND p.id != ?`).bind(uid, barcode, id).first();
+          if (dup) return json(request, { error: 'barcode_taken', field: 'barcode', product: productOut(dup) }, 409);
+        }
+        await env.DB.prepare('UPDATE products SET name = ?, barcode = ?, protein = ?, fat = ?, carbs = ?, icon = ? WHERE id = ?')
+          .bind(name, barcode, p, f, c, icon, id).run();
+      }
+      // Diary entries keep their own name and numbers (history); only the picture follows the product.
+      await env.DB.prepare('UPDATE diary_entries SET icon = ? WHERE product_id = ?').bind(icon, id).run();
+      return ok({ product: await itemFor(env, uid, 'product', id) });
     }
     if (seg.length === 3 && seg[2] === 'meals' && method === 'PUT') {
       const id = num(seg[1], 'id', { min: 1, int: true });

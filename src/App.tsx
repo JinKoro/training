@@ -19,7 +19,7 @@ import { ProgramEditorScreen } from './screens/ProgramEditor';
 import { ExerciseFormScreen, LibraryScreen } from './screens/Exercises';
 import { LogScreen } from './screens/Log';
 import { FoodScreen } from './screens/Food';
-import { AddFoodScreen, DishNewScreen, ItemScreen, ProductNewScreen, ScanScreen } from './screens/FoodAdd';
+import { AddFoodScreen, DishNewScreen, ItemScreen, ProductEditScreen, ProductNewScreen, ScanScreen } from './screens/FoodAdd';
 import { NormsScreen, PasswordScreen, ProfileEditScreen, ProfileScreen, RecalcScreen } from './screens/Profile';
 
 function useWide() {
@@ -162,6 +162,7 @@ function Routes({ r }: { r: string[] }) {
       if (c === 'new-product') return <ProductNewScreen date={b} meal={d} barcode={e} />;
       if (c === 'dish') return <DishNewScreen date={b} meal={d} from={e} />;
       if (c === 'scan') return <ScanScreen date={b} meal={d} />;
+      if (c === 'product-edit') return <ProductEditScreen id={Number(d)} />;
       return <FoodScreen date={b} />;
     case 'profile':
       if (b === 'edit') return <ProfileEditScreen />;
