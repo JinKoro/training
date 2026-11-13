@@ -16,7 +16,15 @@ function syncAppHeight() {
   document.documentElement.style.setProperty('--app-h', `${window.innerHeight}px`);
 }
 syncAppHeight();
-for (const ev of ['resize', 'orientationchange', 'pageshow']) window.addEventListener(ev, () => { syncAppHeight(); setTimeout(syncAppHeight, 300); });
+// After a rotation iOS (home-screen app) keeps reporting the old height for a while, and the events can fire before it
+// settles, which left the shell at landscape height (menu in the middle of the screen). Re-check for a second.
+function syncSoon() {
+  syncAppHeight();
+  for (const ms of [100, 300, 600, 1000, 1500]) setTimeout(syncAppHeight, ms);
+}
+for (const ev of ['resize', 'orientationchange', 'pageshow']) window.addEventListener(ev, syncSoon);
+window.visualViewport?.addEventListener('resize', syncSoon);
+screen.orientation?.addEventListener?.('change', syncSoon);
 document.addEventListener('visibilitychange', () => { if (!document.hidden) syncAppHeight(); });
 
 
