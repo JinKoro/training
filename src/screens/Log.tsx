@@ -1,6 +1,6 @@
 import { useMemo, useState } from 'react';
 import { useApp } from '../app-context';
-import { activeProgram, dayTitle, plannedOpen, weekRange, workoutStats } from '../lib/calc';
+import { activeProgram, dayTitle, durationMin, plannedOpen, weekRange, workoutStats } from '../lib/calc';
 import { addDays, diffDays, fromDay, plural, today, WD_CAP, WD_SHORT, weekStart } from '../lib/dates';
 import { useQuery } from '../lib/query';
 import type { Workout } from '../lib/types';
@@ -71,7 +71,7 @@ export function LogScreen() {
                   return (
                     <a key={r.w.id} href={`#/summary/${r.w.id}`}>
                       {left}
-                      <div className="grow"><b>{r.w.title}</b><div className="sub">{exN} {plural(exN, ['упражнение', 'упражнения', 'упражнений'])} · {s.total} {plural(s.total, ['подход', 'подхода', 'подходов'])}</div></div>
+                      <div className="grow"><b>{r.w.title}</b><div className="sub">{exN} {plural(exN, ['упражнение', 'упражнения', 'упражнений'])}{durationMin(r.w) ? ` · ${durationMin(r.w)} мин` : ''}</div></div>
                       <b style={{ color: s.pct >= 100 ? 'var(--goodT)' : 'var(--warnT)' }}>{Math.min(100, s.pct)}%</b>
                     </a>
                   );

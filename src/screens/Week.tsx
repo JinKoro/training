@@ -1,6 +1,6 @@
 import { useMemo, useRef, useState } from 'react';
 import { useApp } from '../app-context';
-import { activeProgram, dayTitle, fmt, kcal, MEAL_RU, MEALS, weekRange, workoutStats, type DayInfo, programWeek, planRows, slotDone } from '../lib/calc';
+import { activeProgram, dayTitle, durationMin, fmt, planMinutes, kcal, MEAL_RU, MEALS, weekRange, workoutStats, type DayInfo, programWeek, planRows, slotDone } from '../lib/calc';
 import { addDays, dayMonth, diffDays, plural, today, WD_CAP, WD_SHORT, weekDays, weekStart } from '../lib/dates';
 import { useDays } from '../lib/hooks';
 import { go } from '../lib/router';
@@ -198,8 +198,8 @@ export function WorkoutCard({ d, calendar, canTrain }: { d: DayInfo; calendar?: 
   let sub: string, btn: { text: string; href: string; primary?: boolean } | null = null, btn2: { text: string; href: string } | null = null;
   if (w && w.status === 'finished') {
     const s = workoutStats(w);
-    const dur = w.finishedAt ? Math.max(1, Math.round((w.finishedAt - w.startedAt) / 60000)) : null;
-    sub = `✓ выполнено ${s.pct}%${calendar && dur ? ` · ${dur} мин` : ''}`;
+    const dur = durationMin(w);
+    sub = `✓ выполнено ${s.pct}%${dur ? ` · ${dur} мин` : ''}`;
     btn = { text: calendar ? 'Итог' : 'Итог ›', href: `#/summary/${w.id}` };
     if (calendar) btn2 = { text: 'Изменить', href: `#/workout-edit/${w.id}/calendar` };
   } else if (w) {
@@ -207,14 +207,13 @@ export function WorkoutCard({ d, calendar, canTrain }: { d: DayInfo; calendar?: 
     btn = { text: 'Продолжить', href: `#/workout/${w.id}`, primary: true };
   } else if (d.date === t) {
     const rows = d.planned?.rows ?? [];
-    const sets = rows.reduce((a, r) => a + r.sets, 0);
-    sub = `${rows.length} ${plural(rows.length, ['упражнение', 'упражнения', 'упражнений'])} · ${sets} ${plural(sets, ['подход', 'подхода', 'подходов'])}`;
+    sub = `${rows.length} ${plural(rows.length, ['упражнение', 'упражнения', 'упражнений'])} · ~ ${planMinutes(rows, exById)} мин`;
     btn = { text: calendar ? 'Начать тренировку' : 'Начать', href: `#/day/${d.date}`, primary: true };
   } else if (d.date < t) {
     sub = 'пропущена';
     if (!calendar) btn = { text: 'Календарь ›', href: `#/calendar/${d.date}` };
   } else {
-    sub = 'по плану';
+    sub = d.planned?.rows.length ? `по плану · ~ ${planMinutes(d.planned.rows, exById)} мин` : 'по плану';
     btn = { text: calendar ? 'Открыть план' : 'План ›', href: program ? `#/program/${program.id}` : '#/sport' };
   }
   return (

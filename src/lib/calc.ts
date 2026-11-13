@@ -177,6 +177,10 @@ export function workoutStats(w: Workout) {
   }
   return { done, total, D, P, pct: donePct(D, P) };
 }
+/** Planned length of a session in minutes: each set ≈ 45 s of work plus its rest. */
+export const planMinutes = (rows: PlanRow[], byId: Map<number, Exercise>) =>
+  Math.round(rows.reduce((a, r) => a + r.sets * (45 + (r.rest ?? byId.get(r.exerciseId)?.rest ?? 150)), 0) / 60);
+
 export const durationMin = (w: Workout) => (w.finishedAt ? Math.max(1, Math.round((w.finishedAt - w.startedAt) / 60000)) : null);
 
 // ---------- food ----------

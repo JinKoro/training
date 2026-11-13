@@ -1,7 +1,7 @@
 import { useState } from 'react';
 import { useApp } from '../app-context';
 import { api } from '../lib/api';
-import { activeProgram, dayTitle, exerciseSubtitle, mmss, plannedOpen, planRows, programWeek, setWeights, showKg, slotDone, workoutFromPlan } from '../lib/calc';
+import { activeProgram, dayTitle, exerciseSubtitle, mmss, plannedOpen, planMinutes, planRows, programWeek, setWeights, showKg, slotDone, workoutFromPlan } from '../lib/calc';
 import { addDays, diffDays, isDayStr, plural, today, WD_CAP, weekStart } from '../lib/dates';
 import { invalidate, useQuery } from '../lib/query';
 import { go } from '../lib/router';
@@ -55,7 +55,7 @@ export function DayScreen({ date }: { date?: string }) {
   const rows = planned?.rows ?? [];
   const title = dayTitle(rows, exById, wdName);
   const sets = rows.reduce((a, r) => a + r.sets, 0);
-  const minutes = Math.round(rows.reduce((a, r) => a + r.sets * (45 + (r.rest ?? exById.get(r.exerciseId)?.rest ?? 150)), 0) / 60);
+  const minutes = planMinutes(rows, exById);
 
   const start = async () => {
     if (busy) return;
