@@ -19,6 +19,7 @@
 }
 
 * { box-sizing: border-box; -webkit-tap-highlight-color: transparent; }
+a, button, input, select, label { touch-action: manipulation; }
 html, body { margin: 0; background: var(--bg); color: var(--ink); font-family: var(--font); font-size: 16px; line-height: 1.35; }
 html, body { overscroll-behavior: none; }
 body { min-height: 100dvh; }
@@ -50,7 +51,7 @@ h1, h2, h3 { margin: 0; text-wrap: balance; }
 .a-pulse { transform-origin: 50% 50%; animation: a-pulse 2.4s ease-in-out infinite; }
 .a-h { animation: a-h .5s cubic-bezier(.2,.8,.2,1) backwards; }
 a, button { transition: transform .15s ease, filter .15s ease, background-color .15s ease; }
-a:active, button:active { transform: scale(.97); }
+a:active, button:active { transform: scale(.95); filter: brightness(.88); }
 @media (hover: hover) { a:hover, button:hover { filter: brightness(1.08); } }
 @media (prefers-reduced-motion: reduce) { * { animation: none !important; transition: none !important; } }
 
@@ -132,7 +133,7 @@ html:has(.shell-m) body, html:has(.shell-m) #root { min-height: 0; height: 0; }
 .shell-d .sheet .grab, .sheet.desk .grab { display: none; }
 
 /* ---------- nav ---------- */
-.tabbar { flex: none; position: relative; z-index: 20; background: var(--side); border-top: 1px solid var(--line); display: grid; grid-template-columns: repeat(5, 1fr); padding: 8px 6px max(10px, calc(var(--safe-bottom) - 14px)); }
+.tabbar { flex: none; position: relative; z-index: 20; background: var(--side); border-top: 1px solid var(--line); display: grid; grid-template-columns: repeat(5, 1fr); padding: 10px 6px max(16px, var(--safe-bottom)); }
 .tabbar a { display: flex; flex-direction: column; align-items: center; gap: 4px; font-size: 12px; font-weight: 800; color: var(--muted); }
 .tabbar a > span { width: 44px; height: 30px; border-radius: 15px; display: flex; align-items: center; justify-content: center; }
 .tabbar a[aria-current="page"] { color: var(--ink); }

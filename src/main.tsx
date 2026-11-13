@@ -38,6 +38,9 @@ document.addEventListener('touchmove', (e) => {
   if (!canScroll(e.target as Element)) e.preventDefault();
 }, { passive: false });
 
+// iOS applies :active (the press-scale on buttons) only when a touchstart listener exists.
+document.addEventListener('touchstart', () => {}, { passive: true });
+
 createRoot(document.getElementById('root')!).render(<StrictMode><App /></StrictMode>);
 
 /**

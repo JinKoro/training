@@ -14,7 +14,7 @@ import { SummaryBody } from './Summary';
 type Screen = 'set' | 'rest' | 'left' | 'done';
 type LogSet = { w: number; r: number };
 interface Snap { screen: Screen; ei: number; si: number; log: LogSet[][]; w: string; r: string; left: number; total: number; skipped: number[] }
-interface St extends Snap { step: number; restEndsAt: number | null; hist: Snap[]; menu: boolean; confirm: boolean }
+interface St extends Snap { step: number; restEndsAt: number | null; hist: Snap[]; menu: boolean; confirm: boolean; startedAt?: number }
 
 const num = (s: string) => Number(String(s).replace(',', '.'));
 const show = (v: number) => String(Math.round(v * 100) / 100).replace('.', ',');
@@ -53,7 +53,8 @@ function Flow({ workout }: { workout: Workout }) {
     const skipped = workout.exercises.flatMap((e, i) => (e.skippedAt ? [i] : []));
     try {
       const saved = JSON.parse(localStorage.getItem(KEY(workout.id)) ?? 'null') as St | null;
-      if (saved && saved.log.length === log.length) return { ...saved, log, skipped, menu: false, confirm: false };
+      // Workout ids get reused after a delete, so the saved state must belong to this very workout.
+      if (saved && saved.startedAt === workout.startedAt && saved.screen !== 'done' && saved.log.length === log.length) return { ...saved, log, skipped, menu: false, confirm: false };
     } catch { /* ignore */ }
     let ei = log.findIndex((l, i) => l.length < EX[i].w.length && !skipped.includes(i));
     if (ei < 0) ei = 0;
@@ -64,9 +65,13 @@ function Flow({ workout }: { workout: Workout }) {
   const sRef = useRef(s);
   sRef.current = s;
   const [, tick] = useState(0);
+  const completing = useRef(false);
 
   // persist UI state so a reload in the gym resumes in place
-  useEffect(() => { try { localStorage.setItem(KEY(workout.id), JSON.stringify({ ...s, menu: false, confirm: false })); } catch { /* */ } }, [s, workout.id]);
+  useEffect(() => {
+    if (s.screen === 'done' || completing.current) return;
+    try { localStorage.setItem(KEY(workout.id), JSON.stringify({ ...s, menu: false, confirm: false, startedAt: workout.startedAt })); } catch { /* */ }
+  }, [s, workout.id, workout.startedAt]);
   useEffect(() => { scrollTop(); }, [s.screen, s.ei]);
 
   // rest countdown from an end timestamp (setInterval sleeps on a locked phone)
@@ -109,7 +114,6 @@ function Flow({ workout }: { workout: Workout }) {
     if (!empty) complete();
   };
 
-  const completing = useRef(false);
   const complete = () => {
     if (completing.current) return;
     completing.current = true;
