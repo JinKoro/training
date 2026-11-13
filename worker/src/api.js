@@ -280,8 +280,9 @@ const entryOut = (r) => ({
 /** Product picture = its sub-category (guessed from the name when the client sent none). */
 function iconFor(name, picked) {
   if (picked && SUB_IDS.includes(picked)) return picked;
-  const g = guessSub(name);
-  if (g) return g;
+  return guessSub(name) ?? 'other';
+}
+function oldIconFor(name) { // pre-category drawings, kept for reference
   const n = name.toLowerCase();
   if (/овсян|каш|мюсли/.test(n)) return 'oat';
   if (/яйц|омлет/.test(n)) return 'eggs';

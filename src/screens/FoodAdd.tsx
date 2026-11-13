@@ -347,7 +347,7 @@ export function ItemScreen({ date, type, id, meal }: { date?: string; type: 'pro
 /** Two-level picker: category list, then that category's sub-categories as picture tiles. */
 function CategoryPicker({ open, value, onClose, onPick }: { open: boolean; value: string | null; onClose: () => void; onPick: (id: string) => void }) {
   const [cat, setCat] = useState<string | null>(null);
-  useEffect(() => { if (open) setCat(value ? SUB_INFO[value].cat : null); }, [open, value]);
+  useEffect(() => { if (open) setCat(value && SUB_INFO[value].cat !== 'other' ? SUB_INFO[value].cat : null); }, [open, value]);
   const c = FOOD_CATS.find((x) => x.id === cat);
   return (
     <Sheet open={open} onClose={onClose} label="Категория">
@@ -356,7 +356,7 @@ function CategoryPicker({ open, value, onClose, onPick }: { open: boolean; value
           <b style={{ fontSize: 18 }}>Категория</b>
           <div className="list">
             {FOOD_CATS.map((x) => (
-              <button key={x.id} type="button" onClick={() => setCat(x.id)}>
+              <button key={x.id} type="button" onClick={() => (x.subs.length === 1 ? onPick(x.subs[0].id) : setCat(x.id))}>
                 <FoodArt kind={x.subs[0].id} size={40} /><b className="grow">{x.name}</b><span className="muted">›</span>
               </button>
             ))}
@@ -395,7 +395,8 @@ function ProductForm({ barcode: initialBarcode, name: initialName, onSaved, comp
   const fileRef = useRef<HTMLInputElement>(null);
   // Category follows the name until the user picks one by hand.
   const [picked, setPicked] = useState<string | null>(edit && SUB_INFO[edit.icon] ? edit.icon : null);
-  const sub = picked ?? guessSub(f.name);
+  // Nothing matched → «Другое» (once there is a name).
+  const sub = picked ?? guessSub(f.name) ?? (f.name.trim() ? 'other' : null);
   const [catOpen, setCatOpen] = useState(false);
   const fill = (v: { name?: string | null; protein: number | null; fat: number | null; carbs: number | null }) => setF((x) => ({
     ...x,
@@ -525,7 +526,7 @@ export function ProductEditScreen({ id }: { id: number }) {
   const done = () => { invalidate('/products', '/food/recent', '/diary'); history.back(); };
   const header = <div className="navbar"><button className="link" onClick={() => history.back()}>Отмена</button><b>Изменить продукт</b><span style={{ width: 60 }} /></div>;
   if (p.createdBy === me.user.id) return <Screen className="modal">{header}<ProductForm edit={p} onSaved={done} /></Screen>;
-  const cur = sub ?? (SUB_INFO[p.icon] ? p.icon : null);
+  const cur = sub ?? (SUB_INFO[p.icon] ? p.icon : 'other');
   const save = async () => {
     if (!cur || busy) return;
     setBusy(true);
