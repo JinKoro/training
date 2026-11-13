@@ -106,6 +106,7 @@ export function LibraryScreen({ mine, selected }: { mine: boolean; selected: num
         </div>
       )}
       {!list.length ? (mine && !wide && !base.length ? <div className="empty">Своих упражнений пока нет</div> : <div className="empty">Ничего не нашлось</div>) : null}
+      {mine && !wide ? <a href="#/exercise/new" className="item a-in" style={{ minHeight: 60, color: 'var(--acc)', fontWeight: 800 }}>+ Добавить упражнение</a> : null}
     </div>
   );
 
@@ -124,7 +125,7 @@ export function LibraryScreen({ mine, selected }: { mine: boolean; selected: num
   }
   return (
     <Screen>
-      <div className="between"><a className="link" href="#/sport">‹ Спорт</a>{mine ? addBtn : null}</div>
+      <a className="link" href="#/sport">‹ Спорт</a>
       <h1 className="display a-h" style={{ fontSize: 26 }}>{mine ? 'Мои упражнения' : 'Упражнения'}</h1>
       {grid}
     </Screen>
