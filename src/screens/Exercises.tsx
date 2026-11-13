@@ -80,7 +80,6 @@ export function LibraryScreen({ mine, selected }: { mine: boolean; selected: num
     );
   }
 
-  const addBtn = <a className="btn small" href="#/exercise/new">{wide ? '+ Своё упражнение' : '+ Добавить'}</a>;
   const grid = (
     <div className="col" style={{ gap: 12 }}>
       <SearchInput value={q} onChange={setQ} placeholder={wide ? 'Поиск упражнения' : 'Поиск'} />
@@ -94,6 +93,7 @@ export function LibraryScreen({ mine, selected }: { mine: boolean; selected: num
               <span className="sub">{exerciseSubtitle(e)}{e.own ? ' · своё' : ''}</span>
             </a>
           ))}
+          <a href="#/exercise/new" className="a-in" style={{ minHeight: 160, border: '2px dashed var(--track)', borderRadius: 18, display: 'flex', alignItems: 'center', justifyContent: 'center', textAlign: 'center', padding: 14, color: 'var(--acc)', fontWeight: 800 }}>+ Своё упражнение</a>
         </div>
       ) : (
         <div className="col" style={{ gap: 8 }}>
@@ -113,7 +113,7 @@ export function LibraryScreen({ mine, selected }: { mine: boolean; selected: num
   if (wide) {
     const shown = sel ?? list[0];
     return (
-      <Screen title="Упражнения" actions={addBtn}>
+      <Screen title="Упражнения">
         <div style={{ display: 'flex', flexWrap: 'wrap', gap: 24, alignItems: 'flex-start' }}>
           <section style={{ flex: '3 1 520px', minWidth: 0 }}>{grid}</section>
           <aside className="card" style={{ flex: '1 1 340px', minWidth: 0, borderRadius: 22, padding: 20, position: 'sticky', top: 20 }}>
