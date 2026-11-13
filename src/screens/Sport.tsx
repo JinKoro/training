@@ -45,7 +45,7 @@ export function SportScreen() {
   })() : (
     <div className="card col a-in" style={{ alignItems: 'flex-start' }}>
       <b>Нет активной программы</b>
-      <a className="btn small" href="#/program/new">+ Программа</a>
+      {!programs.length ? <a className="btn small" href="#/program/new">+ Программа</a> : null}
     </div>
   );
 
@@ -74,14 +74,14 @@ export function SportScreen() {
             <div className="grow"><b>{p.name}</b><div className="sub">{programSubtitle(p)}</div></div><span className="muted">›</span>
           </a>
         ))}
+        <a href="#/program/new" style={{ color: 'var(--acc)', fontWeight: 800 }}>+ Программа</a>
       </div>
     </>
   ) : null;
 
-  const addBtn = <a className="btn small" href="#/program/new">+ Программа</a>;
   return (
-    <Screen title="Спорт" actions={addBtn}>
-      {!wide ? <div className="between"><h1 className="h1 a-h">Спорт</h1>{addBtn}</div> : null}
+    <Screen title="Спорт">
+      {!wide ? <h1 className="h1 a-h">Спорт</h1> : null}
       {wide ? (
         <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(360px, 1fr))', gap: 20, alignItems: 'start' }}>
           <div className="col" style={{ gap: 14 }}><TodayWorkout />{currentCard}{programsBlock}</div>
