@@ -1,5 +1,6 @@
 import { exerciseSvg, ALL_KINDS } from './XExercise.js';
 import { foodSvg } from './XFood.js';
+import { FOOD_CAT_SVGS } from './foodCats.js';
 import { musclesSvgs } from './XMuscles.js';
 import { logoSvg, TAB_ICONS, SIDEBAR_ITEMS, LOGOUT_ICON_D } from './shellIcons.js';
 import { useTheme } from '../lib/theme';
@@ -25,7 +26,10 @@ export function ExerciseArt({ kind, name, phase = 'end', size = 56 }: { kind?: s
 }
 
 const FOOD_KINDS = ['oat', 'eggs', 'buckwheat', 'chicken', 'curd', 'salmon', 'dish'];
+/** Food picture: a product sub-category picture when `kind` is a sub-category id, else one of the original drawings. */
 export function FoodArt({ kind, size = 48 }: { kind?: string | null; size?: number }) {
+  const cat = kind ? (FOOD_CAT_SVGS as Record<string, string>)[kind] : undefined;
+  if (cat) return <Raw html={`<svg width="${size}" height="${size}" viewBox="0 0 120 120" aria-hidden="true" style="display:block">${cat}</svg>`} />;
   return <Raw html={foodSvg({ kind: kind && FOOD_KINDS.includes(kind) ? kind : 'dish', size })} />;
 }
 

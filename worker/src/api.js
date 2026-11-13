@@ -3,9 +3,10 @@ import {
   createSession, deleteOtherSessions, deleteSession, hashPassword, requireUser, verifyPassword,
 } from './auth.js';
 import { EMAIL_RE, arr, day, isDay, macros, num, oneOf, str } from './validate.js';
+import { SUB_IDS, guessSub } from './categories.js';
 
 const MEALS = ['breakfast', 'lunch', 'snack', 'dinner'];
-const FOOD_ICONS = ['oat', 'eggs', 'buckwheat', 'chicken', 'curd', 'salmon', 'dish'];
+const FOOD_ICONS = ['oat', 'eggs', 'buckwheat', 'chicken', 'curd', 'salmon', 'dish', ...SUB_IDS];
 const MUSCLES = ['chest', 'shoulders', 'biceps', 'forearms', 'abs', 'quads', 'calves', 'traps', 'reardelts', 'lats', 'triceps', 'lowerback', 'glutes', 'hamstrings'];
 const GROUPS = ['legs', 'back', 'chest', 'shoulders', 'arms', 'abs', 'cardio'];
 
@@ -276,7 +277,11 @@ const entryOut = (r) => ({
   carbs: r.carbs, portionName: r.portion_name, portionG: r.portion_g,
 });
 
-function iconFor(name) {
+/** Product picture = its sub-category (guessed from the name when the client sent none). */
+function iconFor(name, picked) {
+  if (picked && SUB_IDS.includes(picked)) return picked;
+  const g = guessSub(name);
+  if (g) return g;
   const n = name.toLowerCase();
   if (/овсян|каш|мюсли/.test(n)) return 'oat';
   if (/яйц|омлет/.test(n)) return 'eggs';
@@ -598,7 +603,7 @@ export async function handleApi(request, env, path) {
       const r = await env.DB.prepare(
         `INSERT INTO products (name, barcode, protein, fat, carbs, portion_name, portion_g, icon, created_by, created_at)
          VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?) RETURNING *`,
-      ).bind(name, barcode, p, f, c, portionName, portionG, iconFor(name), uid, now).first();
+      ).bind(name, barcode, p, f, c, portionName, portionG, iconFor(name, body.icon), uid, now).first();
       if (mealMask !== 15) await env.DB.prepare('INSERT INTO product_meals (user_id, product_id, meals) VALUES (?, ?, ?)').bind(uid, r.id, mealMask).run();
       return ok({ product: productOut({ ...r, my_meals: mealMask }) }, 201);
     }

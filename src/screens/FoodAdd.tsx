@@ -6,6 +6,7 @@ import { addDays, dayMonth, diffDays, isDayStr, today } from '../lib/dates';
 import { invalidate, useQuery } from '../lib/query';
 import { go } from '../lib/router';
 import type { Entry, FoodItem, Meal } from '../lib/types';
+import { FOOD_CATS, SUB_INFO, guessSub } from '../lib/categories';
 import { FoodArt, Icon } from '../art';
 import { AmountInput, ErrorBox, Screen, Sheet, Skeleton, TOAST_MS, errText, toast } from '../ui';
 import { SearchInput } from './ExercisePicker';
@@ -340,6 +341,41 @@ export function ItemScreen({ date, type, id, meal }: { date?: string; type: 'pro
   );
 }
 
+/** Two-level picker: category list, then that category's sub-categories as picture tiles. */
+function CategoryPicker({ open, value, onClose, onPick }: { open: boolean; value: string | null; onClose: () => void; onPick: (id: string) => void }) {
+  const [cat, setCat] = useState<string | null>(null);
+  useEffect(() => { if (open) setCat(value ? SUB_INFO[value].cat : null); }, [open, value]);
+  const c = FOOD_CATS.find((x) => x.id === cat);
+  return (
+    <Sheet open={open} onClose={onClose} label="Категория">
+      {!c ? (
+        <>
+          <b style={{ fontSize: 18 }}>Категория</b>
+          <div className="list">
+            {FOOD_CATS.map((x) => (
+              <button key={x.id} type="button" onClick={() => setCat(x.id)}>
+                <FoodArt kind={x.subs[0].id} size={40} /><b className="grow">{x.name}</b><span className="muted">›</span>
+              </button>
+            ))}
+          </div>
+        </>
+      ) : (
+        <>
+          <button type="button" className="link" style={{ alignSelf: 'flex-start' }} onClick={() => setCat(null)}>‹ Категории</button>
+          <b style={{ fontSize: 18 }}>{c.name}</b>
+          <div style={{ display: 'grid', gridTemplateColumns: 'repeat(3, minmax(0, 1fr))', gap: 8 }}>
+            {c.subs.map((s) => (
+              <button key={s.id} type="button" onClick={() => onPick(s.id)} className="col" style={{ alignItems: 'center', gap: 6, padding: '10px 4px', borderRadius: 14, background: 'var(--bg)', border: `2px solid ${s.id === value ? 'var(--acc)' : 'transparent'}`, fontSize: 13, fontWeight: 700, textAlign: 'center', lineHeight: 1.2 }}>
+                <FoodArt kind={s.id} size={56} />{s.name}
+              </button>
+            ))}
+          </div>
+        </>
+      )}
+    </Sheet>
+  );
+}
+
 function ProductForm({ barcode: initialBarcode, name: initialName, onSaved, compact, onScan }: {
   barcode?: string; name?: string; onSaved: (p: FoodItem) => void; compact?: boolean; onScan?: () => void;
 }) {
@@ -350,6 +386,10 @@ function ProductForm({ barcode: initialBarcode, name: initialName, onSaved, comp
   const [source, setSource] = useState<string | null>(null);
   const [ocr, setOcr] = useState<number | null>(null);
   const fileRef = useRef<HTMLInputElement>(null);
+  // Category follows the name until the user picks one by hand.
+  const [picked, setPicked] = useState<string | null>(null);
+  const sub = picked ?? guessSub(f.name);
+  const [catOpen, setCatOpen] = useState(false);
   const fill = (v: { name?: string | null; protein: number | null; fat: number | null; carbs: number | null }) => setF((x) => ({
     ...x,
     name: v.name && !x.name.trim() ? v.name : x.name,
@@ -393,11 +433,11 @@ function ProductForm({ barcode: initialBarcode, name: initialName, onSaved, comp
     setBusy(true);
     try {
       const { product } = await api<{ product: FoodItem }>('POST', '/products', {
-        name: f.name.trim(), barcode: f.barcode.trim() || null, protein: n(f.p), fat: n(f.fat), carbs: n(f.c),
+        name: f.name.trim(), barcode: f.barcode.trim() || null, protein: n(f.p), fat: n(f.fat), carbs: n(f.c), icon: sub,
       });
       invalidate('/products', '/food/recent');
       onSaved(product);
-      if (compact) setF({ barcode: '', name: '', p: '', fat: '', c: '', pn: '', pg: '' });
+      if (compact) { setF({ barcode: '', name: '', p: '', fat: '', c: '', pn: '', pg: '' }); setPicked(null); }
     } catch (e) {
       if (e instanceof ApiError && e.code === 'barcode_taken') {
         const r = await api<{ product: FoodItem | null }>('GET', `/products?barcode=${f.barcode.trim()}`).catch(() => null);
@@ -431,6 +471,16 @@ function ProductForm({ barcode: initialBarcode, name: initialName, onSaved, comp
         <label htmlFor="pn-name">Название</label>
         <input id="pn-name" className="input" value={f.name} onChange={set('name')} maxLength={80} style={{ height: compact ? 44 : 50, borderRadius: 12 }} />
       </div>
+      <div className="field">
+        <span style={{ fontWeight: 700 }}>Категория</span>
+        <button type="button" className="input row" onClick={() => setCatOpen(true)} style={{ height: 60, borderRadius: 12, gap: 12, textAlign: 'left', padding: '0 12px' }}>
+          {sub ? <FoodArt kind={sub} size={44} /> : <span style={{ width: 44, height: 44, borderRadius: '50%', border: '2px dashed var(--track)', flex: 'none' }} />}
+          {sub ? <span className="grow" style={{ minWidth: 0 }}><b className="ell" style={{ display: 'block' }}>{SUB_INFO[sub].name}</b><span className="sub">{SUB_INFO[sub].catName}</span></span>
+            : <b className="grow" style={{ color: 'var(--acc)' }}>Выбрать категорию</b>}
+          <span className="muted" style={{ fontWeight: 800 }}>›</span>
+        </button>
+      </div>
+      <CategoryPicker open={catOpen} value={sub} onClose={() => setCatOpen(false)} onPick={(id) => { setPicked(id); setCatOpen(false); }} />
       <div className="between" style={{ gap: 8 }}>
         <span style={{ fontWeight: 700 }}>100 г</span>
         <button type="button" className="btn small outline" disabled={ocr !== null} onClick={() => fileRef.current?.click()} style={{ height: 38, flex: 'none' }}>
