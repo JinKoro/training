@@ -69,12 +69,12 @@ export function SportScreen() {
     <>
       <span className="label">Мои программы</span>
       <div className="list a-in">
+        <a href="#/program/new" style={{ color: 'var(--acc)', fontWeight: 800 }}>+ Программа</a>
         {programs.map((p) => (
           <a key={p.id} href={progHref(p)}>
             <div className="grow"><b>{p.name}</b><div className="sub">{programSubtitle(p)}</div></div><span className="muted">›</span>
           </a>
         ))}
-        <a href="#/program/new" style={{ color: 'var(--acc)', fontWeight: 800 }}>+ Программа</a>
       </div>
     </>
   ) : null;

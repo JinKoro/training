@@ -86,6 +86,7 @@ export function LibraryScreen({ mine, selected }: { mine: boolean; selected: num
       {chips.length ? <div className="chips" style={wide ? { flexWrap: 'wrap' } : undefined}>{chips.map(([l], i) => <button key={l} className="chip" aria-pressed={g === i} onClick={() => setG(i)}>{l}</button>)}</div> : null}
       {wide ? (
         <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fill, minmax(180px, 1fr))', gap: 12 }}>
+          <a href="#/exercise/new" className="a-in" style={{ minHeight: 160, border: '2px dashed var(--track)', borderRadius: 18, display: 'flex', alignItems: 'center', justifyContent: 'center', textAlign: 'center', padding: 14, color: 'var(--acc)', fontWeight: 800 }}>+ Своё упражнение</a>
           {list.map((e) => (
             <a key={e.id} href={`#/exercises/${scope}/${e.id}`} className="card col a-in" style={{ borderRadius: 18, gap: 8, alignItems: 'flex-start', border: `2px solid ${(sel ?? list[0])?.id === e.id ? 'var(--acc)' : 'var(--cardBorder)'}` }}>
               <ExerciseArt kind={e.kind} name={e.name} size={84} />
@@ -93,10 +94,10 @@ export function LibraryScreen({ mine, selected }: { mine: boolean; selected: num
               <span className="sub">{exerciseSubtitle(e)}{e.own ? ' · своё' : ''}</span>
             </a>
           ))}
-          <a href="#/exercise/new" className="a-in" style={{ minHeight: 160, border: '2px dashed var(--track)', borderRadius: 18, display: 'flex', alignItems: 'center', justifyContent: 'center', textAlign: 'center', padding: 14, color: 'var(--acc)', fontWeight: 800 }}>+ Своё упражнение</a>
         </div>
       ) : (
         <div className="col" style={{ gap: 8 }}>
+          {mine && !wide ? <a href="#/exercise/new" className="item a-in" style={{ minHeight: 60, color: 'var(--acc)', fontWeight: 800 }}>+ Добавить упражнение</a> : null}
           {list.map((e) => (
             <a key={e.id} href={`#/exercises/${scope}/${e.id}`} className="item a-in">
               <ExerciseArt kind={e.kind} name={e.name} size={60} />
@@ -106,7 +107,6 @@ export function LibraryScreen({ mine, selected }: { mine: boolean; selected: num
         </div>
       )}
       {!list.length ? (mine && !wide && !base.length ? <div className="empty">Своих упражнений пока нет</div> : <div className="empty">Ничего не нашлось</div>) : null}
-      {mine && !wide ? <a href="#/exercise/new" className="item a-in" style={{ minHeight: 60, color: 'var(--acc)', fontWeight: 800 }}>+ Добавить упражнение</a> : null}
     </div>
   );
 
