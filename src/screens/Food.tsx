@@ -312,7 +312,7 @@ function EntrySheet({ entry, onClose }: { entry: Entry | null; onClose: () => vo
       </div>
       <Tiles m={m} />
       <button className="btn" disabled={g < 1 || g > 5000} onClick={save}>Сохранить</button>
-      <button className="warn-link" onClick={remove}>Удалить из дневника</button>
+      <button className="btn danger" onClick={remove}>Удалить из дневника</button>
     </Sheet>
   );
 }

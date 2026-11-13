@@ -108,12 +108,14 @@ const entryItem = (e: Entry): FoodItem | null => (e.productId || e.dishId ? {
 } : null);
 
 const SCAN_ICON = 'M4 7V5a1 1 0 0 1 1-1h2M17 4h2a1 1 0 0 1 1 1v2M20 17v2a1 1 0 0 1-1 1h-2M7 20H5a1 1 0 0 1-1-1v-2M8 8v8M11 8v8M14 8v8M17 8v8';
+const PLUS_ICON = 'M12 5v14M5 12h14';
 const BOWL_ICON = 'M3 12h18a9 9 0 0 1-18 0zM8 8c0-2 2-2 2-4M13 8c0-2 2-2 2-4';
 type Tab = 'recent' | 'yesterday' | 'library' | 'dishes';
 const TABS: [Tab, string][] = [['recent', 'Недавние'], ['yesterday', 'Вчера'], ['library', 'Библиотека'], ['dishes', 'Блюда']];
 
 /** Search, scan, dish and the four lists for adding food to one meal. Shared by phone and desktop. */
 function AddPanel({ date: d, meal: m }: { date: string; meal: Meal }) {
+  const { wide } = useApp();
   const key = `${d}/${m}`;
   const [q, setQ] = useState(() => panelState.get(key)?.q ?? '');
   const [tab, setTab] = useState<Tab>(() => panelState.get(key)?.tab ?? 'recent');
@@ -203,11 +205,12 @@ function AddPanel({ date: d, meal: m }: { date: string; meal: Meal }) {
       <div ref={searchRef}><SearchInput id="food-search" value={q} onChange={setQ} placeholder="Поиск по всем продуктам" /></div>
       {!s ? (
         <>
-          <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 8 }}>
-            {([['Штрихкод', SCAN_ICON, `#/food/${d}/scan/${m}`, true], ['Блюдо', BOWL_ICON, `#/food/${d}/dish/${m}`, false]] as const).map(([l, ic, h, blue]) => (
-              <a key={l} href={h} className="row a-in" style={{ height: 56, borderRadius: 16, padding: '0 14px', gap: 10, background: blue ? '#2438C9' : 'var(--card)', color: blue ? '#fff' : 'var(--ink)', border: blue ? 0 : '1px solid var(--cardBorder)' }}>
+          {/* Phone: a quick «new product» tile first (desktop has the product form beside the list). */}
+          <div style={{ display: 'grid', gridTemplateColumns: `repeat(${wide ? 2 : 3}, 1fr)`, gap: 8 }}>
+            {([...(wide ? [] : [['Продукт', PLUS_ICON, `#/food/${d}/new-product/${m}/-`, false]]), ['Штрихкод', SCAN_ICON, `#/food/${d}/scan/${m}`, true], ['Блюдо', BOWL_ICON, `#/food/${d}/dish/${m}`, false]] as [string, string, string, boolean][]).map(([l, ic, h, blue]) => (
+              <a key={l} href={h} className={wide ? 'row a-in' : 'col a-in'} style={{ ...(wide ? { height: 56, padding: '0 14px', gap: 10 } : { height: 72, padding: 8, gap: 4, justifyContent: 'center', alignItems: 'center' }), borderRadius: 16, background: blue ? '#2438C9' : 'var(--card)', color: blue ? '#fff' : 'var(--ink)', border: blue ? 0 : '1px solid var(--cardBorder)' }}>
                 <span style={{ width: 32, height: 32, borderRadius: 10, background: blue ? 'rgba(255,255,255,.18)' : 'var(--btn)', display: 'inline-flex', alignItems: 'center', justifyContent: 'center', flex: 'none' }}><Icon d={ic} size={20} /></span>
-                <b style={{ fontSize: 16 }}>{l}</b>
+                <b style={{ fontSize: wide ? 16 : 14 }}>{l}</b>
               </a>
             ))}
           </div>
