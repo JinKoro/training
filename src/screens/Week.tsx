@@ -233,6 +233,21 @@ export function WorkoutCard({ d, calendar, canTrain }: { d: DayInfo; calendar?: 
   );
 }
 
+/** Today's workout card (same as on the week screen), only when today has a session or a program session can be done. */
+export function TodayWorkout() {
+  const { programs } = useApp();
+  const days = useMemo(() => weekDays(weekStart(today())), []);
+  const data = useDays(days);
+  const d = data.days?.find((x) => x.isToday);
+  if (!d) return null;
+  const program = activeProgram(programs);
+  const pWeek = program ? programWeek(program, d.date) : null;
+  const canTrain = !d.isTraining && !!program && pWeek !== null
+    && program.weekdays.some((wd) => planRows(program, pWeek, wd).length > 0 && !slotDone(program, pWeek, wd, data.workouts));
+  if (!d.isTraining && !canTrain) return null;
+  return <WorkoutCard d={d} canTrain={canTrain} />;
+}
+
 function DayPanel({ d, onToday, canTrain }: { d: DayInfo; onToday: () => void; canTrain?: boolean }) {
   return (
     <>

@@ -8,6 +8,7 @@ import { go } from '../lib/router';
 import type { Program } from '../lib/types';
 import { ExerciseArt } from '../art';
 import { Screen, Sheet, errText, toast } from '../ui';
+import { TodayWorkout } from './Week';
 
 const MONTH_PREP = ['январе', 'феврале', 'марте', 'апреле', 'мае', 'июне', 'июле', 'августе', 'сентябре', 'октябре', 'ноябре', 'декабре'];
 
@@ -83,10 +84,10 @@ export function SportScreen() {
       {!wide ? <div className="between"><h1 className="h1 a-h">Спорт</h1>{addBtn}</div> : null}
       {wide ? (
         <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(360px, 1fr))', gap: 20, alignItems: 'start' }}>
-          <div className="col" style={{ gap: 14 }}>{currentCard}{programsBlock}</div>
+          <div className="col" style={{ gap: 14 }}><TodayWorkout />{currentCard}{programsBlock}</div>
           <div className="col" style={{ gap: 14 }}>{exercisesBlock}</div>
         </div>
-      ) : <>{currentCard}{exercisesBlock}{programsBlock}</>}
+      ) : <><TodayWorkout />{currentCard}{exercisesBlock}{programsBlock}</>}
     </Screen>
   );
 }
