@@ -137,7 +137,9 @@ function AddPanel({ date: d, meal: m }: { date: string; meal: Meal }) {
   const y = addDays(d, -1);
   const recent = useQuery<{ items: FoodItem[] }>(`/food/recent?meal=${m}&date=${d}`);
   const yday = useQuery<{ entries: Entry[] }>(tab === 'yesterday' ? `/diary?from=${y}&to=${y}` : null);
-  const lib = useQuery<{ products: FoodItem[] }>(s.length >= 2 ? `/products?q=${encodeURIComponent(s)}` : tab === 'library' ? '/products?limit=50' : null);
+  // Search from the first letter (the server ranks and caps the hits); the previous hits stay while the next ones load.
+  const hits = useQuery<{ products: FoodItem[] }>(s ? `/products?q=${encodeURIComponent(s)}` : null, { keep: true });
+  const lib = useQuery<{ products: FoodItem[] }>(!s && tab === 'library' ? '/products?limit=50' : null);
   const mine = useQuery<{ products: FoodItem[] }>(!s && tab === 'library' ? '/products?mine=1' : null);
   const dishes = useQuery<{ dishes: FoodItem[] }>('/dishes');
   const itemHref = (it: FoodItem) => `#/food/${d}/item/${it.type}/${it.id}/${m}`;
@@ -156,7 +158,7 @@ function AddPanel({ date: d, meal: m }: { date: string; meal: Meal }) {
   let body: React.ReactNode;
   if (s) {
     const low = s.toLowerCase();
-    const found = lib.data && dishes.data ? [...dishes.data.dishes.filter((x) => x.name.toLowerCase().includes(low)), ...(s.length >= 2 ? lib.data.products : [])] : undefined;
+    const found = hits.data && dishes.data ? [...dishes.data.dishes.filter((x) => x.name.toLowerCase().includes(low)), ...hits.data.products] : undefined;
     body = !found ? <Skeleton n={4} /> : (
       <div className="col" style={{ gap: 4 }}>
         {found.map((it) => <ItemRow key={`${it.type}${it.id}`} it={it} href={itemHref(it)} onOpen={remember} sub={`${subtitle(it)}${it.type === 'product' && it.base === false ? ' · добавлен пользователем' : ''}`} />)}
@@ -222,7 +224,7 @@ function AddPanel({ date: d, meal: m }: { date: string; meal: Meal }) {
         ) : null}
         {lib.data.products.map((it) => <ItemRow key={it.id} it={it} href={itemHref(it)} />)}
         <div className="card col" style={{ marginTop: 10, gap: 6, alignItems: 'flex-start' }}>
-          <b style={{ fontWeight: 700 }}>Остальные продукты, в том числе добавленные другими, ищи через поиск.</b>
+          <b style={{ fontWeight: 700 }}>Остальные продукты, в том числе добавленные другими, ищите через поиск.</b>
           <button className="link" style={{ minHeight: 36 }} onClick={() => { searchRef.current?.querySelector('input')?.focus(); searchRef.current?.scrollIntoView({ block: 'center' }); }}>Найти в поиске ›</button>
         </div>
       </div>
@@ -324,7 +326,7 @@ export function ItemScreen({ date, type, id, meal }: { date?: string; type: 'pro
     if (busy) return;
     setBusy(true);
     try { await api('DELETE', `/products/${id}`); invalidate('/products', '/food/recent', '/diary'); toast('Продукт удалён'); history.back(); }
-    catch (e) { toast(e instanceof ApiError && e.code === 'product_in_dish' ? 'Продукт есть в блюде, сначала убери его оттуда' : errText(e)); setBusy(false); setMenu(false); }
+    catch (e) { toast(e instanceof ApiError && e.code === 'product_in_dish' ? 'Продукт есть в блюде, сначала уберите его оттуда' : errText(e)); setBusy(false); setMenu(false); }
   };
   const saveTags = async (v: Meal[]) => {
     setTags(v);
@@ -477,7 +479,7 @@ function ProductForm({ barcode: initialBarcode, name: initialName, onSaved, comp
     if (!initialBarcode) return;
     let alive = true;
     api<{ product: { name: string | null; protein: number | null; fat: number | null; carbs: number | null; kcal?: number | null } | null }>('GET', `/products/lookup?barcode=${initialBarcode}`)
-      .then((r) => { if (alive && r.product) { fill(r.product); setSource('Заполнено из базы Open Food Facts — проверь цифры с упаковкой'); } })
+      .then((r) => { if (alive && r.product) { fill(r.product); setSource('Заполнено из базы Open Food Facts — проверьте цифры с упаковкой'); } })
       .catch(() => {});
     return () => { alive = false; };
   }, [initialBarcode]); // eslint-disable-line react-hooks/exhaustive-deps
@@ -490,8 +492,8 @@ function ProductForm({ barcode: initialBarcode, name: initialName, onSaved, comp
       const { readLabel } = await import('../lib/label');
       const r = await readLabel(file, setOcr);
       const got = [r.protein, r.fat, r.carbs].filter((v) => v !== null).length;
-      if (!got) setSource('Не получилось прочитать БЖУ. Сфоткай таблицу ближе и ровнее, без бликов');
-      else { fill(r); setSource(got === 3 ? 'Прочитано с этикетки — проверь цифры' : 'Прочитано не всё — допиши недостающее'); }
+      if (!got) setSource('Не получилось прочитать БЖУ. Сфотографируйте таблицу ближе и ровнее, без бликов');
+      else { fill(r); setSource(got === 3 ? 'Прочитано с этикетки — проверьте цифры' : 'Прочитано не всё — допишите недостающее'); }
     } catch { setSource('Не получилось распознать фото'); } finally { setOcr(null); }
   };
   const set = (k: keyof typeof f) => (e: React.ChangeEvent<HTMLInputElement>) => { setF((x) => ({ ...x, [k]: e.target.value })); if (k === 'barcode') setDup(null); };
@@ -708,7 +710,7 @@ function DishForm({ onSaved, compact, initial, defaultMeals }: { onSaved: (d: Fo
 function ProductPicker({ onBack, onPick }: { onBack: () => void; onPick: (p: FoodItem) => void }) {
   const [q, setQ] = useState('');
   const s = q.trim();
-  const lib = useQuery<{ products: FoodItem[] }>(s.length >= 2 ? `/products?q=${encodeURIComponent(s)}` : '/products');
+  const lib = useQuery<{ products: FoodItem[] }>(s ? `/products?q=${encodeURIComponent(s)}` : '/products?limit=50', { keep: true });
   return (
     <div className="col" style={{ gap: 12 }}>
       <div><button className="link" onClick={onBack}>‹ Назад</button></div>
@@ -828,7 +830,7 @@ export function ScanScreen({ date, meal }: { date?: string; meal?: string }) {
       <video ref={video} playsInline muted style={{ position: 'absolute', inset: 0, width: '100%', height: '100%', objectFit: 'cover' }} />
       <div className="between" style={{ position: 'absolute', left: 16, right: 16, top: 'calc(18px + var(--safe-top))' }}>
         <a aria-label="Закрыть" href={`#/food/${d}/add/${m}`} style={{ width: 44, height: 44, borderRadius: 22, background: 'rgba(0,0,0,.5)', display: 'flex', alignItems: 'center', justifyContent: 'center' }}>✕</a>
-        <span style={{ background: 'rgba(0,0,0,.5)', borderRadius: 14, padding: '8px 12px', fontWeight: 800 }}>{busy ? 'Ищу товар…' : 'Наведи на штрихкод'}</span>
+        <span style={{ background: 'rgba(0,0,0,.5)', borderRadius: 14, padding: '8px 12px', fontWeight: 800 }}>{busy ? 'Ищу товар…' : 'Наведите на штрихкод'}</span>
         <span style={{ width: 44 }} />
       </div>
       {denied ? (

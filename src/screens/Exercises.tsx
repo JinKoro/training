@@ -222,7 +222,7 @@ export function ExerciseFormScreen({ id }: { id?: number }) {
         </div>
         <div className="field">
           <label htmlFor="ef-desc">Как выполнять <span className="muted" style={{ fontWeight: 500 }}>· необязательно</span></label>
-          <textarea id="ef-desc" rows={3} className="input" style={{ height: 'auto', padding: 12, resize: 'vertical' }} placeholder="Например: спина ровная, опускайся медленно" value={desc} onChange={(e) => setDesc(e.target.value)} maxLength={2000} />
+          <textarea id="ef-desc" rows={3} className="input" style={{ height: 'auto', padding: 12, resize: 'vertical' }} placeholder="Например: спина ровная, опускайтесь медленно" value={desc} onChange={(e) => setDesc(e.target.value)} maxLength={2000} />
         </div>
         <div className="card between" style={{ borderRadius: 14, padding: '8px 12px' }}>
           <b>Отдых по умолчанию</b>

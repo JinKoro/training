@@ -187,7 +187,7 @@ export function WorkoutsScreen({ selected }: { selected: number | null }) {
                 );
               })}
             </>
-          ) : <div className="empty">Выбери тренировку слева</div>}
+          ) : <div className="empty">Выберите тренировку слева</div>}
         </section>
       </div>
     </Screen>

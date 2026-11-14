@@ -640,8 +640,15 @@ export async function handleApi(request, env, path) {
         const norm = (r) => fullName(r).toLowerCase().replace(/ё/g, 'е');
         const words = needle.split(/\s+/).filter(Boolean);
         const hits = results.filter((r) => { const n = norm(r); return words.every((w) => n.includes(w)); });
-        hits.sort((a, b) => Number(!a.name.toLowerCase().startsWith(needle) && !norm(a).startsWith(needle)) - Number(!b.name.toLowerCase().startsWith(needle) && !norm(b).startsWith(needle)));
-        return ok({ products: hits.slice(0, 50).map(productOut) });
+        // Best matches first (a single letter matches almost everything): the name starts with the query,
+        // then a word in it does, then anywhere. The sort is stable, so ties stay alphabetical. At most 50 go out.
+        const rank = (r) => {
+          const n = norm(r);
+          if (r.name.toLowerCase().replace(/ё/g, 'е').startsWith(needle) || n.startsWith(needle)) return 0;
+          return words.every((w) => n.split(/[^a-zа-я0-9%]+/).some((t) => t.startsWith(w))) ? 1 : 2;
+        };
+        const ranked = hits.map((r) => [rank(r), r]).sort((a, b) => a[0] - b[0]);
+        return ok({ products: ranked.slice(0, 50).map(([, r]) => productOut(r)) });
       }
       // Browsing: the user's own products (?mine=1), or the base library — most used first, ?limit=N.
       const bit = meal ? MEAL_BITS[oneOf(meal, 'meal', MEALS)] : 15;

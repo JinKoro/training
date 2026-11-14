@@ -5,16 +5,16 @@ export const numIn = (s: string) => {
   return /^\d+(\.\d+)?$/.test(t) ? Number(t) : NaN;
 };
 
-export const vName = (s: string) => (!s.trim() ? 'Как тебя зовут?' : s.trim().length > 100 ? 'Хватит и 100 символов' : null);
+export const vName = (s: string) => (!s.trim() ? 'Как вас зовут?' : s.trim().length > 100 ? 'Хватит и 100 символов' : null);
 export const vEmail = (s: string) => (/^[^\s@]+@[^\s@]+\.[^\s@]{2,}$/.test(s.trim()) ? null : 'Похоже, в почте опечатка');
 export const vPassword = (s: string) => (s.length < 8 ? 'Не меньше 8 символов' : s.length > 128 ? 'Не длиннее 128 символов' : null);
 export const vWeight = (s: string) => {
   const n = numIn(s);
-  return Number.isNaN(n) ? 'Только число, например 82,5' : n < 30 ? 'Меньше 30 кг? Проверь вес' : n > 300 ? 'Медведей не тренируем' : null;
+  return Number.isNaN(n) ? 'Только число, например 82,5' : n < 30 ? 'Меньше 30 кг? Проверьте вес' : n > 300 ? 'Медведей не тренируем' : null;
 };
 export const vHeight = (s: string) => {
   const n = numIn(s);
-  return Number.isNaN(n) ? 'Только число в сантиметрах' : n < 100 ? 'Меньше 100 см? Проверь рост' : n > 300 ? 'Дядя Стёпа, это вы?' : null;
+  return Number.isNaN(n) ? 'Только число в сантиметрах' : n < 100 ? 'Меньше 100 см? Проверьте рост' : n > 300 ? 'Дядя Стёпа, это вы?' : null;
 };
 export const vSteps = (s: string) => {
   const t = String(s).replace(/\s/g, '');
@@ -34,10 +34,10 @@ export const birthToInput = (iso: string | null) => (iso ? iso.split('-').revers
 export function vBirth(s: string) {
   const iso = parseBirth(s);
   if (!iso) return 'Формат ДД.ММ.ГГГГ';
-  if (iso > today()) return 'Ты ещё не родился';
+  if (iso > today()) return 'Вы ещё не родились';
   const a = ageFrom(iso);
   if (a < 12) return 'Приложение с 12 лет';
-  if (a > 120) return 'Тебе уже вряд ли нужны тренировки';
+  if (a > 120) return 'Вам уже вряд ли нужны тренировки';
   return null;
 }
 
@@ -52,15 +52,15 @@ export function maskBirth(s: string) {
 
 export const vFat = (s: string) => {
   const n = numIn(s);
-  return Number.isNaN(n) ? 'Число, например 18' : n < 3 ? 'Меньше 3 % не бывает' : n > 60 ? 'Больше 60 %? Проверь' : null;
+  return Number.isNaN(n) ? 'Число, например 18' : n < 3 ? 'Меньше 3 % не бывает' : n > 60 ? 'Больше 60 %? Проверьте' : null;
 };
 export const vMinutes = (s: string) => {
   const t = String(s).replace(/\s/g, '');
-  return !/^\d+$/.test(t) ? 'Минуты целым числом' : Number(t) < 10 ? 'Меньше 10 минут? Проверь' : Number(t) > 300 ? 'Больше 5 часов? Проверь' : null;
+  return !/^\d+$/.test(t) ? 'Минуты целым числом' : Number(t) < 10 ? 'Меньше 10 минут? Проверьте' : Number(t) > 300 ? 'Больше 5 часов? Проверьте' : null;
 };
 export const vKcal = (s: string) => {
   const t = String(s).replace(/\s/g, '');
-  return !/^\d+$/.test(t) ? 'Ккал целым числом' : Number(t) > 3000 ? 'Больше 3 000? Проверь' : null;
+  return !/^\d+$/.test(t) ? 'Ккал целым числом' : Number(t) > 3000 ? 'Больше 3 000? Проверьте' : null;
 };
 export const intIn = (s: string) => Number(String(s).replace(/\s/g, ''));
 
