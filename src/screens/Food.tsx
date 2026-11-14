@@ -1,7 +1,7 @@
 import { useEffect, useMemo, useRef, useState } from 'react';
 import { useApp } from '../app-context';
 import { api } from '../lib/api';
-import { MEALS, MEAL_IN, MEAL_RU, entryKcal, entryMacros, fmt, fmtG, kcal, kcal100, macroLine, sumKcal, sumMacros, weekRange } from '../lib/calc';
+import { MEALS, MEAL_IN, MEAL_RU, entryKcal, entryMacros, fmt, fmt1, fmtG, kcal, kcal100, macroLine, sumKcal, sumMacros, weekRange } from '../lib/calc';
 import { addDays, dayMonth, diffDays, fromDay, isDayStr, plural, today, WD_CAP, WD_SHORT, weekDays, weekStart } from '../lib/dates';
 import { useDays } from '../lib/hooks';
 import { go } from '../lib/router';
@@ -316,12 +316,12 @@ function EntrySheet({ entry, onClose }: { entry: Entry | null; onClose: () => vo
 }
 
 export function Tiles({ m, k, big }: { m: [number, number, number]; k: number; big?: boolean }) {
-  const vals = [k, ...m.map((x) => Math.round(x))];
+  const vals = [fmt(k), ...m.map(fmt1)];
   return (
     <div style={{ display: 'grid', gridTemplateColumns: 'repeat(4, 1fr)', gap: 8 }}>
       {['ккал', 'белки', 'жиры', 'углев.'].map((l, i) => (
         <div key={l} style={{ background: big ? 'var(--card)' : 'var(--bg)', border: big ? '1px solid var(--cardBorder)' : 0, borderRadius: big ? 14 : 12, padding: big ? '10px 6px' : 8, borderTop: `${big ? 4 : 3}px solid ${['var(--acc)', ...COLORS][i]}`, textAlign: 'center' }}>
-          <div className={big ? 'display num' : 'num'} style={{ fontWeight: 800, fontSize: big ? 19 : 16 }}>{fmt(vals[i])}</div>
+          <div className={big ? 'display num' : 'num'} style={{ fontWeight: 800, fontSize: big ? 19 : 16 }}>{vals[i]}</div>
           <div className="sub" style={{ fontSize: 12 }}>{l}</div>
         </div>
       ))}

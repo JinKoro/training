@@ -246,8 +246,10 @@ export function dayTotals(entries: Entry[]) {
   return byDate;
 }
 
+/** Macros to one decimal, as on the package (17,2 / 5 / 0,3); a zero is left out. */
+export const fmt1 = (n: number) => String(Math.round(n * 10) / 10).replace('.', ',');
 export const macroLine = (m: Macros) =>
-  ['Б', 'Ж', 'У'].map((l, i) => (Math.round(m[i]) ? `${l} ${fmtG(m[i])}` : '')).filter(Boolean).join(' ');
+  ['Б', 'Ж', 'У'].map((l, i) => (Math.round(m[i] * 10) ? `${l} ${fmt1(m[i])}` : '')).filter(Boolean).join(' ');
 export const fmtG = (n: number) => (n >= 10 || Number.isInteger(n) ? String(Math.round(n)) : String(Math.round(n * 10) / 10).replace('.', ','));
 
 // ---------- week ----------
