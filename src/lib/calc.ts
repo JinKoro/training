@@ -85,11 +85,27 @@ export function plannedFor(p: Program | undefined, date: Day): { week: number; w
   return { week, weekday: wd, rows: planRows(p, week, wd) };
 }
 
+/** Program training days: each selected weekday of each week, skipping weekdays left empty in a week whose plan is filled. */
+export function programSlots(p: Program): { week: number; weekday: number; date: Day }[] {
+  const out: { week: number; weekday: number; date: Day }[] = [];
+  for (let week = 1; week <= p.weeks; week++) {
+    const filled = p.weekdays.some((wd) => planRows(p, week, wd).length > 0);
+    for (const wd of [...p.weekdays].sort((a, b) => a - b)) {
+      if (filled && !planRows(p, week, wd).length) continue;
+      out.push({ week, weekday: wd, date: addDays(p.startDate, (week - 1) * 7 + wd) });
+    }
+  }
+  return out;
+}
+
+/** Progress counts training days only: training days already behind `on` out of all program training days (rest days don't move it). */
 export function programProgress(p: Program, on: Day = today()) {
   const total = p.weeks * 7;
-  const elapsed = Math.min(total, Math.max(0, diffDays(on, p.startDate)));
+  const slots = programSlots(p);
+  const passed = slots.filter((s) => s.date < on).length;
+  const pct = diffDays(on, p.startDate) >= total ? 100 : slots.length ? Math.round((passed / slots.length) * 100) : 0;
   const current = Math.min(p.weeks, Math.max(1, Math.floor(diffDays(on, p.startDate) / 7) + 1));
-  return { pct: Math.round((elapsed / total) * 100), currentWeek: current, finished: diffDays(on, p.startDate) >= total, started: diffDays(on, p.startDate) >= 0 };
+  return { pct, currentWeek: current, finished: diffDays(on, p.startDate) >= total, started: diffDays(on, p.startDate) >= 0 };
 }
 
 export const timesPerWeek = (n: number) => `${n} ${plural(n, ['раз', 'раза', 'раз'])} в неделю`;
