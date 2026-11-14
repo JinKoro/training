@@ -6,6 +6,7 @@ import { invalidate } from '../lib/query';
 import { go } from '../lib/router';
 import type { Exercise } from '../lib/types';
 import { ExerciseArt, KINDS, Muscles } from '../art';
+import { KIND_MUSCLES } from '../lib/kindMuscles';
 import { MoreButton, Screen, Sheet, errText, menuRow, toast } from '../ui';
 import { GROUP_CHIPS, SearchInput, filterExercises } from './ExercisePicker';
 
@@ -142,6 +143,7 @@ export function LibraryScreen({ mine, selected }: { mine: boolean; selected: num
 }
 
 const FORM_MUSCLES: [string, string][] = [['Грудь', 'chest'], ['Спина', 'lats'], ['Плечи', 'shoulders'], ['Бицепс', 'biceps'], ['Трицепс', 'triceps'], ['Пресс', 'abs'], ['Квадрицепс', 'quads'], ['Бицепс бедра', 'hamstrings'], ['Ягодицы', 'glutes'], ['Икры', 'calves']];
+const MAX_MUSCLES = 3;
 const groupOf = (m: string[]) => {
   const f = FORM_MUSCLES.map(([, k]) => k).find((k) => m.includes(k));
   return ({ chest: 'chest', lats: 'back', shoulders: 'shoulders', biceps: 'arms', triceps: 'arms', abs: 'abs' } as Record<string, string>)[f ?? ''] ?? 'legs';
@@ -161,6 +163,14 @@ export function ExerciseFormScreen({ id }: { id?: number }) {
   const [dup, setDup] = useState(false);
   const [del, setDel] = useState(false);
   const back = ex ? `#/exercises/mine/${ex.id}` : '#/exercises/mine';
+  // Pictures that show every chosen muscle; when none does, the closest ones. The chosen picture always stays.
+  const pictures = (() => {
+    const chosen = muscles.filter((m) => FORM_MUSCLES.some(([, k]) => k === m));
+    if (!chosen.length) return KINDS;
+    const hit = (k: string) => chosen.filter((m) => KIND_MUSCLES[k]?.includes(m)).length;
+    const best = Math.max(...KINDS.map(hit));
+    return best ? KINDS.filter((k) => k === kind || hit(k) === best) : KINDS;
+  })();
 
   if (!editable) return <Screen className="modal"><a className="link" href="#/exercises">‹ Упражнения</a><div className="empty">Это базовое упражнение, его нельзя менять</div></Screen>;
 
@@ -201,19 +211,20 @@ export function ExerciseFormScreen({ id }: { id?: number }) {
           </div>
         </div>
         <div className="field">
-          <span className="flabel">Мышцы</span>
+          <span className="flabel"><span>Мышцы</span><span className="muted">до 3</span></span>
           <div className="row" style={{ flexWrap: 'wrap', gap: 8 }}>
             {FORM_MUSCLES.map(([l, k]) => {
               const on = muscles.includes(k);
-              return <button key={k} aria-pressed={on} onClick={() => setMuscles((m) => (on ? m.filter((x) => x !== k) : [...m, k]))}
-                style={{ height: 40, padding: '0 14px', borderRadius: 20, fontWeight: 800, background: on ? 'var(--acc)' : 'transparent', color: on ? 'var(--onAcc)' : 'var(--ink)', border: `1px solid ${on ? 'var(--acc)' : 'var(--track)'}` }}>{l}</button>;
+              const off = !on && muscles.length >= MAX_MUSCLES;
+              return <button key={k} aria-pressed={on} disabled={off} onClick={() => setMuscles((m) => (on ? m.filter((x) => x !== k) : m.length < MAX_MUSCLES ? [...m, k] : m))}
+                style={{ opacity: off ? 0.4 : 1, height: 40, padding: '0 14px', borderRadius: 20, fontWeight: 800, background: on ? 'var(--acc)' : 'transparent', color: on ? 'var(--onAcc)' : 'var(--ink)', border: `1px solid ${on ? 'var(--acc)' : 'var(--track)'}` }}>{l}</button>;
             })}
           </div>
         </div>
         <div className="field">
           <span className="flabel">Картинка</span>
           <div className="chips" style={{ gap: 10 }}>
-            {KINDS.map((k) => (
+            {pictures.map((k) => (
               <button key={k} aria-label={k} aria-pressed={kind === k} onClick={() => setKind(kind === k ? null : k)} style={{ borderRadius: 14, padding: 2, border: `3px solid ${kind === k ? 'var(--acc)' : 'transparent'}`, flex: 'none' }}>
                 <ExerciseArt kind={k} size={56} />
               </button>
