@@ -112,6 +112,14 @@ export function programProgress(p: Program, on: Day = today()) {
   return { pct, currentWeek: current, finished: diffDays(on, p.startDate) >= total, started: diffDays(on, p.startDate) >= 0 };
 }
 
+/** Program progress by workouts actually done: program days with a finished workout out of all program training days. */
+export function programDonePct(p: Program, workouts: Workout[]): number {
+  const slots = programSlots(p);
+  if (!slots.length) return 0;
+  const done = slots.filter((s) => workouts.some((w) => w.programId === p.id && w.week === s.week && w.weekday === s.weekday && w.status === 'finished')).length;
+  return Math.round((done / slots.length) * 100);
+}
+
 export const timesPerWeek = (n: number) => `${n} ${plural(n, ['раз', 'раза', 'раз'])} в неделю`;
 export const weeksText = (n: number) => `${n} ${plural(n, ['неделя', 'недели', 'недель'])}`;
 

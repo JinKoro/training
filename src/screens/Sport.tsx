@@ -1,11 +1,11 @@
 import { useEffect, useState } from 'react';
 import { useApp } from '../app-context';
 import { api } from '../lib/api';
-import { DEFAULT_REST, mmss, planMinutes, programProgress, timesPerWeek, weeksText } from '../lib/calc';
+import { DEFAULT_REST, mmss, planMinutes, programDonePct, programEnd, programProgress, timesPerWeek, weeksText } from '../lib/calc';
 import { plural, today, WD_CAP } from '../lib/dates';
-import { invalidate } from '../lib/query';
+import { invalidate, useQuery } from '../lib/query';
 import { go } from '../lib/router';
-import type { Program } from '../lib/types';
+import type { Program, Workout } from '../lib/types';
 import { ExerciseArt } from '../art';
 import { MoreButton, Screen, Sheet, errText, menuRow, toast } from '../ui';
 import { TodayWorkout } from './Week';
@@ -18,12 +18,15 @@ export function programSubtitle(p: Program) {
 export function SportScreen() {
   const { programs, exercises, wide } = useApp();
   const current = programs.find((p) => p.active && !programProgress(p).finished);
+  // Progress = program days actually trained (a deleted workout no longer counts).
+  const wq = useQuery<{ workouts: Workout[] }>(current ? `/workouts?from=${current.startDate}&to=${programEnd(current)}` : '/workouts?from=2000-01-01&to=2000-01-01');
+  const donePct = current ? programDonePct(current, wq.data?.workouts ?? []) : 0;
   const base = exercises.filter((e) => !e.own).length;
   const own = exercises.filter((e) => e.own).length;
   const progHref = (p: Program) => (wide ? `#/program/${p.id}/edit` : `#/program/${p.id}`);
 
   const currentCard = current ? (() => {
-    const pr = programProgress(current);
+    const pr = { pct: donePct };
     return wide ? (
       <a href={progHref(current)} className="col a-in" style={{ background: '#2438C9', color: '#fff', borderRadius: 22, padding: 20, gap: 10 }}>
         <div className="between"><span style={{ background: 'rgba(255,255,255,.18)', borderRadius: 8, padding: '3px 8px', fontSize: 12, fontWeight: 800 }}>ИДЁТ СЕЙЧАС</span><b className="display" style={{ fontSize: 20 }}>{pr.pct}%</b></div>

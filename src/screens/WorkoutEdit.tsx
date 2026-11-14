@@ -51,7 +51,7 @@ function Editor({ w, onDone, onCancel, wide }: { w: Workout; onDone: () => void;
     } catch (e) { toast(errText(e)); } finally { setBusy(false); }
   };
   const del = async () => {
-    try { await api('DELETE', `/workouts/${w.id}`); invalidate('/workouts'); go(wide ? 'workouts' : 'calendar'); } catch (e) { toast(errText(e)); }
+    try { await api('DELETE', `/workouts/${w.id}`); invalidate('/workouts'); go('log'); } catch (e) { toast(errText(e)); }
   };
 
   if (pick) {

@@ -85,7 +85,7 @@ export function SummaryScreen({ id, back }: { id: number; back?: string }) {
   const remove = async (date: string) => {
     if (busy) return;
     setBusy(true);
-    try { await api('DELETE', `/workouts/${id}`); invalidate('/workouts'); toast('Тренировка удалена'); go('day', date); }
+    try { await api('DELETE', `/workouts/${id}`); invalidate('/workouts'); toast('Тренировка удалена'); go('log'); }
     catch (e) { toast(errText(e)); setBusy(false); }
   };
   const backHref = back === 'week' ? '#/week' : back === 'calendar' ? '#/calendar' : back === 'workouts' ? `#/workouts/${id}` : '#/log';
