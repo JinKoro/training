@@ -1,7 +1,7 @@
 import { useEffect, useState } from 'react';
 import { useApp } from '../app-context';
 import { api } from '../lib/api';
-import { mmss, programEnd, programProgress, timesPerWeek, weeksText } from '../lib/calc';
+import { mmss, planMinutes, programEnd, programProgress, timesPerWeek, weeksText } from '../lib/calc';
 import { addDays, fromDay, plural, today, WD_CAP } from '../lib/dates';
 import { invalidate } from '../lib/query';
 import { go } from '../lib/router';
@@ -126,7 +126,7 @@ export function ProgramScreen({ id }: { id: number }) {
         const rows = week[String(wd)] ?? [];
         return (
           <div key={wd} className="card col a-in" style={{ borderRadius: 18, gap: 6 }}>
-            <div className="between"><b>{WD_CAP[wd]}</b><span className="muted">{rows.length} упр.</span></div>
+            <div className="between"><b>{WD_CAP[wd]}</b><span className="muted">{rows.length ? `${rows.length} упр. · ~ ${planMinutes(rows, exById)} мин` : '0 упр.'}</span></div>
             {rows.length ? rows.map((r, i) => {
               const e = exById.get(r.exerciseId);
               return (

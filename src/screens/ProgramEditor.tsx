@@ -1,7 +1,7 @@
 import { useMemo, useState } from 'react';
 import { useApp } from '../app-context';
 import { api } from '../lib/api';
-import { programProgress, weeksText } from '../lib/calc';
+import { planMinutes, programProgress, weeksText } from '../lib/calc';
 import { WD_LONG, WD_SHORT } from '../lib/dates';
 import { invalidate } from '../lib/query';
 import { go } from '../lib/router';
@@ -173,7 +173,7 @@ function Editor({ mode, program }: { mode: 'new' | 'edit'; program?: Program }) 
       ) : <span className="muted">Выбери хотя бы один день</span>}
       {act.length ? (
         <>
-          <div className="between"><b style={{ fontSize: 18 }}>Неделя {sel} · {WD_LONG[dayX]}</b><span className="muted" style={{ fontSize: 13 }}>{filled ? `${list.length} упр.` : 'пусто'}</span></div>
+          <div className="between"><b style={{ fontSize: 18 }}>Неделя {sel} · {WD_LONG[dayX]}</b><span className="muted" style={{ fontSize: 13 }}>{filled ? `${list.length} упр. · ~ ${planMinutes(list.map((r) => ({ ...r, sets: Number(r.sets) || 0 })), exById)} мин` : 'пусто'}</span></div>
           {!showEditor ? (
             <div className="card col" style={{ borderRadius: 16, gap: 12 }}>
               <b>Скопировать неделю</b>
