@@ -242,7 +242,7 @@ function Flow({ workout }: { workout: Workout }) {
         <div style={{ flex: 1 }} />
         <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 10 }}>
           <button onClick={skipEx} aria-label="Пропустить упражнение" className="display" style={{ height: 64, borderRadius: 20, border: '2px solid #fff', color: '#fff', fontSize: 18 }}>Пропустить</button>
-          <button onClick={done} className="display" style={{ height: 64, borderRadius: 20, background: '#fff', color: '#12151C', fontSize: 18 }}>Сделано</button>
+          <button onClick={done} className="display" style={{ height: 64, borderRadius: 20, background: '#fff', color: '#12151C', fontSize: 18 }}>Сделал</button>
         </div>
       </>
     );
