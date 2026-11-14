@@ -83,4 +83,9 @@ export const KIND_MUSCLES: Record<string, string[]> = {
   vacuum: ["abs"],
   walk: ["calves", "quads"],
   wrist: ["biceps"],
+  burpeepull: ["abs", "biceps", "chest", "glutes", "lats", "quads", "shoulders", "triceps"],
+  cleanpress: ["calves", "glutes", "hamstrings", "lats", "quads", "shoulders", "triceps"],
+  getup: ["abs", "glutes", "hamstrings", "quads", "shoulders", "triceps"],
+  renegade: ["abs", "biceps", "chest", "lats", "shoulders", "triceps"],
+  squatcurlpress: ["abs", "biceps", "glutes", "hamstrings", "quads", "shoulders", "triceps"],
 };

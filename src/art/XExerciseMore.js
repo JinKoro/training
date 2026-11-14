@@ -36,7 +36,8 @@ export const MORE_LABELS = {
   stepup: 'Зашагивания', pistol: 'Пистолетик', run: 'Бег', treadmill: 'Беговая дорожка', bike: 'Велотренажёр', elliptical: 'Эллипс', rower: 'Гребной тренажёр',
   jumprope: 'Скакалка', stepper: 'Степпер', burpee: 'Берпи', boxjump: 'Прыжки на тумбу', kbswing: 'Махи гирей', swim: 'Плавание', walk: 'Ходьба',
   thruster: 'Трастеры', sled: 'Толкание саней', ohcarry: 'Прогулка с весом над головой', vacuum: 'Вакуум', deadbug: 'Мёртвый жук', bicycle: 'Велосипед',
-  pullover: 'Пуловер', chestpress: 'Жим в тренажёре', cablepullover: 'Пуловер на блоке', goblet: 'Гоблет-приседания', airsquat: 'Приседания', kickbackarm: 'Разгибание в наклоне',
+cleanpress: 'Взятие на грудь и жим', renegade: 'Отжимания с тягой гантелей', burpeepull: 'Берпи с подтягиванием', getup: 'Турецкий подъём', squatcurlpress: 'Присед, бицепс и жим',
+    pullover: 'Пуловер', chestpress: 'Жим в тренажёре', cablepullover: 'Пуловер на блоке', goblet: 'Гоблет-приседания', airsquat: 'Приседания', kickbackarm: 'Разгибание в наклоне',
 };
 
 export const MORE_KINDS = {
@@ -307,6 +308,27 @@ export const MORE_KINDS = {
   airsquat: {
     start: (v) => side() + p('M36 20L54 22') + m(v, 37, 46),
     end: (v) => h(38, 22) + p('M36 27L30 46M30 46L42 44L40 62M35 31L54 30') + m(v, 36, 46),
+  },
+  // Combined movements (cover muscle sets no single picture had: back + legs + shoulders, chest + back + arms…).
+  cleanpress: {
+    start: (v) => plate(v, 30, 57, 7) + h(21, 27) + p('M42 62L40 50L44 38L26 31M26 31L29 53') + m(v, 44, 40),
+    end: (v) => bar(v, 18, 54, 4) + h(36, 10) + p('M36 15V37M36 37L28 62M36 37L46 62M36 20L29 12L29 5M36 20L43 12L43 5') + m(v, 31, 19),
+  },
+  renegade: {
+    start: (v) => h(14, 42) + p('M20 44L58 62M20 44V59M24 46L28 59') + db(v, 20, 61) + db(v, 28, 61) + m(v, 30, 49),
+    end: (v) => h(14, 42) + p('M20 44L58 62M20 44V59M24 46L31 38L30 47') + db(v, 20, 61) + db(v, 30, 48) + m(v, 30, 46),
+  },
+  burpeepull: {
+    start: (v) => q(v, 'M14 14H58') + h(23, 34) + p('M40 44L27 37M27 38L24 62M40 44L32 50L34 62') + m(v, 34, 48),
+    end: (v) => q(v, 'M14 14H58') + h(36, 8) + p('M26 14L23 24L31 18M46 14L49 24L41 18M31 18H41M36 13V36M36 36L33 47M36 36L39 47') + m(v, 33, 24),
+  },
+  getup: {
+    start: (v) => h(12, 56) + p('M16 58H42M42 58L58 62M42 58L52 50L58 62M20 58V40M24 58L30 62') + kb(v, 20, 36) + m(v, 21, 50),
+    end: (v) => h(36, 20) + p('M36 25V44M36 44L30 62H18M36 44L46 48L46 62M36 29L38 11M36 29L28 40') + kb(v, 38, 7) + m(v, 37, 30),
+  },
+  squatcurlpress: {
+    start: (v) => h(32, 27) + p('M32 32L28 48L42 48L40 62M28 48L22 62M32 36L37 47') + db(v, 38, 49) + m(v, 29, 42),
+    end: (v) => front() + p('M36 20L30 30L31 22M36 20L42 30L41 22') + db(v, 31, 21) + db(v, 41, 21) + m(v, 31, 27),
   },
   kickbackarm: {
     start: (v) => h(21, 23) + p('M42 62L40 48L44 36L26 26M28 27L36 30L36 42') + db(v, 36, 44) + m(v, 32, 29),
