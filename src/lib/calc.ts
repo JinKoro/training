@@ -9,15 +9,15 @@ export const fmt = (n: number) => Math.round(n).toLocaleString('ru-RU');
 // ---------- norms ----------
 /** Latest norm of that day type in effect on the date; null when the training-day norm is not set. */
 export function setNormFor(me: Me, date: Day, type: 'training' | 'rest'): Macros | null {
-  let found: Macros | null | undefined;
-  let first: Macros | null | undefined;
+  // The latest norm in effect on `date` (by its date, not by list order); before any, the earliest one.
+  let found: { from: Day; macros: Macros | null } | undefined;
+  let first: { from: Day; macros: Macros | null } | undefined;
   for (const n of me.norms) {
     if (n.type !== type) continue;
-    if (first === undefined) first = n.macros;
-    if (n.from <= date) found = n.macros;
+    if (!first || n.from < first.from) first = n;
+    if (n.from <= date && (!found || n.from >= found.from)) found = n;
   }
-  const v = found !== undefined ? found : first;
-  return v ?? null;
+  return (found ?? first)?.macros ?? null;
 }
 
 /** Norm used for a day: a training day without its own norm falls back to the rest-day norm. */
@@ -140,13 +140,13 @@ export function setWeights(kg: string, sets: number): (number | null)[] {
 
 /** Done share in %, rounded; 100 only when everything is done (99.6 % shows as 99). */
 export function donePct(done: number, plan: number): number {
-  if (plan <= 0) return 0;
+  if (plan <= 0 || done <= 0) return 0;
   if (done >= plan) return 100;
   return Math.min(99, Math.round((done / plan) * 100));
 }
 
 export const showKg = (n: number | null | undefined) => (n == null ? '—' : String(Math.round(n * 100) / 100).replace('.', ','));
-export const mmss = (t: number) => `${Math.floor(t / 60)}:${String(Math.max(0, t) % 60).padStart(2, '0')}`;
+export const mmss = (t: number) => { const s = Math.max(0, Math.round(t)); return `${Math.floor(s / 60)}:${String(s % 60).padStart(2, '0')}`; };
 
 const GROUP_RU: Record<string, string> = { legs: 'Ноги', back: 'Спина', chest: 'Грудь', shoulders: 'Плечи', arms: 'Руки', abs: 'Пресс', cardio: 'Кардио' };
 export const MUSCLE_RU: Record<string, string> = {

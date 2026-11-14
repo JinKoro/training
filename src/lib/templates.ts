@@ -94,7 +94,7 @@ export const templatesFor = (sex: Sex | null) => TEMPLATES.filter((t) => t.sex =
 export const templateById = (id: string) => TEMPLATES.find((t) => t.id === id);
 
 export const blockOf = (t: Template, week: number) => t.blocks.find((b) => week >= b.from && week <= b.to) ?? t.blocks[t.blocks.length - 1];
-const topReps = (scheme: string) => { const m = scheme.match(/×(\d+)(?:–(\d+))?/); return m ? Number(m[2] ?? m[1]) : 10; };
+const topReps = (scheme: string) => { const m = scheme.match(/×(\d+)(?:[–-](\d+))?/); return m ? Number(m[2] ?? m[1]) : 10; };
 
 /** Men's accessories follow the blocks too, softer than the main lifts (isolation is never taken to 4–6 reps). */
 const MEN_ACC: Record<string, string> = { 'Адаптация': '3×12–15', 'Объём': '3×10–12', 'Сила': '3×8–10', 'Разгрузка': '2×12', 'Пик': '3×8', 'Закрепление': '3×10' };

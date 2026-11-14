@@ -37,7 +37,8 @@ export function plural(n: number, forms: [string, string, string]): string {
 }
 
 export const fmtNum = (n: number, digits = 1) =>
-  Number.isInteger(n) ? String(n) : n.toFixed(digits).replace(/\.?0+$/, '').replace('.', ',');
+  Number.isInteger(n) ? String(n) : digits <= 0 ? String(Math.round(n)) : n.toFixed(digits).replace(/\.?0+$/, '').replace('.', ',');
 export const parseNum = (s: string): number => Number(String(s).replace(',', '.').trim());
 
-export const isDayStr = (s: string | undefined): s is Day => !!s && /^\d{4}-\d{2}-\d{2}$/.test(s) && !Number.isNaN(fromDay(s).getTime());
+/** A real calendar date in YYYY-MM-DD (2026-02-30 is not: Date would roll it over). */
+export const isDayStr = (s: string | undefined): s is Day => !!s && /^\d{4}-\d{2}-\d{2}$/.test(s) && !Number.isNaN(fromDay(s).getTime()) && toDay(fromDay(s)) === s;
