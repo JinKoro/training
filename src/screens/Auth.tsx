@@ -62,9 +62,10 @@ function Login({ onAuthed, wide }: { onAuthed: (t: string) => void; wide?: boole
       </Field>
       <button className="btn big" style={{ marginTop: 6 }} disabled={busy || !email || !password}>Войти</button>
       {!wide ? (
-        <p style={{ textAlign: 'center', marginTop: 'auto', paddingTop: 32 }}>
-          <span className="muted">Нет аккаунта? </span><a className="link" href="#/register">Зарегистрироваться</a>
-        </p>
+        <div className="col" style={{ marginTop: 'auto', paddingTop: 32, gap: 8, textAlign: 'center' }}>
+          <span className="muted">Нет аккаунта?</span>
+          <a className="btn sec" href="#/register" style={{ height: 48, borderRadius: 14, fontSize: 15 }}>Зарегистрироваться</a>
+        </div>
       ) : null}
     </form>
   );

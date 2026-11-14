@@ -243,7 +243,7 @@ export function ExerciseFormScreen({ id }: { id?: number }) {
             <button className="icon-btn" style={{ background: 'var(--bg)' }} aria-label="Больше" onClick={() => setRest((r) => Math.min(600, r + 15))}>+</button>
           </div>
         </div>
-        {ex ? <button className="warn-link" onClick={() => setDel(true)}>Удалить упражнение</button> : null}
+        {ex ? <button className="btn danger" style={{ height: 48, borderRadius: 14, fontSize: 15 }} onClick={() => setDel(true)}>Удалить упражнение</button> : null}
         {ex ? <DeleteExercise e={ex} open={del} onClose={() => setDel(false)} /> : null}
       </div>
     </Screen>

@@ -162,7 +162,7 @@ function Editor({ mode, program }: { mode: 'new' | 'edit'; program?: Program }) 
           <button className="icon-btn" style={{ background: 'var(--bg)' }} aria-label="Больше недель" onClick={() => setWeeks((w) => Math.min(52, w + 1))}>+</button>
         </div>
       </div>
-      {wide && mode === 'edit' ? <button className="warn-link" style={{ alignSelf: 'flex-start' }} onClick={() => setDel(true)}>Удалить программу</button> : null}
+      {wide && mode === 'edit' ? <button className="btn danger" style={{ height: 48, borderRadius: 14, fontSize: 15, alignSelf: 'flex-start' }} onClick={() => setDel(true)}>Удалить программу</button> : null}
     </div>
   );
 

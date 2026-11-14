@@ -82,9 +82,9 @@ export function CalendarScreen({ date, food }: { date?: string; food?: boolean }
       </div>
       {!food ? <WorkoutCard d={d} calendar /> : null}
       <FoodCard d={d} title="Еда" meals />
-      {food ? <a className="btn" href={`#/food/${d.date}`}>Открыть день ›</a> : (
-        <a className="link" href={`#/food/${d.date}`} style={{ minHeight: 36 }}>
-          {d.isToday ? 'Добавить еду ›' : d.isPlan ? 'Запланировать еду ›' : 'Дневник еды за этот день ›'}
+      {food ? <a className="btn" href={`#/food/${d.date}`}>Открыть день</a> : (
+        <a className="btn sec" href={`#/food/${d.date}`} style={{ height: 48, borderRadius: 14, fontSize: 15 }}>
+          {d.isToday ? 'Добавить еду' : d.isPlan ? 'Запланировать еду' : 'Дневник еды за этот день'}
         </a>
       )}
     </>

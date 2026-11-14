@@ -89,7 +89,7 @@ function Editor({ w, onDone, onCancel, wide }: { w: Workout; onDone: () => void;
               </Row4>
             ))}
           </div>
-          <button className="link" style={{ fontSize: 14, alignSelf: 'flex-start' }} onClick={() => setEx((p) => p.map((x, a) => {
+          <button className="btn ghost" style={{ height: 44, borderRadius: 12, fontSize: 15 }} onClick={() => setEx((p) => p.map((x, a) => {
             if (a !== i) return x;
             const last = x.sets[x.sets.length - 1];
             return { ...x, sets: [...x.sets, { w: last?.w ?? '', r: '', plannedWeight: last?.plannedWeight ?? null, plannedReps: last?.plannedReps ?? 10 }] };
@@ -98,7 +98,7 @@ function Editor({ w, onDone, onCancel, wide }: { w: Workout; onDone: () => void;
       ))}
       <button className="btn ghost" style={{ height: 52, borderRadius: 14 }} onClick={() => setPick(true)}>+ Упражнение</button>
       <div className="row" style={{ flexWrap: 'wrap' }}>
-        <button className="warn-link" onClick={() => setConfirm({ kind: 'workout' })}>Удалить тренировку</button>
+        <button className="btn danger" style={{ height: 48, borderRadius: 14, fontSize: 15 }} onClick={() => setConfirm({ kind: 'workout' })}>Удалить тренировку</button>
         <span className="grow" />
         {wide ? <button className="btn small" onClick={save} disabled={invalid || busy}>Сохранить</button> : null}
       </div>
