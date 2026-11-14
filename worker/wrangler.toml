@@ -19,3 +19,6 @@ binding = "DB"
 database_name = "training"
 database_id = "ac14bc50-f25e-44ae-afa7-9b3a7baa9dcf"
 migrations_dir = "migrations"
+
+[ai]
+binding = "AI"

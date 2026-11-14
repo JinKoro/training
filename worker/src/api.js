@@ -316,6 +316,41 @@ const todayOf = (request) => {
   return isDay(t) ? t : new Date().toISOString().slice(0, 10);
 };
 
+const LABEL_MODEL = '@cf/meta/llama-4-scout-17b-16e-instruct';
+const LABEL_PROMPT = `This is a photo of a food package. Find the nutrition facts table and return the values PER 100 g (or per 100 ml).
+If the table has several columns (per 100 g and per portion), use the per-100 g column. If only per-portion values and the portion weight are given, convert to per 100 g.
+Return only JSON: {"kcal": number|null, "protein": number|null, "fat": number|null, "carbs": number|null}.
+kcal is energy in kilocalories (not kJ). Use null for a value you cannot read. Decimal commas are decimal points.`;
+
+/** Vision model reads the label; any failure (quota, bad answer) returns nulls so the app falls back to on-phone OCR. */
+async function readLabelAI(env, image) {
+  const num = (v, max) => {
+    const n = typeof v === 'string' ? Number(v.replace(',', '.')) : v;
+    return typeof n === 'number' && Number.isFinite(n) && n >= 0 && n <= max ? Math.round(n * 10) / 10 : null;
+  };
+  let r;
+  try {
+    r = await env.AI.run(LABEL_MODEL, {
+      messages: [{ role: 'user', content: [{ type: 'text', text: LABEL_PROMPT }, { type: 'image_url', image_url: { url: image } }] }],
+      max_tokens: 200, temperature: 0,
+      response_format: {
+        type: 'json_schema',
+        json_schema: { type: 'object', properties: Object.fromEntries(['kcal', 'protein', 'fat', 'carbs'].map((k) => [k, { type: ['number', 'null'] }])), required: ['kcal', 'protein', 'fat', 'carbs'] },
+      },
+    });
+  } catch (e) {
+    console.warn('label AI failed', String(e));
+    return null;
+  }
+  const raw = typeof r?.response === 'string' ? r.response : JSON.stringify(r?.response ?? '');
+  const m = raw.match(/\{[\s\S]*\}/);
+  if (!m) return null;
+  let j;
+  try { j = JSON.parse(m[0]); } catch { return null; }
+  const out = { kcal: num(j.kcal, 900), protein: num(j.protein, 100), fat: num(j.fat, 100), carbs: num(j.carbs, 100) };
+  return Object.values(out).some((v) => v !== null) ? out : null;
+}
+
 // ---------- router ----------
 
 export async function handleApi(request, env, path) {
@@ -564,6 +599,12 @@ export async function handleApi(request, env, path) {
   // --- food: products, dishes, diary ---
   if (seg[0] === 'products') {
     // Barcode not in our library yet: ask Open Food Facts so the new-product form can be prefilled.
+    // Photo of a nutrition label → kcal and macros per 100 g, read by a vision model on Workers AI (free daily quota).
+    if (seg[1] === 'label' && method === 'POST') {
+      const image = String((await readJson(request)).image ?? '');
+      if (!/^data:image\/(jpeg|png|webp);base64,/.test(image) || image.length > 2_500_000) fail(400, 'invalid_image', 'image');
+      return ok({ label: await readLabelAI(env, image) });
+    }
     if (seg[1] === 'lookup' && method === 'GET') {
       const code = new URL(request.url).searchParams.get('barcode') ?? '';
       if (!/^(\d{8}|\d{12,14})$/.test(code)) fail(400, 'invalid_barcode', 'barcode');

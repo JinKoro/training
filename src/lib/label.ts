@@ -1,7 +1,10 @@
 /**
- * Reads protein / fat / carbs per 100 g from a photo of a nutrition label, on the phone (Tesseract, no server).
- * The OCR engine and Russian language data are downloaded on first use and then cached by the browser.
+ * Reads kcal and protein / fat / carbs per 100 g from a photo of a nutrition label. First a vision model on the
+ * server (Cloudflare Workers AI, free daily quota) — it understands the table and picks the per-100 g column; if that
+ * fails (quota, offline), on the phone with Tesseract, whose engine and Russian data are cached after first use.
  */
+import { api } from './api';
+
 export interface LabelMacros { protein: number | null; fat: number | null; carbs: number | null; kcal: number | null; text: string }
 
 /** Downscale and grayscale the photo: faster OCR and fewer misreads on glossy packaging. */
@@ -18,7 +21,30 @@ async function prepare(file: File): Promise<HTMLCanvasElement> {
   return c;
 }
 
+/** The photo as a JPEG data URL, longest side 1600 px: small enough to upload fast, sharp enough for small print. */
+async function toDataUrl(file: File): Promise<string> {
+  const bmp = await createImageBitmap(file);
+  const scale = Math.min(1, 1600 / Math.max(bmp.width, bmp.height));
+  const c = document.createElement('canvas');
+  c.width = Math.round(bmp.width * scale);
+  c.height = Math.round(bmp.height * scale);
+  c.getContext('2d')!.drawImage(bmp, 0, 0, c.width, c.height);
+  bmp.close();
+  return c.toDataURL('image/jpeg', 0.85);
+}
+
+/** onProgress: -1 while the server reads the photo, then 0..100 if it falls back to on-phone OCR. */
 export async function readLabel(file: File, onProgress?: (pct: number) => void): Promise<LabelMacros> {
+  onProgress?.(-1);
+  try {
+    const { label } = await api<{ label: Omit<LabelMacros, 'text'> | null }>('POST', '/products/label', { image: await toDataUrl(file) });
+    if (label && [label.protein, label.fat, label.carbs].some((v) => v !== null)) return { ...label, text: '' };
+  } catch { /* fall back to on-phone OCR */ }
+  onProgress?.(0);
+  return readLabelOnPhone(file, onProgress);
+}
+
+async function readLabelOnPhone(file: File, onProgress?: (pct: number) => void): Promise<LabelMacros> {
   const { createWorker } = await import('tesseract.js');
   const worker = await createWorker('rus+eng', 1, {
     logger: (m: { status: string; progress: number }) => { if (m.status === 'recognizing text') onProgress?.(Math.round(m.progress * 100)); },

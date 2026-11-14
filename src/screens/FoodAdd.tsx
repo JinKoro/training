@@ -568,7 +568,7 @@ function ProductForm({ barcode: initialBarcode, name: initialName, onSaved, comp
       <div className="between" style={{ gap: 8 }}>
         <span style={{ fontWeight: 700 }}>100 г</span>
         <button type="button" className="btn small outline" disabled={ocr !== null} onClick={() => fileRef.current?.click()} style={{ height: 38, flex: 'none' }}>
-          {ocr === null ? 'Сфоткать этикетку' : ocr ? `Читаю… ${ocr}%` : 'Загружаю…'}
+          {ocr === null ? 'Сфоткать этикетку' : ocr < 0 ? 'Читаю…' : ocr ? `Читаю… ${ocr}%` : 'Загружаю…'}
         </button>
         <input ref={fileRef} type="file" accept="image/*" capture="environment" onChange={onPhoto} style={{ display: 'none' }} />
       </div>
