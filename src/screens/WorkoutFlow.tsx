@@ -125,6 +125,8 @@ function Flow({ workout }: { workout: Workout }) {
     completing.current = true;
     enqueue({ method: 'POST', path: `/workouts/${workout.id}/finish` });
     try { localStorage.removeItem(KEY(workout.id)); } catch { /* */ }
+    // Finishing calibrates the program's later weights on the server: refetch it once the queue has gone through.
+    if (workout.programId) void drained().then(() => invalidate('/programs'));
   };
 
   const e = EX[s.ei];
