@@ -175,7 +175,11 @@ export function FoodCard({ d, title, meals }: { d: DayInfo; title?: string; meal
   );
 }
 
-export function WorkoutCard({ d, calendar, canTrain }: { d: DayInfo; calendar?: boolean; canTrain?: boolean }) {
+/**
+ * Workout card of a day. `calendar` = the full card (status, then full-width Итог/Изменить, Начать тренировка or
+ * Открыть план); the calendar and the week screen use it, `from` says where Итог/Изменить return to.
+ */
+export function WorkoutCard({ d, calendar, canTrain, from = 'calendar' }: { d: DayInfo; calendar?: boolean; canTrain?: boolean; from?: 'calendar' | 'week' }) {
   const { programs, exById } = useApp();
   const program = activeProgram(programs);
   const t = today();
@@ -200,8 +204,8 @@ export function WorkoutCard({ d, calendar, canTrain }: { d: DayInfo; calendar?: 
     const s = workoutStats(w);
     const dur = durationMin(w);
     sub = `✓ выполнено ${s.pct}%${dur ? ` · ${dur} мин` : ''}`;
-    btn = { text: calendar ? 'Итог' : 'Итог ›', href: `#/summary/${w.id}` };
-    if (calendar) btn2 = { text: 'Изменить', href: `#/workout-edit/${w.id}/calendar` };
+    btn = { text: calendar ? 'Итог' : 'Итог ›', href: calendar ? `#/summary/${w.id}/${from}` : `#/summary/${w.id}` };
+    if (calendar) btn2 = { text: 'Изменить', href: `#/workout-edit/${w.id}/${from}` };
   } else if (w) {
     sub = 'идёт тренировка';
     btn = { text: 'Продолжить', href: `#/workout/${w.id}`, primary: true };
@@ -259,7 +263,7 @@ function DayPanel({ d, onToday, canTrain }: { d: DayInfo; onToday: () => void; c
         {!d.isToday ? <button onClick={onToday} style={{ flex: 'none', border: '1px solid var(--track)', color: 'var(--acc)', borderRadius: 999, padding: '6px 12px', fontWeight: 800, fontSize: 14 }}>К сегодня</button> : null}
       </div>
       <a href={`#/food/${d.date}`} style={{ display: 'block' }}><FoodCard d={d} /></a>
-      <WorkoutCard d={d} canTrain={canTrain} />
+      <WorkoutCard d={d} canTrain={canTrain} calendar from="week" />
     </>
   );
 }
