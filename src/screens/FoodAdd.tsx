@@ -137,7 +137,9 @@ function AddPanel({ date: d, meal: m }: { date: string; meal: Meal }) {
   const y = addDays(d, -1);
   const recent = useQuery<{ items: FoodItem[] }>(`/food/recent?meal=${m}&date=${d}`);
   const yday = useQuery<{ entries: Entry[] }>(tab === 'yesterday' ? `/diary?from=${y}&to=${y}` : null);
-  const lib = useQuery<{ products: FoodItem[] }>(s.length >= 2 ? `/products?q=${encodeURIComponent(s)}` : tab === 'library' ? '/products?limit=50' : null);
+  // Search from the first letter (the server ranks and caps the hits); the previous hits stay while the next ones load.
+  const hits = useQuery<{ products: FoodItem[] }>(s ? `/products?q=${encodeURIComponent(s)}` : null, { keep: true });
+  const lib = useQuery<{ products: FoodItem[] }>(!s && tab === 'library' ? '/products?limit=50' : null);
   const mine = useQuery<{ products: FoodItem[] }>(!s && tab === 'library' ? '/products?mine=1' : null);
   const dishes = useQuery<{ dishes: FoodItem[] }>('/dishes');
   const itemHref = (it: FoodItem) => `#/food/${d}/item/${it.type}/${it.id}/${m}`;
@@ -156,7 +158,7 @@ function AddPanel({ date: d, meal: m }: { date: string; meal: Meal }) {
   let body: React.ReactNode;
   if (s) {
     const low = s.toLowerCase();
-    const found = lib.data && dishes.data ? [...dishes.data.dishes.filter((x) => x.name.toLowerCase().includes(low)), ...(s.length >= 2 ? lib.data.products : [])] : undefined;
+    const found = hits.data && dishes.data ? [...dishes.data.dishes.filter((x) => x.name.toLowerCase().includes(low)), ...hits.data.products] : undefined;
     body = !found ? <Skeleton n={4} /> : (
       <div className="col" style={{ gap: 4 }}>
         {found.map((it) => <ItemRow key={`${it.type}${it.id}`} it={it} href={itemHref(it)} onOpen={remember} sub={`${subtitle(it)}${it.type === 'product' && it.base === false ? ' · добавлен пользователем' : ''}`} />)}
@@ -708,7 +710,7 @@ function DishForm({ onSaved, compact, initial, defaultMeals }: { onSaved: (d: Fo
 function ProductPicker({ onBack, onPick }: { onBack: () => void; onPick: (p: FoodItem) => void }) {
   const [q, setQ] = useState('');
   const s = q.trim();
-  const lib = useQuery<{ products: FoodItem[] }>(s.length >= 2 ? `/products?q=${encodeURIComponent(s)}` : '/products');
+  const lib = useQuery<{ products: FoodItem[] }>(s ? `/products?q=${encodeURIComponent(s)}` : '/products?limit=50', { keep: true });
   return (
     <div className="col" style={{ gap: 12 }}>
       <div><button className="link" onClick={onBack}>‹ Назад</button></div>

@@ -383,10 +383,10 @@ function CopySheet({ date, meal, entries, onClose }: { date: string; meal: Meal 
 function QuickAdd({ date, meal }: { date: string; meal: Meal }) {
   const [q, setQ] = useState('');
   const recent = useQuery<{ items: FoodItem[] }>('/food/recent');
-  const search = useQuery<{ products: FoodItem[] }>(q.trim().length >= 2 ? `/products?q=${encodeURIComponent(q.trim())}` : '/products');
+  const search = useQuery<{ products: FoodItem[] }>(q.trim() ? `/products?q=${encodeURIComponent(q.trim())}` : '/products?limit=6', { keep: true });
   const dishes = useQuery<{ dishes: FoodItem[] }>('/dishes');
   const s = q.trim().toLowerCase();
-  const items = s.length >= 2
+  const items = s
     ? [...(dishes.data?.dishes ?? []).filter((x) => x.name.toLowerCase().includes(s)), ...(search.data?.products ?? [])]
     : (recent.data?.items.length ? recent.data.items : search.data?.products ?? []);
   const add = async (it: FoodItem) => {

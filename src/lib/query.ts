@@ -1,4 +1,4 @@
-import { useCallback, useEffect, useState, useSyncExternalStore } from 'react';
+import { useCallback, useEffect, useRef, useState, useSyncExternalStore } from 'react';
 import { api } from './api';
 
 /** Minimal cached GET hook: stale-while-revalidate, global invalidation by path prefix. */
@@ -21,9 +21,13 @@ function load(path: string): Promise<void> {
   return entry.promise;
 }
 
-export function useQuery<T>(path: string | null): { data: T | undefined; error: unknown; loading: boolean; reload: () => Promise<void> } {
+/** `keep`: while a new path loads, return the last data this hook had (search as you type: no blank list per letter). */
+export function useQuery<T>(path: string | null, opts?: { keep?: boolean }): { data: T | undefined; error: unknown; loading: boolean; reload: () => Promise<void> } {
   useSyncExternalStore(subscribe, () => version);
   const entry = path ? cache.get(path) : undefined;
+  const last = useRef<unknown>(undefined);
+  if (entry?.data !== undefined) last.current = entry.data;
+  const data = entry?.data ?? (opts?.keep && path && !entry?.error ? last.current : undefined);
   useEffect(() => {
     if (!path) return;
     const e = cache.get(path);
@@ -31,9 +35,9 @@ export function useQuery<T>(path: string | null): { data: T | undefined; error: 
   }, [path]);
   const reload = useCallback(() => (path ? load(path) : Promise.resolve()), [path]);
   return {
-    data: entry?.data as T | undefined,
+    data: data as T | undefined,
     error: entry?.error,
-    loading: !!path && !entry?.data && !entry?.error,
+    loading: !!path && !data && !entry?.error,
     reload,
   };
 }
