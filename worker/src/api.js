@@ -132,6 +132,40 @@ async function assertUniqueExercise(env, userId, name, exceptId = 0) {
 
 // ---------- programs ----------
 
+/**
+ * Calibration: an exercise done in a program workout without a planned weight sets the weight for all its later
+ * slots in that program that still have none (same reps → the same weight; other reps by the Epley formula).
+ */
+async function calibrateProgram(env, uid, w) {
+  if (!w?.programId || !w.week) return;
+  const prog = await env.DB.prepare('SELECT plan FROM programs WHERE id = ? AND user_id = ?').bind(w.programId, uid).first();
+  if (!prog) return;
+  const plan = parse(prog.plan, {});
+  let changed = false;
+  for (const e of w.exercises) {
+    if (!e.exerciseId || e.type === 'time' || e.sets.some((x) => x.plannedWeight != null)) continue;
+    const doneSets = e.sets.filter((x) => x.completedAt != null && x.weight > 0 && x.reps > 0);
+    if (!doneSets.length) continue;
+    const best = doneSets.reduce((a, b) => (b.weight * (1 + b.reps / 30) > a.weight * (1 + a.reps / 30) ? b : a));
+    const e1 = best.weight * (1 + best.reps / 30);
+    for (const [wk, days] of Object.entries(plan)) {
+      for (const [wd, rows] of Object.entries(days)) {
+        const later = Number(wk) > w.week || (Number(wk) === w.week && Number(wd) > w.weekday);
+        if (!later || !Array.isArray(rows)) continue;
+        for (const r of rows) {
+          if (r.exerciseId !== e.exerciseId || String(r.kg ?? '').trim()) continue;
+          const top = Number(String(r.reps).split(/[–-]/).pop()) || best.reps;
+          const step = best.weight >= 20 ? 2.5 : 1;
+          const kg = Math.max(step, Math.round(e1 / (1 + top / 30) / step) * step);
+          r.kg = String(kg).replace('.', ',');
+          changed = true;
+        }
+      }
+    }
+  }
+  if (changed) await env.DB.prepare('UPDATE programs SET plan = ?, updated_at = ? WHERE id = ?').bind(JSON.stringify(plan), Date.now(), w.programId).run();
+}
+
 function programFields(body) {
   const weekdays = [...new Set(arr(body.weekdays, 'weekdays', { max: 7 }).map((d) => num(d, 'weekdays', { min: 0, max: 6, int: true })))].sort();
   if (!weekdays.length) fail(400, 'invalid_array', 'weekdays');
@@ -588,7 +622,9 @@ export async function handleApi(request, env, path) {
     }
     if (seg[2] === 'finish' && method === 'POST') {
       await env.DB.prepare("UPDATE workouts SET status = 'finished', finished_at = ? WHERE id = ?").bind(now, id).run();
-      return ok({ workout: (await loadWorkouts(env, uid, 'id = ?', [id]))[0] });
+      const done = (await loadWorkouts(env, uid, 'id = ?', [id]))[0];
+      await calibrateProgram(env, uid, done);
+      return ok({ workout: done });
     }
     if (seg[2] === 'exercises') {
       const pos = num(seg[3], 'position', { min: 0, max: 29, int: true });

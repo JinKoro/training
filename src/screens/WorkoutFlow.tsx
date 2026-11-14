@@ -46,10 +46,12 @@ function Flow({ workout }: { workout: Workout }) {
     reps: Math.max(...e.sets.map((s) => s.plannedReps), 0), w: e.sets.map((s) => s.plannedWeight),
   })), [workout]);
 
-  const at = useCallback((ei: number, si: number) => {
+  /** Next set's fields. No planned weight (calibration): the weight of this exercise's last done set carries over. */
+  const at = useCallback((ei: number, si: number, log?: LogSet[][]) => {
     const e = EX[ei];
     const pw = e.w[Math.min(si, e.w.length - 1)];
-    return { ei, si, w: pw == null ? '' : show(pw), r: String(e.reps) };
+    const last = log?.[ei]?.[log[ei].length - 1];
+    return { ei, si, w: pw != null ? show(pw) : last && last.w > 0 ? show(last.w) : '', r: String(e.reps) };
   }, [EX]);
 
   const initial = useMemo<St>(() => {
@@ -62,7 +64,7 @@ function Flow({ workout }: { workout: Workout }) {
     } catch { /* ignore */ }
     let ei = log.findIndex((l, i) => l.length < EX[i].w.length && !skipped.includes(i));
     if (ei < 0) ei = 0;
-    return { screen: 'set', ...at(ei, log[ei]?.length ?? 0), log, step: 2.5, left: 0, total: 0, restEndsAt: null, skipped, hist: [], menu: false, confirm: false };
+    return { screen: 'set', ...at(ei, log[ei]?.length ?? 0, log), log, step: 2.5, left: 0, total: 0, restEndsAt: null, skipped, hist: [], menu: false, confirm: false };
   }, []); // eslint-disable-line react-hooks/exhaustive-deps
 
   const [s, setS] = useState<St>(initial);
@@ -135,8 +137,8 @@ function Flow({ workout }: { workout: Workout }) {
     const nxt = s.si + 1 < e.w.length ? [s.ei, s.si + 1] : (() => { const n = firstOpen(log, s.ei + 1, s.skipped); return n < 0 ? null : [n, log[n].length]; })();
     if (!nxt) { finish(log); return; }
     const rest = s.restFor?.[s.ei] ?? e.rest;
-    if (rest <= 0) { goTo({ screen: 'set', log, ...at(nxt[0], nxt[1]) }); return; }
-    goTo({ screen: 'rest', log, ...at(nxt[0], nxt[1]), left: rest, total: rest, restEndsAt: Date.now() + rest * 1000, restOf: s.ei });
+    if (rest <= 0) { goTo({ screen: 'set', log, ...at(nxt[0], nxt[1], log) }); return; }
+    goTo({ screen: 'rest', log, ...at(nxt[0], nxt[1], log), left: rest, total: rest, restEndsAt: Date.now() + rest * 1000, restOf: s.ei });
     void pushStart(rest, true);
   };
 
@@ -145,7 +147,7 @@ function Flow({ workout }: { workout: Workout }) {
     enqueue({ method: 'PATCH', path: path(s.ei), body: { skipped: true } });
     const n = firstOpen(s.log, s.ei + 1, sk);
     if (n < 0) { setS((st) => ({ ...st, skipped: sk })); finish(s.log); return; }
-    goTo({ screen: 'set', skipped: sk, ...at(n, s.log[n].length) });
+    goTo({ screen: 'set', skipped: sk, ...at(n, s.log[n].length, s.log) });
   };
 
   const back = () => {
@@ -188,7 +190,7 @@ function Flow({ workout }: { workout: Workout }) {
         return l ? { ...st, weight: l.w, reps: l.r, completedAt: 1 } : { ...st, weight: null, reps: null, completedAt: null };
       }) })),
     };
-    return <SummaryBody w={view} cta={{ text: 'Продолжить', onClick: async () => { await drained(); invalidate('/workouts'); go('week'); } }} />;
+    return <SummaryBody w={view} cta={{ text: 'Продолжить', onClick: async () => { await drained(); invalidate('/workouts'); invalidate('/programs'); go('week'); } }} />;
   }
 
   const dots: string[] = [];
@@ -208,6 +210,8 @@ function Flow({ workout }: { workout: Workout }) {
   const outlineBtn: React.CSSProperties = { height: 64, borderRadius: 16, border: '2px solid #fff', color: '#fff', fontSize: 22, fontWeight: 800 };
   const inputStyle: React.CSSProperties = { height: 72, borderRadius: 16, border: 0, background: 'rgba(0,0,0,.18)', color: '#fff', textAlign: 'center', fontFamily: 'var(--display)', fontWeight: 800, fontSize: 40, width: '100%', outline: 'none' };
 
+  // Program exercise without a planned weight, before its first done set: this workout calibrates it.
+  const calib = !!workout.programId && e.type !== 'time' && e.w.every((x) => x == null) && s.log[s.ei].length === 0;
   let body: React.ReactNode;
   if (s.screen === 'set') {
     body = (
@@ -226,6 +230,7 @@ function Flow({ workout }: { workout: Workout }) {
               ))}
             </div>
           </div>
+          {calib ? <div style={{ fontSize: 14, fontWeight: 700, opacity: 0.9 }}>Калибровка: подберите вес, с которым сделаете {e.reps} повторов. Дальше программа поставит его сама.</div> : null}
           <div style={{ display: 'grid', gridTemplateColumns: '64px 1fr 64px', gap: 10, alignItems: 'center' }}>
             <button style={outlineBtn} aria-label="Уменьшить вес" onClick={() => setS((st) => ({ ...st, w: show(Math.max(0, (num(st.w) || 0) - st.step)) }))}>−</button>
             <input id="fw" inputMode="decimal" style={inputStyle} value={s.w} onChange={(ev) => setS((st) => ({ ...st, w: ev.target.value.replace(/[^\d.,]/g, '') }))} />
