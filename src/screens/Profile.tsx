@@ -172,14 +172,14 @@ export function ProfileEditScreen() {
     const o = recalcOffer(me, b);
     try {
       await api('PUT', '/me/profile', b);
-      invalidate('/me');
+      await invalidate('/me');
       if (o) { setOffer(o); setBusy(false); } else go('profile');
     } catch (e) { toast(errText(e)); setBusy(false); }
   };
   const recalc = async () => {
     if (!offer || busy) return;
     setBusy(true);
-    try { await api('PUT', '/me/norms', offer.norms); invalidate('/me'); toast('Калории пересчитаны'); go('profile'); } catch (e) { toast(errText(e)); setBusy(false); }
+    try { await api('PUT', '/me/norms', offer.norms); await invalidate('/me'); toast('Калории пересчитаны'); go('profile'); } catch (e) { toast(errText(e)); setBusy(false); }
   };
   const inp = (k: Exclude<keyof typeof f, 'sex'>, label: string, mode: 'text' | 'decimal' | 'numeric', aside?: string | null) => (
     <Field label={label} id={`pe-${k}`} aside={aside} error={errs[k]}>
@@ -215,6 +215,10 @@ function useNormsForm() {
   const cur = currentNorms(me);
   const init = { training: cur.training ? cur.training.map(String) : ['', '', ''], rest: cur.rest.map(String) };
   const [v, setV] = useState(init);
+  // The form follows the saved norms when they change (a recalculation, a save elsewhere), not only on mount.
+  const key = JSON.stringify(init);
+  const [seen, setSeen] = useState(key);
+  if (seen !== key) { setSeen(key); setV(init); }
   const trainingEmpty = v.training.every((x) => !x.trim());
   const valid = v.rest.every(okG) && (trainingEmpty || v.training.every(okG));
   const dirty = JSON.stringify(v) !== JSON.stringify(init);
@@ -244,7 +248,7 @@ export function NormsScreen() {
   const save = async () => {
     if (!nf.valid || busy) return;
     setBusy(true);
-    try { await api('PUT', '/me/norms', nf.body()); invalidate('/me'); go('profile'); } catch (e) { toast(errText(e)); setBusy(false); }
+    try { await api('PUT', '/me/norms', nf.body()); await invalidate('/me'); go('profile'); } catch (e) { toast(errText(e)); setBusy(false); }
   };
   // Without a training norm the everyday norm leads; the order is fixed on open so typing does not reshuffle the cards.
   const order = nf.startedEmpty ? (['rest', 'training'] as const) : (['training', 'rest'] as const);
@@ -291,7 +295,7 @@ export function RecalcScreen() {
   const save = async (r: EnergyResult) => {
     if (busy) return;
     setBusy(true);
-    try { await api('PUT', '/me/profile', { ...r.profile, goal: r.goal, norms: r.norms }); invalidate('/me'); go('profile', 'norms'); }
+    try { await api('PUT', '/me/profile', { ...r.profile, goal: r.goal, norms: r.norms }); await invalidate('/me'); go('profile', 'norms'); }
     catch (e) { toast(errText(e)); setBusy(false); }
   };
   return (
@@ -370,7 +374,7 @@ function DesktopProfile() {
       // Norms typed by hand in the same save win: no offer then.
       const o = nf.dirty ? null : recalcOffer(me, b);
       await api('PUT', '/me/profile', { ...b, ...(nf.dirty ? { norms: nf.body() } : {}) });
-      invalidate('/me');
+      await invalidate('/me');
       setState('saved');
       setOffer(o);
     } catch (e) { toast(errText(e)); } finally { setBusy(false); }
@@ -381,8 +385,7 @@ function DesktopProfile() {
     setBusy(true);
     try {
       await api('PUT', '/me/norms', offer.norms);
-      nf.setV({ training: offer.norms.training ? offer.norms.training.map(String) : ['', '', ''], rest: offer.norms.rest.map(String) });
-      invalidate('/me');
+      await invalidate('/me');
       setOffer(null);
       toast('Калории пересчитаны');
     } catch (e) { toast(errText(e)); } finally { setBusy(false); }

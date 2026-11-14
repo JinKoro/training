@@ -2,23 +2,35 @@ import { useCallback, useEffect, useRef, useState, useSyncExternalStore } from '
 import { api } from './api';
 
 /** Minimal cached GET hook: stale-while-revalidate, global invalidation by path prefix. */
-type Entry = { data?: unknown; error?: unknown; promise?: Promise<void>; at: number };
+type Entry = { data?: unknown; error?: unknown; promise?: Promise<void>; at: number; gen: number };
 const cache = new Map<string, Entry>();
 const listeners = new Set<() => void>();
 let version = 0;
 const emit = () => { version += 1; listeners.forEach((l) => l()); };
 const subscribe = (l: () => void) => { listeners.add(l); return () => listeners.delete(l); };
 
-function load(path: string): Promise<void> {
+/**
+ * `force`: start a new request even if one is in flight. After a write the in-flight GET may have been sent
+ * before the write landed, so reusing it would keep the old data; its late answer is dropped instead.
+ * A superseded request's promise resolves when the newest one does.
+ */
+function load(path: string, force = false): Promise<void> {
   const prev = cache.get(path);
-  if (prev?.promise) return prev.promise;
-  const entry: Entry = { data: prev?.data, at: prev?.at ?? 0 };
-  entry.promise = api('GET', path)
-    .then((d) => { entry.data = d; entry.error = undefined; entry.at = Date.now(); })
-    .catch((e) => { entry.error = e; })
-    .finally(() => { entry.promise = undefined; emit(); });
+  if (prev?.promise && !force) return prev.promise;
+  const entry: Entry = prev ?? { at: 0, gen: 0 };
+  const gen = ++entry.gen;
+  const current = () => cache.get(path) === entry && entry.gen === gen;
+  const p: Promise<void> = api('GET', path)
+    .then((d) => { if (current()) { entry.data = d; entry.error = undefined; entry.at = Date.now(); } })
+    .catch((e) => { if (current()) entry.error = e; })
+    .then(() => {
+      if (!current()) return cache.get(path) === entry ? entry.promise : undefined;
+      entry.promise = undefined;
+      emit();
+    });
+  entry.promise = p;
   cache.set(path, entry);
-  return entry.promise;
+  return p;
 }
 
 /** `keep`: while a new path loads, return the last data this hook had (search as you type: no blank list per letter). */
@@ -42,15 +54,16 @@ export function useQuery<T>(path: string | null, opts?: { keep?: boolean }): { d
   };
 }
 
-/** Refetch every cached path starting with one of the prefixes. */
-export function invalidate(...prefixes: string[]) {
+/** Refetch every cached path starting with one of the prefixes; resolves once the fresh data is in the cache. */
+export function invalidate(...prefixes: string[]): Promise<void> {
+  const loads: Promise<void>[] = [];
   for (const key of cache.keys()) {
     if (prefixes.some((p) => key.startsWith(p))) {
-      const e = cache.get(key)!;
-      e.at = 0;
-      void load(key);
+      cache.get(key)!.at = 0;
+      loads.push(load(key, true));
     }
   }
+  return Promise.all(loads).then(() => {});
 }
 
 export function clearCache() { cache.clear(); emit(); }
