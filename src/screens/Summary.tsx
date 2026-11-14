@@ -2,7 +2,7 @@ import { donePct, durationMin, showKg, workoutStats } from '../lib/calc';
 import { dayMonth, diffDays, WD_CAP, weekStart } from '../lib/dates';
 import { useState } from 'react';
 import { api } from '../lib/api';
-import { invalidate, useQuery } from '../lib/query';
+import { invalidate, useQuery, forget } from '../lib/query';
 import { go } from '../lib/router';
 import type { Workout } from '../lib/types';
 import { useApp } from '../app-context';
@@ -85,7 +85,7 @@ export function SummaryScreen({ id, back }: { id: number; back?: string }) {
   const remove = async (date: string) => {
     if (busy) return;
     setBusy(true);
-    try { await api('DELETE', `/workouts/${id}`); invalidate('/workouts'); toast('Тренировка удалена'); go('log'); }
+    try { await api('DELETE', `/workouts/${id}`); forget(`/workouts/${id}`); invalidate('/workouts'); toast('Тренировка удалена'); go('log'); }
     catch (e) { toast(errText(e)); setBusy(false); }
   };
   const backHref = back === 'week' ? '#/week' : back === 'calendar' ? '#/calendar' : back === 'workouts' ? `#/workouts/${id}` : '#/log';

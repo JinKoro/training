@@ -1,3 +1,5 @@
+import { today } from './dates';
+
 const API_URL: string =
   import.meta.env.VITE_API_URL ?? 'https://training-timer.dskorotin.workers.dev';
 const TOKEN_KEY = 'podhod-token';
@@ -27,6 +29,8 @@ export async function api<T = unknown>(method: Method, path: string, body?: unkn
   const token = getToken();
   if (token) headers.Authorization = `Bearer ${token}`;
   if (body !== undefined) headers['Content-Type'] = 'application/json';
+  // The server dates norms, profile changes and program starts by the user's day, not by UTC.
+  headers['X-Local-Date'] = today();
   let res: Response;
   try {
     res = await fetch(`${API_URL}/api${path}`, {

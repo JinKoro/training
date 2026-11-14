@@ -54,6 +54,9 @@ export function useQuery<T>(path: string | null, opts?: { keep?: boolean }): { d
   };
 }
 
+/** Drop exact cache entries (a deleted item), so a following invalidate doesn't refetch it into a 404. */
+export function forget(...paths: string[]) { for (const p of paths) cache.delete(p); }
+
 /** Refetch every cached path starting with one of the prefixes; resolves once the fresh data is in the cache. */
 export function invalidate(...prefixes: string[]): Promise<void> {
   const loads: Promise<void>[] = [];

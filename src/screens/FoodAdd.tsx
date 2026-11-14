@@ -3,7 +3,7 @@ import { useApp } from '../app-context';
 import { api, ApiError } from '../lib/api';
 import { MEALS, MEAL_IN, MEAL_RU, fmt, fmtG, kcal, kcal100, kcalAt, macroLine, sumKcal } from '../lib/calc';
 import { addDays, dayMonth, diffDays, isDayStr, today } from '../lib/dates';
-import { invalidate, useQuery } from '../lib/query';
+import { invalidate, useQuery, forget } from '../lib/query';
 import { go, replace } from '../lib/router';
 import type { Entry, FoodItem, Meal } from '../lib/types';
 import { FOOD_CATS, SUB_INFO, guessSub } from '../lib/categories';
@@ -313,6 +313,8 @@ function DesktopAdd({ date, meal }: { date: string; meal: Meal }) {
 
 export function ItemScreen({ date, type, id, meal }: { date?: string; type: 'product' | 'dish'; id: number; meal?: string }) {
   const d = asDate(date);
+  // The flag is for this visit only: leaving with ‹ Назад must not send a later «Добавить» back in history.
+  useEffect(() => () => { cameFromAdd = false; }, []);
   const q = useQuery<{ product?: FoodItem; dish?: FoodItem }>(type === 'dish' ? `/dishes/${id}` : `/products/${id}`);
   const last = useQuery<{ grams: number | null }>(`/food/last-grams?type=${type}&id=${id}`);
   const m = asMeal(meal);
@@ -326,7 +328,7 @@ export function ItemScreen({ date, type, id, meal }: { date?: string; type: 'pro
   const removeProduct = async () => {
     if (busy) return;
     setBusy(true);
-    try { await api('DELETE', `/products/${id}`); invalidate('/products', '/food/recent', '/diary'); toast('Продукт удалён'); history.back(); }
+    try { await api('DELETE', `/products/${id}`); forget(`/products/${id}`, `/food/last-grams?type=product&id=${id}`); invalidate('/products', '/food/recent', '/diary'); toast('Продукт удалён'); history.back(); }
     catch (e) { toast(e instanceof ApiError && e.code === 'product_in_dish' ? 'Продукт есть в блюде, сначала уберите его оттуда' : errText(e)); setBusy(false); setMenu(false); }
   };
   const saveTags = async (v: Meal[]) => {

@@ -74,7 +74,7 @@ function WeekHeader({ start, offset, onOffset }: { start: string; offset: number
       <button className="icon-btn" aria-label="Предыдущая неделя" onClick={() => onOffset(offset - 1)}>‹</button>
       <b className="grow" style={{ textAlign: 'center', fontSize: 17, whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis', minWidth: 0 }}>{weekRange(start)}</b>
       <button className="icon-btn" aria-label="Следующая неделя" onClick={() => onOffset(offset + 1)}>›</button>
-      <a className="icon-btn" aria-label="Календарь" href={`#/calendar/${start}`}><Icon d="M4 6h16v14H4zM4 10h16M8 3v4M16 3v4" size={20} /></a>
+      <a className="icon-btn" aria-label="Календарь" href={`#/calendar/${today() >= start && today() <= addDays(start, 6) ? today() : start}`}><Icon d="M4 6h16v14H4zM4 10h16M8 3v4M16 3v4" size={20} /></a>
     </div>
   );
 }

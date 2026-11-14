@@ -121,7 +121,7 @@ describe('programs', () => {
   it('activeProgram', () => {
     expect(activeProgram(undefined)).toBeUndefined();
     expect(activeProgram([prog({ id: 1, active: false }), prog({ id: 2, active: true })])!.id).toBe(2);
-    expect(activeProgram([prog({ id: 1, active: false })])!.id).toBe(1);
+    expect(activeProgram([prog({ id: 1, active: false })])).toBeUndefined(); // no fallback to a replaced program
   });
   it('programEnd is start + weeks*7', () => {
     expect(programEnd(p)).toBe('2026-11-16');

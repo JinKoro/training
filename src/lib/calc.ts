@@ -62,7 +62,8 @@ export function suggestNorms(e: EnergyInput, goal: Goal): { training: Macros | n
 
 // ---------- programs ----------
 export function activeProgram(programs: Program[] | undefined): Program | undefined {
-  return programs?.find((p) => p.active) ?? programs?.[0];
+  // Only the active one: after the current program is deleted, an older replaced one must not plan workouts.
+  return programs?.find((p) => p.active);
 }
 export const programEnd = (p: Program): Day => addDays(p.startDate, p.weeks * 7);
 

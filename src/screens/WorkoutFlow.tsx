@@ -2,7 +2,7 @@ import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import { useApp } from '../app-context';
 import { api } from '../lib/api';
 import { mmss, showKg } from '../lib/calc';
-import { invalidate, useQuery } from '../lib/query';
+import { invalidate, useQuery, forget } from '../lib/query';
 import { go, scrollTop } from '../lib/router';
 import { enqueue, drained } from '../lib/sync';
 import { pushStart, pushStop } from '../lib/push';
@@ -179,6 +179,7 @@ function Flow({ workout }: { workout: Workout }) {
     try { localStorage.removeItem(KEY(workout.id)); } catch { /* */ }
     await drained(3000);
     try { await api('DELETE', `/workouts/${workout.id}`); } catch { enqueue({ method: 'DELETE', path: `/workouts/${workout.id}` }); }
+    forget(`/workouts/${workout.id}`);
     invalidate('/workouts');
     go('week');
   };
@@ -192,7 +193,7 @@ function Flow({ workout }: { workout: Workout }) {
         return l ? { ...st, weight: l.w, reps: l.r, completedAt: 1 } : { ...st, weight: null, reps: null, completedAt: null };
       }) })),
     };
-    return <SummaryBody w={view} cta={{ text: 'Продолжить', onClick: async () => { await drained(); invalidate('/workouts'); invalidate('/programs'); go('week'); } }} />;
+    return <SummaryBody w={view} cta={{ text: 'Продолжить', onClick: async () => { await drained(); await Promise.all([invalidate('/workouts'), invalidate('/programs')]); go('week'); } }} />;
   }
 
   const dots: string[] = [];

@@ -44,7 +44,8 @@ export function ProgramEditorScreen({ mode, id }: { mode: 'new' | 'edit'; id?: n
   const { programs } = useApp();
   const p = mode === 'edit' ? programs.find((x) => x.id === id) : undefined;
   if (mode === 'edit' && !p) return <Screen className="modal"><a className="link" href="#/sport">‹ Спорт</a><div className="empty">Программа не найдена</div></Screen>;
-  return <Editor key={p?.id ?? 'new'} mode={mode} program={p} />;
+  // Keyed by updatedAt too: weights calibrated after a workout arrive in a reload, and the editor must show them.
+  return <Editor key={p ? `${p.id}-${p.updatedAt}` : 'new'} mode={mode} program={p} />;
 }
 
 function Editor({ mode, program }: { mode: 'new' | 'edit'; program?: Program }) {
@@ -137,7 +138,7 @@ function Editor({ mode, program }: { mode: 'new' | 'edit'; program?: Program }) 
   }
 
   const inp: React.CSSProperties = { height: 44, borderRadius: 10, border: '1px solid var(--track)', background: 'var(--bg)', textAlign: 'center', fontWeight: 800, width: '100%', minWidth: 0, outline: 'none', padding: 0 };
-  const bad = (ok: boolean): React.CSSProperties => (ok ? {} : { borderColor: 'var(--warn)' });
+  const bad = (ok: boolean): React.CSSProperties => ({ border: `1px solid ${ok ? 'var(--track)' : 'var(--warn)'}` });
 
   const settings = (
     <div className="col" style={{ gap: 14 }}>

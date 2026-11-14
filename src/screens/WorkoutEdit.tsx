@@ -3,7 +3,7 @@ import { useApp } from '../app-context';
 import { api } from '../lib/api';
 import { activeProgram, exerciseSubtitle, plannedFor, showKg, workoutStats, dayTitle } from '../lib/calc';
 import { addDays, dayMonth, diffDays, today, WD_CAP, WD_SHORT, weekStart } from '../lib/dates';
-import { invalidate, useQuery } from '../lib/query';
+import { invalidate, useQuery, forget } from '../lib/query';
 import { go } from '../lib/router';
 import type { Workout } from '../lib/types';
 import { ExerciseArt } from '../art';
@@ -51,7 +51,7 @@ function Editor({ w, onDone, onCancel, wide }: { w: Workout; onDone: () => void;
     } catch (e) { toast(errText(e)); } finally { setBusy(false); }
   };
   const del = async () => {
-    try { await api('DELETE', `/workouts/${w.id}`); invalidate('/workouts'); go('log'); } catch (e) { toast(errText(e)); }
+    try { await api('DELETE', `/workouts/${w.id}`); forget(`/workouts/${w.id}`); invalidate('/workouts'); go('log'); } catch (e) { toast(errText(e)); }
   };
 
   if (pick) {
@@ -83,8 +83,8 @@ function Editor({ w, onDone, onCancel, wide }: { w: Workout; onDone: () => void;
             {e.sets.map((s, j) => (
               <Row4 key={j}>
                 <b>{j + 1}</b>
-                <input aria-label="Вес" inputMode="decimal" style={{ ...inp, borderColor: s.w !== '' && !(n(s.w) >= 0) ? 'var(--warn)' : 'var(--track)' }} value={s.w} onChange={(ev) => upd(i, j, 'w', ev.target.value)} placeholder={s.plannedWeight == null ? '' : showKg(s.plannedWeight)} />
-                <input aria-label="Повторы" inputMode="numeric" style={{ ...inp, borderColor: s.r !== '' && !/^\d+$/.test(s.r) ? 'var(--warn)' : 'var(--track)' }} value={s.r} onChange={(ev) => upd(i, j, 'r', ev.target.value)} placeholder="—" />
+                <input aria-label="Вес" inputMode="decimal" style={{ ...inp, border: `1px solid ${s.w !== '' && !(n(s.w) >= 0) ? 'var(--warn)' : 'var(--track)'}` }} value={s.w} onChange={(ev) => upd(i, j, 'w', ev.target.value)} placeholder={s.plannedWeight == null ? '' : showKg(s.plannedWeight)} />
+                <input aria-label="Повторы" inputMode="numeric" style={{ ...inp, border: `1px solid ${s.r !== '' && !/^\d+$/.test(s.r) ? 'var(--warn)' : 'var(--track)'}` }} value={s.r} onChange={(ev) => upd(i, j, 'r', ev.target.value)} placeholder="—" />
                 <button aria-label="Удалить подход" className="muted" style={{ height: 40 }} onClick={() => setEx((p) => p.map((x, a) => (a !== i ? x : { ...x, sets: x.sets.filter((_, b) => b !== j) })))}>✕</button>
               </Row4>
             ))}
