@@ -9,7 +9,7 @@ import { go } from '../lib/router';
 import type { Macros, Me, Sex } from '../lib/types';
 import { birthToInput, maskBirth, numIn, parseBirth, vBirth, vFat, vHeight, vName, vPassword, vSteps, vWeight, years } from '../lib/validate';
 import { EnergyFlow, energyFormFrom, type EnergyResult } from './Energy';
-import { Field, Screen, Sheet, errText, toast } from '../ui';
+import { Field, Screen, Sheet, errText, toast, PasswordInput } from '../ui';
 
 type Pref = 'system' | 'light' | 'dark';
 
@@ -328,8 +328,8 @@ function PasswordForm({ onDone, wide }: { onDone: () => void; wide?: boolean }) 
   };
   const inp = (k: keyof typeof f, label: string, ac: string, err: string | null) => (
     <Field label={label} id={`pw-${k}`} error={err}>
-      <input id={`pw-${k}`} type="password" autoComplete={ac} className="input" value={f[k]} aria-invalid={!!err} style={{ background: wide ? 'var(--bg)' : 'var(--card)' }}
-        onChange={(e) => { setF((p) => ({ ...p, [k]: e.target.value })); if (k === 'cur') setBad(false); }} />
+      <PasswordInput id={`pw-${k}`} autoComplete={ac} value={f[k]} invalid={!!err} style={{ background: wide ? 'var(--bg)' : 'var(--card)' }}
+        onChange={(v) => { setF((p) => ({ ...p, [k]: v })); if (k === 'cur') setBad(false); }} />
     </Field>
   );
   return (

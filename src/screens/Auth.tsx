@@ -4,7 +4,24 @@ import { useRoute } from '../lib/router';
 import { vEmail, vName, vPassword } from '../lib/validate';
 import { EnergyFlow, emptyEnergyForm, type EnergyForm, type EnergyResult } from './Energy';
 import { ExerciseArt, FoodArt, Logo } from '../art';
-import { Field } from '../ui';
+import { Beta, Field, PasswordInput } from '../ui';
+
+const standalone = () => (navigator as Navigator & { standalone?: boolean }).standalone === true || matchMedia('(display-mode: standalone)').matches;
+
+/** Login hint: install to the home screen (phone, in the browser) or there is a phone version (desktop). */
+function InstallHint({ wide }: { wide?: boolean }) {
+  if (!wide && standalone()) return null;
+  return (
+    <div className="card row" style={{ gap: 12, alignItems: 'flex-start', borderRadius: 16, padding: '12px 14px' }}>
+      <svg width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="var(--acc)" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" aria-hidden="true" style={{ flex: 'none' }}><path d="M12 3v12M8 7l4-4 4 4M6 11H5a1 1 0 0 0-1 1v8a1 1 0 0 0 1 1h14a1 1 0 0 0 1-1v-8a1 1 0 0 0-1-1h-1" /></svg>
+      <span style={{ fontSize: 14, lineHeight: 1.4, textAlign: 'left' }}>
+        {wide
+          ? <><b>Есть версия для телефона.</b> <span className="muted">Откройте этот адрес в Safari на iPhone и нажмите «Поделиться» → «На экран „Домой“».</span></>
+          : <><b>Установите на экран «Домой».</b> <span className="muted">В Safari нажмите «Поделиться» → «На экран „Домой“». Приложение откроется на весь экран, а таймер отдыха будет присылать уведомления.</span></>}
+      </span>
+    </div>
+  );
+}
 
 export function AuthScreen({ wide, onAuthed }: { wide: boolean; onAuthed: (token: string) => void }) {
   const r = useRoute();
@@ -13,7 +30,7 @@ export function AuthScreen({ wide, onAuthed }: { wide: boolean; onAuthed: (token
   return (
     <div style={{ display: 'flex', flexWrap: 'wrap', minHeight: '100dvh' }}>
       <section style={{ flex: '1 1 520px', background: '#2438C9', color: '#fff', padding: 56, display: 'flex', flexDirection: 'column', justifyContent: 'space-between', gap: 32 }}>
-        <div className="row" style={{ gap: 12 }}><Logo /><span className="display" style={{ fontSize: 26 }}>Подход</span></div>
+        <div className="row" style={{ gap: 12 }}><Logo /><span className="display" style={{ fontSize: 26 }}>Подход</span><Beta color="#fff" /></div>
         <h1 className="display" style={{ fontSize: 46, lineHeight: 1.08, maxWidth: 560 }}>Тренировки и питание в одном месте</h1>
         <div className="row" style={{ gap: 12 }}>
           <ExerciseArt kind="bench" size={96} /><ExerciseArt kind="squat" size={96} /><FoodArt kind="dish" size={96} />
@@ -52,17 +69,19 @@ function Login({ onAuthed, wide }: { onAuthed: (t: string) => void; wide?: boole
 
   return (
     <form onSubmit={submit} className="col" style={{ gap: 14, flex: 1 }}>
-      {!wide ? <div className="row" style={{ gap: 12, marginBottom: 24 }}><Logo /><span className="display" style={{ fontSize: 26 }}>Подход</span></div> : null}
+      {!wide ? <div className="row" style={{ gap: 12, marginBottom: 24 }}><Logo /><span className="display" style={{ fontSize: 26 }}>Подход</span><Beta /></div> : null}
       {!wide ? <h1 className="h1" style={{ fontSize: 34, marginBottom: 10 }}>Вход</h1> : null}
       <Field label="Почта" id="li-email">
         <input id="li-email" className="input" type="email" autoComplete="email" value={email} onChange={(e) => setEmail(e.target.value)} aria-invalid={!!bad} required />
       </Field>
       <Field label="Пароль" id="li-pass" error={bad}>
-        <input id="li-pass" className="input" type="password" autoComplete="current-password" value={password} onChange={(e) => setPassword(e.target.value)} aria-invalid={!!bad} required />
+        <PasswordInput id="li-pass" autoComplete="current-password" value={password} onChange={setPassword} invalid={!!bad} required />
       </Field>
       <button className="btn big" style={{ marginTop: 6 }} disabled={busy || !email || !password}>Войти</button>
+      {wide ? <div style={{ marginTop: 8 }}><InstallHint wide /></div> : null}
       {!wide ? (
         <div className="col" style={{ marginTop: 'auto', paddingTop: 32, gap: 8, textAlign: 'center' }}>
+          <div style={{ marginBottom: 6 }}><InstallHint /></div>
           <span className="muted">Нет аккаунта?</span>
           <a className="btn sec" href="#/register" style={{ height: 48, borderRadius: 14, fontSize: 15 }}>Зарегистрироваться</a>
         </div>
@@ -125,8 +144,8 @@ function Register({ onAuthed, wide }: { onAuthed: (t: string) => void; wide?: bo
       <h1 className="h1" style={{ fontSize: 30 }}>Новый аккаунт</h1>
       <Field label="Имя" id="r-name" error={show('name', e1.name)}><input id="r-name" className="input" autoComplete="given-name" value={f.name} onChange={set('name')} aria-invalid={!!show('name', e1.name)} /></Field>
       <Field label="Почта" id="r-email" error={show('email', e1.email) ?? (serverErr?.field === 'email' ? serverErr.text : null)}><input id="r-email" className="input" type="email" autoComplete="email" value={f.email} onChange={set('email')} aria-invalid={!!show('email', e1.email)} /></Field>
-      <Field label="Пароль" id="r-pass" error={show('password', e1.password)}><input id="r-pass" className="input" type="password" autoComplete="new-password" value={f.password} onChange={set('password')} aria-invalid={!!show('password', e1.password)} /></Field>
-      <Field label="Пароль ещё раз" id="r-pass2" error={show('password2', e1.password2)}><input id="r-pass2" className="input" type="password" autoComplete="new-password" value={f.password2} onChange={set('password2')} aria-invalid={!!show('password2', e1.password2)} /></Field>
+      <Field label="Пароль" id="r-pass" error={show('password', e1.password)}><PasswordInput id="r-pass" autoComplete="new-password" value={f.password} onChange={(v) => set('password')({ target: { value: v } } as React.ChangeEvent<HTMLInputElement>)} invalid={!!show('password', e1.password)} /></Field>
+      <Field label="Пароль ещё раз" id="r-pass2" error={show('password2', e1.password2)}><PasswordInput id="r-pass2" autoComplete="new-password" value={f.password2} onChange={(v) => set('password2')({ target: { value: v } } as React.ChangeEvent<HTMLInputElement>)} invalid={!!show('password2', e1.password2)} /></Field>
       <div style={{ flex: 1 }} />
       <button className="btn big" disabled={!ok1}>Создать аккаунт</button>
     </form> : null}

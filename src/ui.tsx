@@ -155,3 +155,29 @@ export const menuRow: React.CSSProperties = { minHeight: 52, textAlign: 'left', 
 export const MoreButton = ({ onClick, color }: { onClick: () => void; color?: string }) => (
   <button onClick={onClick} aria-label="Меню" style={{ width: 44, height: 44, fontSize: 24, fontWeight: 800, color: color ?? 'var(--ink)', flex: 'none' }}>⋯</button>
 );
+
+/** Password field with an eye button that shows / hides what was typed. */
+export function PasswordInput({ id, value, onChange, autoComplete, invalid, style, required }: {
+  id: string; value: string; onChange: (v: string) => void; autoComplete: string; invalid?: boolean; style?: React.CSSProperties; required?: boolean;
+}) {
+  const [shown, setShown] = useState(false);
+  return (
+    <div style={{ position: 'relative' }}>
+      <input id={id} className="input" type={shown ? 'text' : 'password'} autoComplete={autoComplete} value={value} aria-invalid={invalid}
+        required={required} autoCapitalize="off" autoCorrect="off" spellCheck={false}
+        style={{ ...style, paddingRight: 52 }} onChange={(e) => onChange(e.target.value)} />
+      <button type="button" aria-label={shown ? 'Скрыть пароль' : 'Показать пароль'} aria-pressed={shown} onClick={() => setShown(!shown)}
+        style={{ position: 'absolute', right: 4, top: 0, bottom: 0, width: 44, display: 'flex', alignItems: 'center', justifyContent: 'center', color: 'var(--muted)' }}>
+        <svg width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" aria-hidden="true">
+          <path d="M2 12s3.5-7 10-7 10 7 10 7-3.5 7-10 7S2 12 2 12z" /><circle cx="12" cy="12" r="3" />
+          {shown ? <path d="M3 3l18 18" /> : null}
+        </svg>
+      </button>
+    </div>
+  );
+}
+
+/** «BETA» mark next to the app name. */
+export const Beta = ({ color }: { color?: string }) => (
+  <span style={{ border: `1px solid ${color ?? 'var(--acc)'}`, color: color ?? 'var(--acc)', borderRadius: 6, padding: '1px 6px', fontSize: 11, fontWeight: 800, letterSpacing: '.08em', fontFamily: 'var(--body, inherit)' }}>BETA</span>
+);

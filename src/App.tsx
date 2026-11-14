@@ -6,7 +6,7 @@ import { ThemeContext, readStoredPref, storePref, useResolvedTheme, type ThemePr
 import type { Exercise, Me, Program } from './lib/types';
 import { AppContext, useApp, type AppCtx } from './app-context';
 import { Icon, Logo, LOGOUT_ICON_D, SIDEBAR_ITEMS, TAB_ICONS } from './art';
-import { ErrorBox, Skeleton } from './ui';
+import { Beta, ErrorBox, Skeleton } from './ui';
 import { AuthScreen } from './screens/Auth';
 import { WeekScreen, WeekMacrosScreen } from './screens/Week';
 import { CalendarScreen } from './screens/Calendar';
@@ -205,7 +205,7 @@ function Sidebar({ active }: { active: string }) {
   return (
     <nav className={`sidebar ${collapsed ? 'collapsed' : ''}`} aria-label="Разделы">
       <div className="between" style={{ padding: '0 4px 18px', flexDirection: collapsed ? 'column' : 'row' }}>
-        {!collapsed ? <div className="row"><Logo size={32} /><span className="display" style={{ fontSize: 19 }}>Подход</span></div> : null}
+        {!collapsed ? <div className="row"><Logo size={32} /><span className="display" style={{ fontSize: 19 }}>Подход</span><Beta /></div> : null}
         <button className="icon-btn" style={{ background: 'var(--sub)' }} onClick={toggle} aria-expanded={!collapsed} aria-label={collapsed ? 'Развернуть меню' : 'Свернуть меню'}>{collapsed ? '›' : '‹'}</button>
       </div>
       {(SIDEBAR_ITEMS as [string, string, string, string][]).map(([k, label, , d]) => (

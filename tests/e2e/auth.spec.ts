@@ -154,12 +154,19 @@ test.describe('Login / logout', () => {
     const btn = page.getByRole('button', { name: 'Войти' });
     await expect(btn).toBeDisabled();
     await page.getByLabel('Почта').fill(user.email);
-    await page.getByLabel('Пароль').fill('wrong-password');
+    await page.getByLabel('Пароль', { exact: true }).fill('wrong-password');
     await btn.click();
     await expect(page.getByText('Неверная почта или пароль')).toBeVisible();
-    await expect(page.getByLabel('Пароль')).toHaveAttribute('aria-invalid', 'true');
+    // The eye shows and hides the password.
+    const pass = page.getByLabel('Пароль', { exact: true });
+    await expect(pass).toHaveAttribute('type', 'password');
+    await page.getByRole('button', { name: 'Показать пароль' }).click();
+    await expect(pass).toHaveAttribute('type', 'text');
+    await page.getByRole('button', { name: 'Скрыть пароль' }).click();
+    await expect(pass).toHaveAttribute('type', 'password');
+    await expect(page.getByLabel('Пароль', { exact: true })).toHaveAttribute('aria-invalid', 'true');
 
-    await page.getByLabel('Пароль').fill(user.password);
+    await page.getByLabel('Пароль', { exact: true }).fill(user.password);
     // e-mail case and spaces do not matter
     await page.getByLabel('Почта').fill(`  ${user.email.toUpperCase()}  `);
     await btn.click();
