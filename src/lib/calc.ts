@@ -77,23 +77,25 @@ export function planRows(p: Program, week: number, weekday: number): PlanRow[] {
   return p.plan[String(week)]?.[String(weekday)] ?? [];
 }
 
-/** Training day if a program covers the date, the weekday is selected, and the plan has rows (or the week is not filled yet). */
+/** Training day if a program covers the date, the weekday is selected, and that week's plan has exercises for it (an empty day is a rest day). */
 export function plannedFor(p: Program | undefined, date: Day): { week: number; weekday: number; rows: PlanRow[] } | null {
   if (!p) return null;
   if (date < toDay(new Date(p.createdAt))) return null; // days before the program existed are not training days
   const week = programWeek(p, date);
   const wd = weekdayIdx(date);
   if (week === null || !p.weekdays.includes(wd)) return null;
-  return { week, weekday: wd, rows: planRows(p, week, wd) };
+  const rows = planRows(p, week, wd);
+  return rows.length ? { week, weekday: wd, rows } : null;
 }
 
-/** Program training days: each selected weekday of each week, skipping weekdays left empty in a week whose plan is filled. */
+/** Weekdays of a program week that have exercises (the week's training days). */
+export const weekTrainingDays = (p: Program, week: number) => p.weekdays.filter((wd) => planRows(p, week, wd).length > 0);
+
+/** Program training days: each selected weekday of each week that has exercises; empty ones are rest days. */
 export function programSlots(p: Program): { week: number; weekday: number; date: Day }[] {
   const out: { week: number; weekday: number; date: Day }[] = [];
   for (let week = 1; week <= p.weeks; week++) {
-    const filled = p.weekdays.some((wd) => planRows(p, week, wd).length > 0);
-    for (const wd of [...p.weekdays].sort((a, b) => a - b)) {
-      if (filled && !planRows(p, week, wd).length) continue;
+    for (const wd of [...weekTrainingDays(p, week)].sort((a, b) => a - b)) {
       out.push({ week, weekday: wd, date: addDays(p.startDate, (week - 1) * 7 + wd) });
     }
   }

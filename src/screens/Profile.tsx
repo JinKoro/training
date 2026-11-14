@@ -1,7 +1,7 @@
 import { useMemo, useState } from 'react';
 import { useApp } from '../app-context';
 import { api, ApiError } from '../lib/api';
-import { activeProgram, fmt, kcal, setNormFor, suggestNorms, weekRange } from '../lib/calc';
+import { activeProgram, fmt, kcal, programWeek, setNormFor, suggestNorms, weekRange, weekTrainingDays } from '../lib/calc';
 import { ageFrom, today, WD_SHORT, weekDays, weekStart } from '../lib/dates';
 import { useDays } from '../lib/hooks';
 import { invalidate } from '../lib/query';
@@ -228,6 +228,13 @@ function useNormsForm() {
   return { v, setV, valid, dirty, macros, body, trainingEmpty, startedEmpty: !cur.training };
 }
 
+/** Training days of this week's program week (days without exercises are rest days); before/after the program: its weekdays. */
+const budgetDays = (p: ReturnType<typeof activeProgram>): number[] => {
+  if (!p) return [];
+  const w = programWeek(p, today());
+  return w === null ? p.weekdays : weekTrainingDays(p, w);
+};
+
 const weekBudget = (training: Macros | null, rest: Macros, days: number[]) => {
   const t = training ?? rest;
   return {
@@ -243,7 +250,7 @@ export function NormsScreen() {
   const { programs } = useApp();
   const nf = useNormsForm();
   const [busy, setBusy] = useState(false);
-  const days = activeProgram(programs)?.weekdays ?? [];
+  const days = budgetDays(activeProgram(programs));
   const wb = weekBudget(nf.macros('training'), nf.macros('rest')!, days);
   const save = async () => {
     if (!nf.valid || busy) return;
@@ -365,7 +372,7 @@ function DesktopProfile() {
   const [busy, setBusy] = useState(false);
   const dirty = pf.dirty || nf.dirty;
   const valid = pf.valid && nf.valid;
-  const wb = weekBudget(nf.macros('training'), nf.macros('rest')!, activeProgram(programs)?.weekdays ?? []);
+  const wb = weekBudget(nf.macros('training'), nf.macros('rest')!, budgetDays(activeProgram(programs)));
   const save = async () => {
     if (!valid || !dirty || busy) return;
     setBusy(true);
