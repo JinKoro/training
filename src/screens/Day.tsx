@@ -118,7 +118,7 @@ export function DayScreen({ date }: { date?: string }) {
             })}
           </div>
           {others.length ? (
-            !showOthers ? <button className="link" style={{ minHeight: 44, alignSelf: 'flex-start' }} onClick={() => setShowOthers(true)}>Провести другую тренировку этой недели ›</button>
+            !showOthers ? <button className="btn sec" style={{ height: 48, borderRadius: 14, fontSize: 15, alignSelf: wide ? 'flex-start' : 'stretch' }} onClick={() => setShowOthers(true)}>Провести другую тренировку этой недели</button>
               : <><span className="label">Другие тренировки этой недели</span>{othersList}</>
           ) : null}
           {!wide ? (
@@ -133,7 +133,7 @@ export function DayScreen({ date }: { date?: string }) {
         <>
           {existing ? (
             <button className="card between" style={{ borderRadius: 16, width: '100%' }} onClick={() => go(existing.status === 'finished' ? 'summary' : 'workout', existing.id)}>
-              <b>{existing.title}</b><span className="link">{existing.status === 'finished' ? 'Итог ›' : 'Продолжить ›'}</span>
+              <b>{existing.title}</b><span className="btn sec small" style={{ flex: 'none' }}>{existing.status === 'finished' ? 'Итог' : 'Продолжить'}</span>
             </button>
           ) : (
             <div className="card col" style={{ alignItems: 'flex-start' }}>

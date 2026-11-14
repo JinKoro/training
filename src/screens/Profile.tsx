@@ -50,7 +50,7 @@ export function ProfileScreen() {
       <div className="row" style={{ gap: 14 }}>
         <span className="display" style={{ width: 60, height: 60, borderRadius: 30, background: '#2438C9', color: '#fff', display: 'inline-flex', alignItems: 'center', justifyContent: 'center', fontSize: 24, flex: 'none' }}>{name.charAt(0).toUpperCase()}</span>
         <div className="grow"><div className="display ell" style={{ fontSize: 22 }}>{name}</div><div className="muted ell" style={{ fontSize: 14 }}>{me.user.email}</div></div>
-        <button className="link" onClick={() => void logout()}>Выйти</button>
+        <button className="btn sec small" style={{ height: 40 }} onClick={() => void logout()}>Выйти</button>
       </div>
       <span className="label">Тема</span>
       <ThemePicker />
@@ -134,7 +134,7 @@ function RecalcSheet({ offer, busy, onRecalc, onLater }: { offer: Offer | null; 
         ))}
       </div>
       <button className="btn big" style={{ background: '#2438C9', color: '#fff' }} disabled={busy} onClick={onRecalc}>Пересчитать</button>
-      <button className="link" style={{ alignSelf: 'center' }} onClick={onLater}>Не сейчас</button>
+      <button className="btn big sec" onClick={onLater}>Не сейчас</button>
     </Sheet>
   );
 }
@@ -289,7 +289,7 @@ export function NormsScreen() {
         <div><b>Бюджет этой недели</b><div style={{ fontSize: 13, opacity: 0.9 }}>{wb.text}</div></div>
         <b className="display" style={{ fontSize: 20, whiteSpace: 'nowrap' }}>{fmt(wb.B)} ккал</b>
       </div>
-      <a className="link" href="#/profile/recalc">Пересчитать по формуле ›</a>
+      <a className="btn sec" style={{ height: 48, borderRadius: 14, fontSize: 15 }} href="#/profile/recalc">Пересчитать по формуле</a>
     </Screen>
   );
 }
@@ -443,7 +443,7 @@ function DesktopProfile() {
             </div>
             <div className="between" style={{ flexWrap: 'wrap' }}>
               <span className="muted">Бюджет недели <b style={{ color: 'var(--ink)' }}>{fmt(wb.B)} ккал</b> · {wb.text}</span>
-              <a className="link" href="#/profile/recalc">Пересчитать по формуле ›</a>
+              <a className="btn sec" style={{ height: 48, borderRadius: 14, fontSize: 15 }} href="#/profile/recalc">Пересчитать по формуле</a>
             </div>
           </div>
         ))}

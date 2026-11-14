@@ -257,7 +257,7 @@ export function FoodScreen({ date }: { date?: string }) {
                 </SwipeToDelete>
               );
             })}
-            {list.length ? <a className="link" href={`#/food/${d}/dish/${m}/from-meal`} style={{ minHeight: 40, display: 'flex', alignItems: 'center', fontSize: 15 }}>Создать блюдо ›</a> : null}
+            {list.length ? <a className="btn ghost" href={`#/food/${d}/dish/${m}/from-meal`} style={{ height: 48, borderRadius: 14, fontSize: 15 }}>+ Создать блюдо</a> : null}
           </div>
         );
       })}
@@ -401,7 +401,7 @@ function QuickAdd({ date, meal }: { date: string; meal: Meal }) {
   };
   return (
     <div className="card col" style={{ gap: 10 }}>
-      <a className="link" style={{ fontSize: 18 }} href={`#/food/${date}/add/${meal}`}>Добавить {MEAL_IN[meal]} ›</a>
+      <a className="btn sec" style={{ height: 48, borderRadius: 14, fontSize: 15, alignSelf: 'flex-start' }} href={`#/food/${date}/add/${meal}`}>Добавить {MEAL_IN[meal]}</a>
       <SearchInput value={q} onChange={setQ} placeholder="Поиск по общей библиотеке" />
       {items.slice(0, 6).map((it) => (
         <div key={`${it.type}${it.id}`} className="row">

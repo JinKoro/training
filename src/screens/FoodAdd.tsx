@@ -163,7 +163,7 @@ function AddPanel({ date: d, meal: m }: { date: string; meal: Meal }) {
       <div className="col" style={{ gap: 4 }}>
         {found.map((it) => <ItemRow key={`${it.type}${it.id}`} it={it} href={itemHref(it)} onOpen={remember} sub={`${subtitle(it)}${it.type === 'product' && it.base === false ? ' · добавлен пользователем' : ''}`} />)}
         {!found.length ? <span className="muted" style={{ padding: '12px 0' }}>Ничего не нашлось</span> : null}
-        <a className="link" href={newProduct} style={{ minHeight: 44, display: 'flex', alignItems: 'center' }}>{found.length ? 'Нет нужного? Добавить продукт ›' : 'Не нашли? Добавить продукт ›'}</a>
+        <a className="btn ghost" href={newProduct} style={{ height: 48, borderRadius: 14, fontSize: 15, marginTop: 8 }}>+ Добавить продукт</a>
       </div>
     );
   } else if (showHistory) {
@@ -225,7 +225,7 @@ function AddPanel({ date: d, meal: m }: { date: string; meal: Meal }) {
         {lib.data.products.map((it) => <ItemRow key={it.id} it={it} href={itemHref(it)} />)}
         <div className="card col" style={{ marginTop: 10, gap: 6, alignItems: 'flex-start' }}>
           <b style={{ fontWeight: 700 }}>Остальные продукты, в том числе добавленные другими, ищите через поиск.</b>
-          <button className="link" style={{ minHeight: 36 }} onClick={() => { searchRef.current?.querySelector('input')?.focus(); searchRef.current?.scrollIntoView({ block: 'center' }); }}>Найти в поиске ›</button>
+          <button className="btn sec" style={{ height: 48, borderRadius: 14, fontSize: 15, alignSelf: 'stretch' }} onClick={() => { searchRef.current?.querySelector('input')?.focus(); searchRef.current?.scrollIntoView({ block: 'center' }); }}>Найти в поиске</button>
         </div>
       </div>
     );
@@ -235,7 +235,7 @@ function AddPanel({ date: d, meal: m }: { date: string; meal: Meal }) {
       <div className="col" style={{ gap: 4 }}>
         {list.map((it) => <ItemRow key={it.id} it={it} href={itemHref(it)} />)}
         {!list.length ? <span className="muted" style={{ padding: '12px 0' }}>Для {MEAL_GEN[m]} блюд пока нет</span> : null}
-        <a className="link" href={`#/food/${d}/dish/${m}`} style={{ minHeight: 44, display: 'flex', alignItems: 'center' }}>+ Новое блюдо</a>
+        <a className="btn ghost" href={`#/food/${d}/dish/${m}`} style={{ height: 48, borderRadius: 14, fontSize: 15, marginTop: 8 }}>+ Новое блюдо</a>
       </div>
     );
   }
@@ -683,7 +683,7 @@ function DishForm({ onSaved, compact, initial, defaultMeals }: { onSaved: (d: Fo
             <button aria-label="Убрать ингредиент" className="muted" style={{ width: 40, height: 40 }} onClick={() => setIngs((x) => x.filter((_, j) => j !== k))}>✕</button>
           </div>
         ))}
-        <button className="link" style={{ minHeight: 52 }} onClick={() => setPicking(true)}>+ Ингредиент</button>
+        <button className="btn ghost" style={{ height: 48, borderRadius: 14, fontSize: 15 }} onClick={() => setPicking(true)}>+ Ингредиент</button>
       </div>
       <div className="card between" style={{ borderRadius: 18, padding: '12px 14px', background: compact ? 'var(--bg)' : 'var(--card)' }}>
         <b>Вес готового блюда</b>
