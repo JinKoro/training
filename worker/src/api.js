@@ -609,17 +609,11 @@ export async function handleApi(request, env, path) {
 
   // --- food: products, dishes, diary ---
   if (seg[0] === 'products') {
-    // Barcode not in our library yet: ask Open Food Facts so the new-product form can be prefilled.
     // Photo of a nutrition label → kcal and macros per 100 g, read by a vision model on Workers AI (free daily quota).
     if (seg[1] === 'label' && method === 'POST') {
       const image = String((await readJson(request)).image ?? '');
       if (!/^data:image\/(jpeg|png|webp);base64,/.test(image) || image.length > 2_500_000) fail(400, 'invalid_image', 'image');
       return ok({ label: await readLabelAI(env, image) });
-    }
-    if (seg[1] === 'lookup' && method === 'GET') {
-      const code = new URL(request.url).searchParams.get('barcode') ?? '';
-      if (!/^(\d{8}|\d{12,14})$/.test(code)) fail(400, 'invalid_barcode', 'barcode');
-      return ok({ product: await openFoodFacts(code) });
     }
     if (seg.length === 1 && method === 'GET') {
       const url = new URL(request.url);
@@ -628,35 +622,27 @@ export async function handleApi(request, env, path) {
         // A 12-digit UPC-A is the same code as a 13-digit EAN with a leading 0.
         const codes = [barcode, barcode.length === 12 ? `0${barcode}` : barcode.length === 13 && barcode.startsWith('0') ? barcode.slice(1) : barcode];
         const r = await env.DB.prepare(`${PRODUCT_SELECT} WHERE p.barcode IN (?, ?)`).bind(uid, codes[0], codes[1]).first();
-        if (r || url.searchParams.get('auto') !== '1') return ok({ product: r ? productOut(r) : null });
-        // Scanner: unknown here but complete in Open Food Facts → add it to the library at once (the scanner's user owns it and can fix it).
-        if (!/^(\d{8}|\d{12,14})$/.test(barcode)) return ok({ product: null });
-        const o = await openFoodFacts(barcode);
-        if (!o || !o.name || o.name.length < 2 || o.protein === null || o.fat === null || o.carbs === null || o.protein + o.fat + o.carbs > 100.5) return ok({ product: null, off: o });
-        const name = o.name.charAt(0).toUpperCase() + o.name.slice(1);
-        const ins = await env.DB.prepare(
-          `INSERT INTO products (name, brand, barcode, protein, fat, carbs, kcal, icon, created_by, created_at)
-           VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?) RETURNING *`,
-        ).bind(name, o.brand, barcode, o.protein, o.fat, o.carbs, o.kcal, iconFor(name), uid, Date.now()).first();
-        return ok({ product: productOut({ ...ins, my_meals: null }), created: true });
+        // Only our own library: found → the product, else null (the app opens the new-product form).
+        return ok({ product: r ? productOut(r) : null });
       }
       const q = (url.searchParams.get('q') ?? '').trim();
       const meal = url.searchParams.get('meal');
       // Search covers everything, including products other people added.
       if (q) {
-        // SQLite's LIKE ignores case only for Latin letters, so "абрик" would miss "Абрикос": filter in JS instead.
+        // Full-text index (products_fts, migration 0016): every word of the query as a word prefix, at most 300 candidates.
         const needle = q.toLowerCase().replace(/ё/g, 'е');
-        const { results } = await env.DB.prepare(`${PRODUCT_SELECT} ORDER BY p.name COLLATE NOCASE`).bind(uid).all();
-        // Search the full name (brand + name), so «савушкин йогурт» and «йогурт» both find it.
+        const words = needle.split(/[^\p{L}\p{N}]+/u).filter(Boolean).slice(0, 8);
+        if (!words.length) return ok({ products: [] });
+        const match = words.map((w) => `"${w.replace(/"/g, '')}"*`).join(' ');
+        const { results: hits } = await env.DB.prepare(`${PRODUCT_SELECT} WHERE p.id IN (SELECT rowid FROM products_fts WHERE products_fts MATCH ? LIMIT 300)
+          ORDER BY (p.source IS NOT NULL), p.name COLLATE NOCASE`).bind(uid, match).all();
         const norm = (r) => fullName(r).toLowerCase().replace(/ё/g, 'е');
-        const words = needle.split(/\s+/).filter(Boolean);
-        const hits = results.filter((r) => { const n = norm(r); return words.every((w) => n.includes(w)); });
         // Best matches first (a single letter matches almost everything): the name starts with the query,
         // then a word in it does, then anywhere. The sort is stable, so ties stay alphabetical. At most 50 go out.
         const rank = (r) => {
           const n = norm(r);
           if (r.name.toLowerCase().replace(/ё/g, 'е').startsWith(needle) || n.startsWith(needle)) return 0;
-          return words.every((w) => n.split(/[^a-zа-я0-9%]+/).some((t) => t.startsWith(w))) ? 1 : 2;
+          return words.every((w) => n.split(/[^\p{L}\p{N}]+/u).some((t) => t.startsWith(w))) ? 1 : 2;
         };
         const ranked = hits.map((r) => [rank(r), r]).sort((a, b) => a[0] - b[0]);
         return ok({ products: ranked.slice(0, 50).map(([, r]) => productOut(r)) });
@@ -668,7 +654,7 @@ export async function handleApi(request, env, path) {
         return ok({ products: results.map(productOut) });
       }
       const limit = Math.min(1000, Math.max(1, Number(url.searchParams.get('limit')) || 1000));
-      const { results } = await env.DB.prepare(`${PRODUCT_SELECT} WHERE p.created_by IS NULL AND (COALESCE(pm.meals, 15) & ?) != 0
+      const { results } = await env.DB.prepare(`${PRODUCT_SELECT} WHERE p.created_by IS NULL AND p.source IS NULL AND (COALESCE(pm.meals, 15) & ?) != 0
         ORDER BY (SELECT COUNT(*) FROM diary_entries d WHERE d.product_id = p.id) DESC, p.name COLLATE NOCASE LIMIT ?`)
         .bind(uid, bit, limit).all();
       return ok({ products: results.map(productOut) });
@@ -957,27 +943,3 @@ export async function handleApi(request, env, path) {
   fail(404, 'not_found');
 }
 
-/** Per-100 g macros and a name from Open Food Facts, or null when unknown or incomplete. */
-async function openFoodFacts(code) {
-  try {
-    const res = await fetch(`https://world.openfoodfacts.org/api/v2/product/${code}.json?fields=product_name,product_name_ru,brands,nutriments`, {
-      headers: { 'User-Agent': 'Podhod/1.0 (personal workout and food diary)' },
-      cf: { cacheTtl: 86400 },
-    });
-    if (!res.ok) return null;
-    const j = await res.json();
-    const p = j?.product;
-    if (j?.status !== 1 || !p) return null;
-    const n = p.nutriments ?? {};
-    const g = (v) => (typeof v === 'number' && Number.isFinite(v) && v >= 0 && v <= 100 ? Math.round(v * 10) / 10 : typeof v === 'string' && v.trim() !== '' ? g(Number(v.replace(',', '.'))) : null);
-    const protein = g(n.proteins_100g), fat = g(n.fat_100g), carbs = g(n.carbohydrates_100g);
-    const kv = typeof n['energy-kcal_100g'] === 'string' ? Number(n['energy-kcal_100g'].replace(',', '.')) : n['energy-kcal_100g'];
-    const kcal = typeof kv === 'number' && Number.isFinite(kv) && kv >= 0 && kv <= 900 ? Math.round(kv * 10) / 10 : null;
-    const name = String(p.product_name_ru || p.product_name || '').trim();
-    const brand = String(p.brands || '').split(',')[0].replace(/^((СП|ОАО|ЗАО|ООО|ОДО|ЧУП|УП|СООО|ИООО)\s+)+/i, '').replace(/["«»]/g, '').trim();
-    if (!name && protein === null && fat === null && carbs === null) return null;
-    return { name: name.slice(0, 80) || null, brand: brand.slice(0, 40) || null, protein, fat, carbs, kcal };
-  } catch {
-    return null;
-  }
-}

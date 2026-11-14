@@ -478,14 +478,6 @@ function ProductForm({ barcode: initialBarcode, name: initialName, onSaved, comp
     c: v.carbs !== null ? String(v.carbs).replace('.', ',') : x.c,
     k: v.kcal != null ? numStr(v.kcal) : x.k,
   }));
-  useEffect(() => {
-    if (!initialBarcode) return;
-    let alive = true;
-    api<{ product: { name: string | null; protein: number | null; fat: number | null; carbs: number | null; kcal?: number | null } | null }>('GET', `/products/lookup?barcode=${initialBarcode}`)
-      .then((r) => { if (alive && r.product) { fill(r.product); setSource('Заполнено из базы Open Food Facts — проверьте цифры с упаковкой'); } })
-      .catch(() => {});
-    return () => { alive = false; };
-  }, [initialBarcode]); // eslint-disable-line react-hooks/exhaustive-deps
   const onPhoto = async (e: React.ChangeEvent<HTMLInputElement>) => {
     const file = e.target.files?.[0];
     e.target.value = '';
@@ -789,12 +781,10 @@ export function ScanScreen({ date, meal }: { date?: string; meal?: string }) {
       busyRef.current = true; setBusy(true);
       navigator.vibrate?.(50);
       try {
-        // Known here, or complete in Open Food Facts (then added at once) → straight to choosing grams.
-        const r = await api<{ product: FoodItem | null; created?: boolean }>('GET', `/products?barcode=${encodeURIComponent(code)}&auto=1`);
-        if (r.product) {
-          if (r.created) { invalidate('/products'); toast('Добавлен в библиотеку'); }
-          replace('food', d, 'item', 'product', r.product.id, m);
-        } else replace('food', d, 'new-product', m, code);
+        // In our library → straight to choosing grams; otherwise the new-product form with this barcode.
+        const r = await api<{ product: FoodItem | null }>('GET', `/products?barcode=${encodeURIComponent(code)}`);
+        if (r.product) replace('food', d, 'item', 'product', r.product.id, m);
+        else replace('food', d, 'new-product', m, code);
       } catch (e) { toast(errText(e)); busyRef.current = false; setBusy(false); }
     };
     (async () => {
