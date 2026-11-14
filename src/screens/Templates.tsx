@@ -155,7 +155,7 @@ export function TemplateStartScreen({ id }: { id: string }) {
     try {
       const weights = Object.fromEntries(lifts.filter((l) => !l.unknown && l.x > 0).map((l) => [l.n, l.x]));
       const weekdays = [...days].sort();
-      const body = { name: t.name, weekdays, weeks: t.weeks, plan: buildPlan(t, weekdays, weights, byName), startDate: weekStart(first) };
+      const body = { name: t.name, weekdays, weeks: t.weeks, plan: buildPlan(t, weekdays, weights, byName), startDate: weekStart(first), level: t.level };
       await api('POST', '/programs', body);
       await invalidate('/programs');
       toast(`Программа «${t.name}» начата`);

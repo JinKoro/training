@@ -204,7 +204,7 @@ function programFields(body) {
 
 const programOut = (r) => ({
   id: r.id, name: r.name, weekdays: parse(r.weekdays, []), weeks: r.weeks, startDate: r.start_date,
-  active: !!r.is_active, plan: parse(r.plan, {}), createdAt: r.created_at, updatedAt: r.updated_at,
+  active: !!r.is_active, plan: parse(r.plan, {}), level: r.level ?? null, createdAt: r.created_at, updatedAt: r.updated_at,
 });
 
 // ---------- workouts ----------
@@ -549,9 +549,9 @@ export async function handleApi(request, env, path) {
       }
       await env.DB.prepare('UPDATE programs SET is_active = 0 WHERE user_id = ?').bind(uid).run();
       const r = await env.DB.prepare(
-        `INSERT INTO programs (user_id, name, weekdays, weeks, start_date, is_active, plan, created_at, updated_at)
-         VALUES (?, ?, ?, ?, ?, 1, ?, ?, ?) RETURNING *`,
-      ).bind(uid, f.name, f.weekdays, f.weeks, start, f.plan, now, now).first();
+        `INSERT INTO programs (user_id, name, weekdays, weeks, start_date, is_active, plan, level, created_at, updated_at)
+         VALUES (?, ?, ?, ?, ?, 1, ?, ?, ?, ?) RETURNING *`,
+      ).bind(uid, f.name, f.weekdays, f.weeks, start, f.plan, body.level == null ? null : num(body.level, 'level', { min: 0, max: 2, int: true }), now, now).first();
       return ok({ program: programOut(r) }, 201);
     }
     const id = num(seg[1], 'id', { min: 1, int: true });

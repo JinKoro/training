@@ -9,7 +9,8 @@ import type { Program, Workout } from '../lib/types';
 import { ExerciseArt } from '../art';
 import { MoreButton, Screen, Sheet, errText, menuRow, toast } from '../ui';
 import { TodayWorkout } from './Week';
-import { TemplatesBlock } from './Templates';
+import { LevelTag, TemplatesBlock } from './Templates';
+import type { Level } from '../lib/templates';
 
 export function programSubtitle(p: Program) {
   return `${weeksText(p.weeks)} · ${timesPerWeek(p.weekdays.length)}`;
@@ -31,6 +32,7 @@ export function SportScreen() {
       <a href={progHref(current)} className="col a-in" style={{ background: '#2438C9', color: '#fff', borderRadius: 22, padding: 20, gap: 10 }}>
         <div className="between"><span style={{ background: 'rgba(255,255,255,.18)', borderRadius: 8, padding: '3px 8px', fontSize: 12, fontWeight: 800 }}>ИДЁТ СЕЙЧАС</span><b className="display" style={{ fontSize: 20 }}>{pr.pct}%</b></div>
         <div className="display" style={{ fontSize: 24 }}>{current.name}</div>
+        {current.level != null ? <span style={{ alignSelf: 'flex-start' }}><LevelTag level={current.level as Level} /></span> : null}
         <div className="bar" style={{ background: 'rgba(255,255,255,.25)' }}><i className="a-fill" style={{ width: `${pr.pct}%`, background: '#fff' }} /></div>
         <div className="between"><span>{timesPerWeek(current.weekdays.length)}</span><b>Изменить ›</b></div>
       </a>
@@ -38,6 +40,7 @@ export function SportScreen() {
       <a href={progHref(current)} className="card col a-in" style={{ borderRadius: 22, padding: 16, gap: 10 }}>
         <div className="between"><span style={{ background: '#2438C9', color: '#fff', borderRadius: 8, padding: '3px 8px', fontSize: 12, fontWeight: 800 }}>ИДЁТ СЕЙЧАС</span><b className="display" style={{ fontSize: 18 }}>{pr.pct}%</b></div>
         <div className="display" style={{ fontSize: 22 }}>{current.name}</div>
+        {current.level != null ? <span style={{ alignSelf: 'flex-start' }}><LevelTag level={current.level as Level} /></span> : null}
         <div className="bar"><i className="a-fill" style={{ width: `${pr.pct}%`, background: 'var(--acc)' }} /></div>
         <span className="muted" style={{ fontSize: 14 }}>{timesPerWeek(current.weekdays.length)}</span>
       </a>
@@ -72,7 +75,10 @@ export function SportScreen() {
         <a href="#/program/new" style={{ color: 'var(--acc)', fontWeight: 800 }}>+ Программа</a>
         {programs.map((p) => (
           <a key={p.id} href={progHref(p)}>
-            <div className="grow"><b>{p.name}</b><div className="sub">{programSubtitle(p)}</div></div><span className="muted">›</span>
+            <div className="grow">
+              <span style={{ display: 'flex', alignItems: 'center', gap: 8, flexWrap: 'wrap' }}><b>{p.name}</b>{p.level != null ? <LevelTag level={p.level as Level} /> : null}</span>
+              <div className="sub">{programSubtitle(p)}</div>
+            </div><span className="muted">›</span>
           </a>
         ))}
       </div>
@@ -108,6 +114,7 @@ export function ProgramScreen({ id }: { id: number }) {
     <Screen className="modal">
       <div className="between"><a className="link" href="#/sport">‹ Спорт</a><MoreButton onClick={() => setMenu(true)} /></div>
       <h1 className="display a-h" style={{ fontSize: 26 }}>{p.name}</h1>
+      {p.level != null ? <span style={{ alignSelf: 'flex-start' }}><LevelTag level={p.level as Level} big /></span> : null}
       <div style={p.weeks > 13 ? { display: 'flex', gap: 4, overflowX: 'auto' } : { display: 'grid', gridTemplateColumns: `repeat(${p.weeks}, minmax(0, 1fr))`, gap: 3 }}>
         {Array.from({ length: p.weeks }, (_, i) => i + 1).map((n) => {
           const isSel = n === sel;
