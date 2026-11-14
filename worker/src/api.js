@@ -148,6 +148,9 @@ async function calibrateProgram(env, uid, w) {
     if (!doneSets.length) continue;
     const best = doneSets.reduce((a, b) => (b.weight * (1 + b.reps / 30) > a.weight * (1 + a.reps / 30) ? b : a));
     const e1 = best.weight * (1 + best.reps / 30);
+    // The slot it was found in: other slots get the weight scaled by their load (pct) against this one.
+    const here = (plan[w.week]?.[w.weekday] ?? []).find((r) => r.exerciseId === e.exerciseId);
+    const basePct = here?.pct ?? 100;
     for (const [wk, days] of Object.entries(plan)) {
       for (const [wd, rows] of Object.entries(days)) {
         const later = Number(wk) > w.week || (Number(wk) === w.week && Number(wd) > w.weekday);
@@ -156,7 +159,7 @@ async function calibrateProgram(env, uid, w) {
           if (r.exerciseId !== e.exerciseId || String(r.kg ?? '').trim()) continue;
           const top = Number(String(r.reps).split(/[–-]/).pop()) || best.reps;
           const step = best.weight >= 20 ? 2.5 : 1;
-          const kg = Math.max(step, Math.round((e1 / (1 + top / 30)) * ((r.pct ?? 100) / 100) / step) * step);
+          const kg = Math.max(step, Math.round((e1 / (1 + top / 30)) * ((r.pct ?? 100) / basePct) / step) * step);
           r.kg = String(kg).replace('.', ',');
           changed = true;
         }
@@ -186,7 +189,7 @@ function programFields(body) {
         kg: str(String(r.kg ?? ''), 'plan', { max: 40, optional: true }) ?? '',
         rest: r.rest == null ? null : num(r.rest, 'plan', { min: 0, max: 900, int: true }),
         note: str(r.note ?? '', 'plan', { max: 120, optional: true }),
-        pct: r.pct == null ? null : num(r.pct, 'plan', { min: 30, max: 100, int: true }),
+        pct: r.pct == null ? null : num(r.pct, 'plan', { min: 30, max: 150, int: true }),
       }));
       for (const r of plan[wn][dn]) if (!/^\d{1,3}([–-]\d{1,3})?$/.test(r.reps)) fail(400, 'invalid_reps', 'plan');
     }

@@ -145,7 +145,7 @@ export function TemplateStartScreen({ id }: { id: string }) {
   const scheme1 = t.blocks[0].scheme[t.level], reps1 = Number(scheme1.split('×')[1].split('–').pop());
   const lifts = t.lifts.map((n) => {
     const v = vals[n] ?? '', x = num(v), bad = v.trim() !== '' && !(x > 0 && x <= 500);
-    return { n, v, x, bad, unknown: !!skip[n], hint: !bad && x > 0 ? `Неделя 1 · ${scheme1} · ${kgText(weightFor(x, t.askReps, reps1, t.blocks[0].factor))} кг` : '' };
+    return { n, v, x, bad, unknown: !!skip[n], hint: !bad && x > 0 ? `Неделя 1 · ${scheme1} · ${kgText(weightFor(x, t.askReps, reps1, t.load[0]))} кг` : '' };
   });
   const canGo = ok && !lifts.some((l) => l.bad && !l.unknown) && !busy;
 

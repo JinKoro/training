@@ -11,29 +11,33 @@ export const LEVEL_RU = ['новичок', 'любитель', 'продвину
 /** m = main lift (follows the block), a = accessory, p = abs. */
 type Kind = 'm' | 'a' | 'p';
 type Ex = [name: string, kind: Kind, note?: string];
-interface Block { name: string; from: number; to: number; load: number; scheme: [string, string, string]; factor: number }
+interface Block { name: string; from: number; to: number; load: number; scheme: [string, string, string] }
 
 export interface Template {
   id: string; sex: Sex; level: Level; name: string; weeks: number;
   blocks: Block[]; days: Ex[][]; lifts: string[]; askReps: number;
+  /** Share of the starting capacity per week (1-based index − 1): grows inside every block, deload 0,7, the last week the heaviest. */
+  load: number[];
 }
 
-// factor: share of the e1RM-based working weight used in the block (adaptation and deload are lighter).
+// Weekly load: +2–3 % a week inside a block; a new block with fewer reps starts a bit lower; week 13 ≈ +6 % over week 10 at the same reps.
+const MEN_LOAD = [0.90, 0.92, 0.92, 0.94, 0.96, 0.98, 0.94, 0.96, 0.98, 1.00, 0.70, 1.03, 1.06];
+const WOMEN_LOAD = [0.90, 0.92, 0.92, 0.95, 0.98, 0.94, 0.97, 1.00, 0.70, 1.02, 1.05, 1.07];
 const MEN_BLOCKS: Block[] = [
-  { name: 'Адаптация', from: 1, to: 2, load: 0.42, scheme: ['3×12', '3×10–12', '3×10–12'], factor: 0.85 },
-  { name: 'Объём', from: 3, to: 6, load: 0.62, scheme: ['3×10', '3×8', '4×8'], factor: 0.92 },
-  { name: 'Сила', from: 7, to: 10, load: 0.84, scheme: ['3×8', '3×6', '4×6'], factor: 0.92 },
-  { name: 'Разгрузка', from: 11, to: 11, load: 0.28, scheme: ['2×10', '3×10', '3×10'], factor: 0.7 },
-  { name: 'Пик', from: 12, to: 12, load: 1, scheme: ['3×6', '4×4', '5×3'], factor: 0.92 },
-  { name: 'Закрепление', from: 13, to: 13, load: 0.78, scheme: ['3×8', '3×6', '4×6'], factor: 0.92 },
+  { name: 'Адаптация', from: 1, to: 2, load: 0.42, scheme: ['3×12', '3×10–12', '3×10–12'] },
+  { name: 'Объём', from: 3, to: 6, load: 0.62, scheme: ['3×10', '3×8', '4×8'] },
+  { name: 'Сила', from: 7, to: 10, load: 0.84, scheme: ['3×8', '3×6', '4×6'] },
+  { name: 'Разгрузка', from: 11, to: 11, load: 0.28, scheme: ['2×10', '3×10', '3×10'] },
+  { name: 'Пик', from: 12, to: 12, load: 1, scheme: ['3×6', '4×4', '5×3'] },
+  { name: 'Закрепление', from: 13, to: 13, load: 0.78, scheme: ['3×8', '3×6', '4×6'] },
 ];
 const WOMEN_BLOCKS: Block[] = [
-  { name: 'Адаптация', from: 1, to: 2, load: 0.4, scheme: ['2×15', '3×15', '3×15'], factor: 0.85 },
-  { name: 'Объём', from: 3, to: 5, load: 0.6, scheme: ['3×12', '3×12', '4×12'], factor: 0.92 },
-  { name: 'Нагрузка', from: 6, to: 8, load: 0.8, scheme: ['3×10', '4×10', '4×10'], factor: 0.92 },
-  { name: 'Разгрузка', from: 9, to: 9, load: 0.28, scheme: ['2×12', '2×12', '3×12'], factor: 0.7 },
-  { name: 'Пик', from: 10, to: 11, load: 1, scheme: ['3×8', '4×8', '5×8'], factor: 0.92 },
-  { name: 'Закрепление', from: 12, to: 12, load: 0.72, scheme: ['3×10', '3×12', '4×10'], factor: 0.92 },
+  { name: 'Адаптация', from: 1, to: 2, load: 0.4, scheme: ['2×15', '3×15', '3×15'] },
+  { name: 'Объём', from: 3, to: 5, load: 0.6, scheme: ['3×12', '3×12', '4×12'] },
+  { name: 'Нагрузка', from: 6, to: 8, load: 0.8, scheme: ['3×10', '4×10', '4×10'] },
+  { name: 'Разгрузка', from: 9, to: 9, load: 0.28, scheme: ['2×12', '2×12', '3×12'] },
+  { name: 'Пик', from: 10, to: 11, load: 1, scheme: ['3×8', '4×8', '5×8'] },
+  { name: 'Закрепление', from: 12, to: 12, load: 0.72, scheme: ['3×10', '3×12', '4×10'] },
 ];
 
 // Names are base library exercises (matched by name at start).
@@ -83,8 +87,8 @@ const WOMEN_LIFTS = [
 ];
 
 export const TEMPLATES: Template[] = ([0, 1, 2] as Level[]).flatMap((level) => [
-  { id: `m${level}`, sex: 'm' as Sex, level, name: 'Сила и масса', weeks: 13, blocks: MEN_BLOCKS, days: MEN_DAYS[level], lifts: MEN_LIFTS[level], askReps: 8 },
-  { id: `f${level}`, sex: 'f' as Sex, level, name: 'Фулбади', weeks: 12, blocks: WOMEN_BLOCKS, days: WOMEN_DAYS[level], lifts: WOMEN_LIFTS[level], askReps: 12 },
+  { id: `m${level}`, sex: 'm' as Sex, level, name: 'Сила и масса', weeks: 13, blocks: MEN_BLOCKS, days: MEN_DAYS[level], lifts: MEN_LIFTS[level], askReps: 8, load: MEN_LOAD },
+  { id: `f${level}`, sex: 'f' as Sex, level, name: 'Фулбади', weeks: 12, blocks: WOMEN_BLOCKS, days: WOMEN_DAYS[level], lifts: WOMEN_LIFTS[level], askReps: 12, load: WOMEN_LOAD },
 ]);
 export const templatesFor = (sex: Sex | null) => TEMPLATES.filter((t) => t.sex === (sex === 'f' ? 'f' : 'm')).sort((a, b) => a.level - b.level);
 export const templateById = (id: string) => TEMPLATES.find((t) => t.id === id);
@@ -111,7 +115,7 @@ export function restOf(kind: Kind, scheme: string): number {
 const dropset = (t: Template, week: number, kind: Kind, i: number, day: Ex[]) =>
   blockOf(t, week).name === 'Пик' && t.sex === 'm' && t.level > 0 && kind === 'a' && i === day.length - 1;
 
-/** Working weight for `reps` from a weight lifted for `askReps` (Epley), times the block factor, to 2,5 kg. */
+/** Working weight for `reps` from a weight lifted for `askReps` (Epley), times the week's load, to 2,5 kg. */
 export function weightFor(kgAtAsk: number, askReps: number, reps: number, factor: number): number {
   const max = kgAtAsk * (1 + askReps / 30);
   return Math.max(0, Math.round((max / (1 + reps / 30)) * factor / 2.5) * 2.5);
@@ -134,15 +138,16 @@ export function buildPlan(t: Template, weekdays: number[], weights: Record<strin
   const plan: Plan = {};
   for (let w = 1; w <= t.weeks; w++) {
     plan[w] = {};
-    const b = blockOf(t, w);
+    const f = t.load[w - 1] ?? 1;
     weekdays.forEach((wd, d) => {
       const rows: PlanRow[] = [];
       for (const r of templateDay(t, w, d)) {
         const ex = byName.get(r.name.toLowerCase());
         if (!ex) continue;
         const base = weights[r.name];
-        const kg = base > 0 && r.kind === 'm' ? String(weightFor(base, t.askReps, Number(r.reps.split('–').pop()), b.factor)).replace('.', ',') : '';
-        rows.push({ exerciseId: ex.id, sets: r.sets, reps: r.reps, kg, rest: r.rest, note: r.note, pct: b.name === 'Разгрузка' && r.kind !== 'p' ? 70 : null });
+        const kg = base > 0 && r.kind === 'm' ? String(weightFor(base, t.askReps, Number(r.reps.split('–').pop()), f)).replace('.', ',') : '';
+        // pct = this week's load: calibration scales a weight found in one week to every other week by it.
+        rows.push({ exerciseId: ex.id, sets: r.sets, reps: r.reps, kg, rest: r.rest, note: r.note, pct: r.kind !== 'p' ? Math.round(f * 100) : null });
       }
       if (rows.length) plan[w][wd] = rows;
     });
