@@ -787,6 +787,29 @@ export async function handleApi(request, env, path) {
       }
       return ok({ items });
     }
+    if (seg[1] === 'searches') {
+      // Search history: GET the last 10, POST {q} to remember one, DELETE ?q= to drop one, DELETE alone to clear.
+      if (method === 'GET') {
+        const { results } = await env.DB.prepare('SELECT query FROM search_history WHERE user_id = ? ORDER BY used_at DESC LIMIT 10').bind(uid).all();
+        return ok({ searches: results.map((r) => r.query) });
+      }
+      if (method === 'POST') {
+        const q = str((await readJson(request)).q, 'q', { min: 1, max: 100 }).trim().replace(/\s+/g, ' ');
+        await env.DB.batch([
+          env.DB.prepare(`INSERT INTO search_history (user_id, qkey, query, used_at) VALUES (?, ?, ?, ?)
+            ON CONFLICT (user_id, qkey) DO UPDATE SET query = excluded.query, used_at = excluded.used_at`).bind(uid, q.toLowerCase(), q, now),
+          env.DB.prepare(`DELETE FROM search_history WHERE user_id = ? AND qkey NOT IN
+            (SELECT qkey FROM search_history WHERE user_id = ? ORDER BY used_at DESC LIMIT 10)`).bind(uid, uid),
+        ]);
+        return ok();
+      }
+      if (method === 'DELETE') {
+        const q = new URL(request.url).searchParams.get('q');
+        if (q) await env.DB.prepare('DELETE FROM search_history WHERE user_id = ? AND qkey = ?').bind(uid, q.trim().replace(/\s+/g, ' ').toLowerCase()).run();
+        else await env.DB.prepare('DELETE FROM search_history WHERE user_id = ?').bind(uid).run();
+        return ok();
+      }
+    }
     if (seg[1] === 'last-grams' && method === 'GET') {
       const url = new URL(request.url);
       const type = oneOf(url.searchParams.get('type'), 'type', ['product', 'dish']);

@@ -18,11 +18,11 @@ export function filterExercises(list: Exercise[], group: string | null, q: strin
   return list.filter((e) => fits(e) && (!s || e.name.toLowerCase().includes(s)));
 }
 
-export function SearchInput({ value, onChange, placeholder = 'Поиск', id }: { value: string; onChange: (v: string) => void; placeholder?: string; id?: string }) {
+export function SearchInput({ value, onChange, placeholder = 'Поиск', id, onFocus, onBlur }: { value: string; onChange: (v: string) => void; placeholder?: string; id?: string; onFocus?: () => void; onBlur?: () => void }) {
   return (
     <div className="row" style={{ height: 50, borderRadius: 14, background: 'var(--card)', border: '1px solid var(--cardBorder)', padding: '0 14px', gap: 8 }}>
       <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.4" strokeLinecap="round" aria-hidden="true" style={{ color: 'var(--muted)', flex: 'none' }}><circle cx="11" cy="11" r="7" /><path d="M20 20l-4-4" /></svg>
-      <input id={id} aria-label={placeholder} placeholder={placeholder} value={value} onChange={(e) => onChange(e.target.value)} style={{ flex: 1, border: 0, background: 'none', outline: 'none', fontSize: 16, minWidth: 0 }} />
+      <input id={id} aria-label={placeholder} placeholder={placeholder} value={value} onChange={(e) => onChange(e.target.value)} onFocus={onFocus} onBlur={onBlur} style={{ flex: 1, border: 0, background: 'none', outline: 'none', fontSize: 16, minWidth: 0 }} />
       {value ? <button aria-label="Очистить" onClick={() => onChange('')} className="muted" style={{ width: 32, height: 32 }}>✕</button> : null}
     </div>
   );

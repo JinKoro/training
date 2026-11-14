@@ -49,7 +49,7 @@ const CHECK_ICON = 'M5 12.5l4.5 4.5L19 7.5';
  * A food row. Tapping it, or its "+", opens the weight/amount screen. Rows that pass onAdd (Recent, Yesterday)
  * add right away; their "+" turns into an animated check for as long as the toast is shown.
  */
-function ItemRow({ it, href, sub, onAdd, rowKey }: { it: FoodItem; href: string; sub?: string; onAdd?: () => Promise<boolean>; rowKey?: string }) {
+function ItemRow({ it, href, sub, onAdd, rowKey, onOpen }: { it: FoodItem; href: string; sub?: string; onAdd?: () => Promise<boolean>; rowKey?: string; onOpen?: () => void }) {
   useAddedStore();
   const done = !!rowKey && (checkedUntil.get(rowKey) ?? 0) > Date.now();
   const add = async () => { if (onAdd && !done) await onAdd(); };
@@ -61,7 +61,7 @@ function ItemRow({ it, href, sub, onAdd, rowKey }: { it: FoodItem; href: string;
   );
   return (
     <div className="row a-in" style={{ minHeight: 56, gap: 12 }}>
-      <a href={href} onClick={() => { cameFromAdd = true; }} className="row grow" style={{ gap: 12, minWidth: 0 }}>
+      <a href={href} onClick={() => { cameFromAdd = true; onOpen?.(); }} className="row grow" style={{ gap: 12, minWidth: 0 }}>
         <FoodArt kind={it.icon} size={44} />
         <div className="grow" style={{ minWidth: 0 }}><b>{it.name}</b><div className="sub ell">{sub ?? subtitle(it)}</div></div>
       </a>
@@ -70,7 +70,7 @@ function ItemRow({ it, href, sub, onAdd, rowKey }: { it: FoodItem; href: string;
           style={{ ...PLUS, position: 'relative', background: done ? 'var(--good)' : 'transparent', borderColor: done ? 'var(--good)' : 'var(--acc)', color: done ? '#fff' : 'var(--acc)', transition: 'background .5s ease, border-color .5s ease, color .5s ease' }}>
           {glyph('M12 5v14M5 12h14', !done)}{glyph(CHECK_ICON, done)}
         </button>
-      ) : <a href={href} onClick={() => { cameFromAdd = true; }} aria-label={`Выбрать вес: ${it.name}`} style={PLUS}>+</a>}
+      ) : <a href={href} onClick={() => { cameFromAdd = true; onOpen?.(); }} aria-label={`Выбрать вес: ${it.name}`} style={PLUS}>+</a>}
     </div>
   );
 }
@@ -109,6 +109,10 @@ const entryItem = (e: Entry): FoodItem | null => (e.productId || e.dishId ? {
 
 const SCAN_ICON = 'M4 7V5a1 1 0 0 1 1-1h2M17 4h2a1 1 0 0 1 1 1v2M20 17v2a1 1 0 0 1-1 1h-2M7 20H5a1 1 0 0 1-1-1v-2M8 8v8M11 8v8M14 8v8M17 8v8';
 const PLUS_ICON = 'M12 5v14M5 12h14';
+const CLOCK_ICON = 'M12 3a9 9 0 1 0 0 18 9 9 0 0 0 0-18zM12 7v5l3 2';
+const X_ICON = 'M6 6l12 12M18 6L6 18';
+/** Taps on the history list must not take focus from the search field (that would close the list). */
+const keepFocus = (e: React.SyntheticEvent) => e.preventDefault();
 type Tab = 'recent' | 'yesterday' | 'library' | 'dishes';
 const TABS: [Tab, string][] = [['recent', 'Недавние'], ['yesterday', 'Вчера'], ['library', 'Библиотека'], ['dishes', 'Блюда']];
 
@@ -121,6 +125,15 @@ function AddPanel({ date: d, meal: m }: { date: string; meal: Meal }) {
   useEffect(() => { panelState.set(key, { q, tab }); }, [key, q, tab]);
   const searchRef = useRef<HTMLDivElement>(null);
   const s = q.trim();
+  // Search history shows while the empty search field has focus; blur is delayed so a tap on a row still lands.
+  const [focused, setFocused] = useState(false);
+  const blurTimer = useRef(0);
+  useEffect(() => () => clearTimeout(blurTimer.current), []);
+  const history = useQuery<{ searches: string[] }>('/food/searches');
+  const searches = history.data?.searches ?? [];
+  const showHistory = !s && focused && searches.length > 0;
+  const remember = () => { api('POST', '/food/searches', { q: s }).then(() => invalidate('/food/searches')).catch(() => {}); };
+  const forget = (h?: string) => { api('DELETE', h ? `/food/searches?q=${encodeURIComponent(h)}` : '/food/searches').then(() => invalidate('/food/searches')).catch((e) => toast(errText(e))); };
   const y = addDays(d, -1);
   const recent = useQuery<{ items: FoodItem[] }>(`/food/recent?meal=${m}&date=${d}`);
   const yday = useQuery<{ entries: Entry[] }>(tab === 'yesterday' ? `/diary?from=${y}&to=${y}` : null);
@@ -146,9 +159,27 @@ function AddPanel({ date: d, meal: m }: { date: string; meal: Meal }) {
     const found = lib.data && dishes.data ? [...dishes.data.dishes.filter((x) => x.name.toLowerCase().includes(low)), ...(s.length >= 2 ? lib.data.products : [])] : undefined;
     body = !found ? <Skeleton n={4} /> : (
       <div className="col" style={{ gap: 4 }}>
-        {found.map((it) => <ItemRow key={`${it.type}${it.id}`} it={it} href={itemHref(it)} sub={`${subtitle(it)}${it.type === 'product' && it.base === false ? ' · добавлен пользователем' : ''}`} />)}
+        {found.map((it) => <ItemRow key={`${it.type}${it.id}`} it={it} href={itemHref(it)} onOpen={remember} sub={`${subtitle(it)}${it.type === 'product' && it.base === false ? ' · добавлен пользователем' : ''}`} />)}
         {!found.length ? <span className="muted" style={{ padding: '12px 0' }}>Ничего не нашлось</span> : null}
         <a className="link" href={newProduct} style={{ minHeight: 44, display: 'flex', alignItems: 'center' }}>{found.length ? 'Нет нужного? Добавить продукт ›' : 'Не нашли? Добавить продукт ›'}</a>
+      </div>
+    );
+  } else if (showHistory) {
+    body = (
+      <div className="col">
+        <div className="row" style={{ justifyContent: 'space-between' }}>
+          <span className="label">История поиска</span>
+          <button className="link" onMouseDown={keepFocus} onClick={() => forget()} style={{ minHeight: 44, paddingLeft: 12 }}>Очистить</button>
+        </div>
+        {searches.map((h) => (
+          <div key={h} className="row a-in" style={{ minHeight: 52, gap: 8, borderBottom: '1px solid var(--line)' }}>
+            <button onMouseDown={keepFocus} onClick={() => setQ(h)} className="row grow" style={{ minHeight: 52, gap: 12, minWidth: 0, fontSize: 16, fontWeight: 700, textAlign: 'left' }}>
+              <span className="muted" style={{ display: 'inline-flex', flex: 'none' }}><Icon d={CLOCK_ICON} size={20} /></span>
+              <span className="grow ell">{h}</span>
+            </button>
+            <button onMouseDown={keepFocus} onClick={() => forget(h)} aria-label={`Убрать «${h}» из истории`} className="muted" style={{ width: 44, height: 44, flex: 'none', display: 'inline-flex', alignItems: 'center', justifyContent: 'center' }}><Icon d={X_ICON} size={16} /></button>
+          </div>
+        ))}
       </div>
     );
   } else if (tab === 'recent') {
@@ -209,8 +240,8 @@ function AddPanel({ date: d, meal: m }: { date: string; meal: Meal }) {
 
   return (
     <div className="col" style={{ gap: 12 }}>
-      <div ref={searchRef}><SearchInput id="food-search" value={q} onChange={setQ} placeholder="Поиск по всем продуктам" /></div>
-      {!s ? (
+      <div ref={searchRef}><SearchInput id="food-search" value={q} onChange={setQ} placeholder="Поиск по всем продуктам" onFocus={() => { clearTimeout(blurTimer.current); setFocused(true); }} onBlur={() => { clearTimeout(blurTimer.current); blurTimer.current = window.setTimeout(() => setFocused(false), 150); }} /></div>
+      {!s && !showHistory ? (
         <>
           {/* Phone: a quick «new product» tile first (desktop has the product form beside the list). */}
           {/* Штрихкод left, new product right (desktop has the product form beside the list). Dishes live in the «Блюда» tab. */}
