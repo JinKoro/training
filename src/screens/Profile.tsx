@@ -1,7 +1,7 @@
 import { useMemo, useState } from 'react';
 import { useApp } from '../app-context';
 import { api, ApiError } from '../lib/api';
-import { activeProgram, fmt, kcal, setNormFor, weekRange } from '../lib/calc';
+import { activeProgram, fmt, kcal, setNormFor, suggestNorms, weekRange } from '../lib/calc';
 import { ageFrom, today, WD_SHORT, weekDays, weekStart } from '../lib/dates';
 import { useDays } from '../lib/hooks';
 import { invalidate } from '../lib/query';
@@ -9,7 +9,7 @@ import { go } from '../lib/router';
 import type { Macros, Me, Sex } from '../lib/types';
 import { birthToInput, maskBirth, numIn, parseBirth, vBirth, vFat, vHeight, vName, vPassword, vSteps, vWeight, years } from '../lib/validate';
 import { EnergyFlow, energyFormFrom, type EnergyResult } from './Energy';
-import { Field, Screen, errText, toast } from '../ui';
+import { Field, Screen, Sheet, errText, toast } from '../ui';
 
 type Pref = 'system' | 'light' | 'dark';
 
@@ -98,6 +98,47 @@ function ThisWeek({ hasProgram }: { hasProgram: boolean }) {
   );
 }
 
+/**
+ * After weight, steps or body fat change: the norms the formula now suggests, next to the current ones.
+ * Null when nothing that drives the formula changed or the profile lacks what it needs (sex, body fat).
+ */
+type Offer = { rows: [string, Macros | null, Macros][]; norms: { training: Macros | null; rest: Macros } };
+function recalcOffer(me: Me, body: { weight: number; steps: number; bodyFat?: number; sex?: Sex }): Offer | null {
+  const p = me.profile;
+  const sex = body.sex ?? p.sex, fat = body.bodyFat ?? p.bodyFat;
+  if (body.weight === p.weight && body.steps === p.steps && fat === p.bodyFat) return null;
+  if (!sex || fat == null || !body.weight) return null;
+  const mode = p.trainingMode ?? 'time';
+  const norms = suggestNorms({ sex, weight: body.weight, bodyFat: fat, steps: body.steps, trainingMode: mode, trainingMin: p.trainingMin ?? 60, trainingKcal: p.trainingKcal ?? 0 }, me.user.goal);
+  const d = today();
+  const rows: Offer['rows'] = [];
+  if (norms.training) rows.push(['День тренировки', setNormFor(me, d, 'training'), norms.training]);
+  rows.push(['День отдыха', setNormFor(me, d, 'rest'), norms.rest]);
+  return { rows, norms };
+}
+
+/** «Пересчитать калории?» with old → new kcal per day type. */
+function RecalcSheet({ offer, busy, onRecalc, onLater }: { offer: Offer | null; busy: boolean; onRecalc: () => void; onLater: () => void }) {
+  return (
+    <Sheet open={!!offer} onClose={onLater} label="Пересчитать калории?">
+      <h2 className="display" style={{ fontSize: 20 }}>Пересчитать калории?</h2>
+      <div className="col">
+        {offer?.rows.map(([d, was, now]) => (
+          <div key={d} className="between" style={{ minHeight: 48, borderBottom: '1px solid var(--line)', gap: 10 }}>
+            <b style={{ fontWeight: 700 }}>{d}</b>
+            <span className="row" style={{ gap: 8, alignItems: 'baseline', whiteSpace: 'nowrap' }}>
+              <span className="muted" style={{ fontWeight: 700 }}>{was ? fmt(kcal(was)) : '—'}</span><span className="muted">→</span>
+              <b className="display" style={{ fontSize: 17 }}>{fmt(kcal(now))}</b><span className="muted" style={{ fontWeight: 700 }}>ккал</span>
+            </span>
+          </div>
+        ))}
+      </div>
+      <button className="btn big" style={{ background: '#2438C9', color: '#fff' }} disabled={busy} onClick={onRecalc}>Пересчитать</button>
+      <button className="link" style={{ alignSelf: 'center' }} onClick={onLater}>Не сейчас</button>
+    </Sheet>
+  );
+}
+
 function useProfileForm() {
   const { me } = useApp();
   const init = {
@@ -123,10 +164,22 @@ export function ProfileEditScreen() {
   const { me } = useApp();
   const { f, set, errs, valid, body, age, setF } = useProfileForm();
   const [busy, setBusy] = useState(false);
+  const [offer, setOffer] = useState<Offer | null>(null);
   const save = async () => {
     if (!valid || busy) return;
     setBusy(true);
-    try { await api('PUT', '/me/profile', body()); invalidate('/me'); go('profile'); } catch (e) { toast(errText(e)); setBusy(false); }
+    const b = body();
+    const o = recalcOffer(me, b);
+    try {
+      await api('PUT', '/me/profile', b);
+      invalidate('/me');
+      if (o) { setOffer(o); setBusy(false); } else go('profile');
+    } catch (e) { toast(errText(e)); setBusy(false); }
+  };
+  const recalc = async () => {
+    if (!offer || busy) return;
+    setBusy(true);
+    try { await api('PUT', '/me/norms', offer.norms); invalidate('/me'); toast('Калории пересчитаны'); go('profile'); } catch (e) { toast(errText(e)); setBusy(false); }
   };
   const inp = (k: Exclude<keyof typeof f, 'sex'>, label: string, mode: 'text' | 'decimal' | 'numeric', aside?: string | null) => (
     <Field label={label} id={`pe-${k}`} aside={aside} error={errs[k]}>
@@ -148,6 +201,7 @@ export function ProfileEditScreen() {
       {inp('steps', 'Шагов в день, в среднем', 'numeric')}
       {inp('fat', 'Процент жира', 'decimal')}
       <div className="field"><span className="sub" style={{ fontSize: 13 }}>Пол</span>{sexSeg(f.sex, (v) => setF((p) => ({ ...p, sex: v })))}</div>
+      <RecalcSheet offer={offer} busy={busy} onRecalc={() => void recalc()} onLater={() => go('profile')} />
     </Screen>
   );
 }
@@ -312,9 +366,25 @@ function DesktopProfile() {
     if (!valid || !dirty || busy) return;
     setBusy(true);
     try {
-      await api('PUT', '/me/profile', { ...pf.body(), ...(nf.dirty ? { norms: nf.body() } : {}) });
+      const b = pf.body();
+      // Norms typed by hand in the same save win: no offer then.
+      const o = nf.dirty ? null : recalcOffer(me, b);
+      await api('PUT', '/me/profile', { ...b, ...(nf.dirty ? { norms: nf.body() } : {}) });
       invalidate('/me');
       setState('saved');
+      setOffer(o);
+    } catch (e) { toast(errText(e)); } finally { setBusy(false); }
+  };
+  const [offer, setOffer] = useState<Offer | null>(null);
+  const recalc = async () => {
+    if (!offer || busy) return;
+    setBusy(true);
+    try {
+      await api('PUT', '/me/norms', offer.norms);
+      nf.setV({ training: offer.norms.training ? offer.norms.training.map(String) : ['', '', ''], rest: offer.norms.rest.map(String) });
+      invalidate('/me');
+      setOffer(null);
+      toast('Калории пересчитаны');
     } catch (e) { toast(errText(e)); } finally { setBusy(false); }
   };
   const label = !valid ? 'Исправь ошибки в данных' : state === 'saved' && !dirty ? 'Сохранено ✓' : 'Сохранить изменения';
@@ -370,6 +440,7 @@ function DesktopProfile() {
         {section('Тема', <ThemePicker size={72} />)}
         {section('Безопасность', <a className="btn small outline" href="#/profile/password">Сменить пароль</a>)}
       </div>
+      <RecalcSheet offer={offer} busy={busy} onRecalc={() => void recalc()} onLater={() => setOffer(null)} />
     </Screen>
   );
 }
