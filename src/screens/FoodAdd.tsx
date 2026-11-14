@@ -503,10 +503,12 @@ function ProductForm({ barcode: initialBarcode, name: initialName, onSaved, comp
       const code = f.barcode.trim() || r.barcode;
       const full = (b: string, n: string) => (b ? `${b} · ${n}` : n).trim().toLowerCase();
       const want = full((f.brand.trim() || r.brand || '').trim(), (f.name.trim() || r.name || '').trim());
-      const found = code
-        ? (await api<{ product: FoodItem | null }>('GET', `/products?barcode=${code}`).catch(() => null))?.product
-        : want ? (await api<{ products: FoodItem[] }>('GET', `/products?q=${encodeURIComponent(want)}`).catch(() => null))?.products.find((p) => p.name.trim().toLowerCase() === want) : null;
-      if (found && found.id !== edit?.id) { setDup(found); setDupSame(true); }
+      try {
+        const found = code
+          ? (await api<{ product: FoodItem | null }>('GET', `/products?barcode=${code}`))?.product
+          : want ? (await api<{ products: FoodItem[] }>('GET', `/products?q=${encodeURIComponent(want)}`))?.products?.find((p) => p.name.trim().toLowerCase() === want) : null;
+        if (found && found.id !== edit?.id) { setDup(found); setDupSame(true); }
+      } catch { /* the duplicate check is a convenience; the filled form stays */ }
     } catch { setSource('Не получилось распознать фото'); } finally { setOcr(null); }
   };
   const set = (k: keyof typeof f) => (e: React.ChangeEvent<HTMLInputElement>) => { setF((x) => ({ ...x, [k]: e.target.value })); if (k === 'barcode') { setDup(null); setDupSame(false); } };

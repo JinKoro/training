@@ -45,7 +45,9 @@ export async function readLabel(file: File, onProgress?: (pct: number) => void):
     if (label && [label.protein, label.fat, label.carbs, label.kcal, label.name].some((v) => v != null)) return { ...label, text: '' };
   } catch { /* fall back to on-phone OCR */ }
   onProgress?.(0);
-  return readLabelOnPhone(file, onProgress);
+  // On-phone OCR is the fallback only; if it can't run (memory, engine download), report "nothing read", not an error.
+  try { return await readLabelOnPhone(file, onProgress); }
+  catch { return { protein: null, fat: null, carbs: null, kcal: null, text: '' }; }
 }
 
 async function readLabelOnPhone(file: File, onProgress?: (pct: number) => void): Promise<LabelMacros> {
