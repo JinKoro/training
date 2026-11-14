@@ -13,8 +13,25 @@ function syncAppHeight() {
   // The installed app on this iPhone does not get the bottom strip of the screen: sizing to the screen pushed the
   // tab bar under it. Use the real window height; `standalone` is kept for the debug readout.
   void standalone;
-  document.documentElement.style.setProperty('--app-h', `${window.innerHeight}px`);
+  // With the keyboard up iOS shrinks the window AND pans it up to show the field, which left the shell short and
+  // shifted (cut off under the focused field, empty below). While a field has focus, pin the shell to the part of
+  // the screen that is actually visible above the keyboard; otherwise (pinch zoom included) keep the window height.
+  const vv = window.visualViewport;
+  const el = document.activeElement as HTMLElement | null;
+  const typing = !!el && (el.tagName === 'INPUT' || el.tagName === 'TEXTAREA' || el.isContentEditable);
+  const kb = typing && !!vv && Math.abs(vv.scale - 1) < 0.01;
+  const root = document.documentElement.style;
+  const h = Math.round(kb ? vv!.height : window.innerHeight);
+  root.setProperty('--app-h', `${h}px`);
+  root.setProperty('--app-top', `${kb ? vv!.offsetTop : 0}px`);
+  // The tab bar would ride on top of the keyboard: hide it while typing.
+  document.documentElement.toggleAttribute('data-kb', kb && vv!.height < window.screen.height * 0.8);
+  // The shell just got shorter: bring the field back into view inside the scrolling area (only on a change, so
+  // scrolling the form with the keyboard up is left alone).
+  if (kb && h !== lastH) requestAnimationFrame(() => el!.scrollIntoView({ block: 'nearest' }));
+  lastH = h;
 }
+let lastH = 0;
 syncAppHeight();
 // After a rotation iOS (home-screen app) keeps reporting the old height for a while, and the events can fire before it
 // settles, which left the shell at landscape height (menu in the middle of the screen). Re-check for a second.
@@ -24,6 +41,10 @@ function syncSoon() {
 }
 for (const ev of ['resize', 'orientationchange', 'pageshow']) window.addEventListener(ev, syncSoon);
 window.visualViewport?.addEventListener('resize', syncSoon);
+window.visualViewport?.addEventListener('scroll', syncAppHeight);
+// Keyboard opens/closes with focus; its height animates in, so re-check over the next second too.
+document.addEventListener('focusin', syncSoon);
+document.addEventListener('focusout', () => setTimeout(syncSoon, 50));
 screen.orientation?.addEventListener?.('change', syncSoon);
 document.addEventListener('visibilitychange', () => { if (!document.hidden) syncAppHeight(); });
 
