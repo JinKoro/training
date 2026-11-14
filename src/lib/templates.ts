@@ -92,11 +92,13 @@ export const templateById = (id: string) => TEMPLATES.find((t) => t.id === id);
 export const blockOf = (t: Template, week: number) => t.blocks.find((b) => week >= b.from && week <= b.to) ?? t.blocks[t.blocks.length - 1];
 const topReps = (scheme: string) => { const m = scheme.match(/×(\d+)(?:–(\d+))?/); return m ? Number(m[2] ?? m[1]) : 10; };
 
-/** Sets × reps of one exercise in a week. Men's accessories stay 3×10–12 in every block; abs are 3×15 (3×12 hanging). */
+/** Men's accessories follow the blocks too, softer than the main lifts (isolation is never taken to 4–6 reps). */
+const MEN_ACC: Record<string, string> = { 'Адаптация': '3×12–15', 'Объём': '3×10–12', 'Сила': '3×8–10', 'Разгрузка': '2×12', 'Пик': '3×8', 'Закрепление': '3×10' };
+/** Sets × reps of one exercise in a week; abs are 3×15 (3×12 hanging). */
 export function schemeOf(t: Template, week: number, kind: Kind, name: string): string {
   const b = blockOf(t, week);
   if (kind === 'p') return name === 'Подъём ног в висе' ? '3×12' : '3×15';
-  if (kind === 'a' && t.sex === 'm') return b.name === 'Разгрузка' ? '2×12' : t.level === 0 ? '3×12' : '3×10–12';
+  if (kind === 'a' && t.sex === 'm') return MEN_ACC[b.name] ?? '3×10–12';
   return b.scheme[t.level];
 }
 /** Rest: main lifts 3:00 up to 8 reps, 2:30 at 10–12, 2:00 at 15; accessories 2:00 up to 10, 1:30 above; abs 1:00. */
