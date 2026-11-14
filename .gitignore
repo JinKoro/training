@@ -5,3 +5,4 @@ node_modules/
 dist/
 .dev.vars
 .env*.local
+tests/api/.state/

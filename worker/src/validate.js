@@ -24,7 +24,9 @@ export function str(value, field, { min = 0, max = 200, optional = false } = {})
 
 export function num(value, field, { min = -Infinity, max = Infinity, int = false, optional = false } = {}) {
   if ((value === undefined || value === null || value === '') && optional) return null;
-  const n = typeof value === 'string' ? Number(value.replace(',', '.')) : value;
+  // Strings must be plain decimals («12», «82,5»): "" or spaces are not 0, "0x10" is not 16.
+  if (typeof value === 'string' && !/^\s*-?\d+([.,]\d+)?\s*$/.test(value)) fail(400, 'invalid_number', field);
+  const n = typeof value === 'string' ? Number(value.trim().replace(',', '.')) : value;
   if (typeof n !== 'number' || !Number.isFinite(n) || n < min || n > max || (int && !Number.isInteger(n))) {
     fail(400, 'invalid_number', field);
   }

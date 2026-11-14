@@ -28,7 +28,7 @@ async function currentProfile(env, userId) {
   ).bind(userId).all();
   const p = { name: null, weight: null, height: null, birthDate: null, steps: null, sex: null, bodyFat: null, trainingMode: null, trainingMin: null, trainingKcal: null };
   for (const r of results) {
-    for (const [col, key] of EXTRA) if (r[col] !== null && r[col] !== undefined) p[key] = r[col];
+    for (const [col, key] of EXTRA) if (r[col] !== null && r[col] !== undefined) p[key] = r[col] === -1 ? null : r[col];
     if (r.name !== null) p.name = r.name;
     if (r.weight_kg !== null) p.weight = r.weight_kg;
     if (r.height_cm !== null) p.height = r.height_cm;
@@ -62,8 +62,9 @@ function profileFields(body, { partial }) {
   if (body.sex !== undefined) out.sex = oneOf(body.sex, 'sex', ['m', 'f']);
   if (body.bodyFat !== undefined) out.body_fat = num(body.bodyFat, 'bodyFat', { min: 3, max: 60 });
   if (body.trainingMode !== undefined) out.training_mode = oneOf(body.trainingMode, 'trainingMode', ['none', 'time', 'kcal']);
-  if (body.trainingMin !== undefined) out.training_min = num(body.trainingMin, 'trainingMin', { min: 10, max: 300, int: true, optional: true });
-  if (body.trainingKcal !== undefined) out.training_kcal = num(body.trainingKcal, 'trainingKcal', { min: 0, max: 3000, int: true, optional: true });
+  // In the history NULL means «not changed that day», so a cleared value is stored as -1 (read back as null).
+  if (body.trainingMin !== undefined) out.training_min = num(body.trainingMin, 'trainingMin', { min: 10, max: 300, int: true, optional: true }) ?? -1;
+  if (body.trainingKcal !== undefined) out.training_kcal = num(body.trainingKcal, 'trainingKcal', { min: 0, max: 3000, int: true, optional: true }) ?? -1;
   return out;
 }
 
@@ -124,10 +125,12 @@ function exerciseFields(body) {
 }
 
 async function assertUniqueExercise(env, userId, name, exceptId = 0) {
-  const dup = await env.DB.prepare(
-    `SELECT id FROM exercises WHERE deleted_at IS NULL AND (owner_id IS NULL OR owner_id = ?) AND lower(name) = lower(?) AND id != ?`,
-  ).bind(userId, name, exceptId).first();
-  if (dup) fail(409, 'exercise_exists', 'name');
+  // SQLite lower() folds only ASCII: compare here, so «Жим» and «ЖИМ» are the same name.
+  const { results } = await env.DB.prepare(
+    'SELECT id, name FROM exercises WHERE deleted_at IS NULL AND (owner_id IS NULL OR owner_id = ?) AND id != ?',
+  ).bind(userId, exceptId).all();
+  const key = (s) => String(s).trim().toLocaleLowerCase('ru').replace(/ё/g, 'е');
+  if (results.some((r) => key(r.name) === key(name))) fail(409, 'exercise_exists', 'name');
 }
 
 // ---------- programs ----------
@@ -159,7 +162,8 @@ async function calibrateProgram(env, uid, w) {
           if (r.exerciseId !== e.exerciseId || String(r.kg ?? '').trim()) continue;
           const top = Number(String(r.reps).split(/[–-]/).pop()) || best.reps;
           const step = best.weight >= 20 ? 2.5 : 1;
-          const kg = Math.max(step, Math.round((e1 / (1 + top / 30)) * ((r.pct ?? 100) / basePct) / step) * step);
+          const same = top === best.reps && (r.pct ?? 100) === basePct;
+          const kg = same ? best.weight : Math.max(step, Math.round((e1 / (1 + top / 30)) * ((r.pct ?? 100) / basePct) / step) * step);
           r.kg = String(kg).replace('.', ',');
           changed = true;
         }
@@ -209,22 +213,24 @@ const programOut = (r) => ({
 
 // ---------- workouts ----------
 
+/** `SELECT … IN (#)` over any number of ids: D1 binds at most 100 parameters per query, so ask in chunks of 90. */
+async function selectIn(env, sql, ids) {
+  const out = [];
+  for (let i = 0; i < ids.length; i += 90) {
+    const part = ids.slice(i, i + 90);
+    const { results } = await env.DB.prepare(sql.replace('#', part.map(() => '?').join(','))).bind(...part).all();
+    out.push(...results);
+  }
+  return out;
+}
+
 async function loadWorkouts(env, userId, where, binds) {
   const { results: ws } = await env.DB.prepare(
     `SELECT * FROM workouts WHERE user_id = ? AND ${where} ORDER BY date DESC, id DESC`,
   ).bind(userId, ...binds).all();
   if (!ws.length) return [];
-  const ids = ws.map((w) => w.id);
-  const marks = ids.map(() => '?').join(',');
-  const { results: exs } = await env.DB.prepare(
-    `SELECT * FROM workout_exercises WHERE workout_id IN (${marks}) ORDER BY position`,
-  ).bind(...ids).all();
-  const exIds = exs.map((e) => e.id);
-  const sets = exIds.length
-    ? (await env.DB.prepare(
-      `SELECT * FROM workout_sets WHERE workout_exercise_id IN (${exIds.map(() => '?').join(',')}) ORDER BY set_index`,
-    ).bind(...exIds).all()).results
-    : [];
+  const exs = await selectIn(env, 'SELECT * FROM workout_exercises WHERE workout_id IN (#) ORDER BY position', ws.map((w) => w.id));
+  const sets = await selectIn(env, 'SELECT * FROM workout_sets WHERE workout_exercise_id IN (#) ORDER BY set_index', exs.map((e) => e.id));
   const setsBy = new Map();
   for (const s of sets) {
     if (!setsBy.has(s.workout_exercise_id)) setsBy.set(s.workout_exercise_id, []);
@@ -287,6 +293,9 @@ async function insertWorkoutExercises(env, workoutId, exercises, now) {
 }
 
 // ---------- food ----------
+
+/** A 12-digit UPC and the same code with a leading 0 (EAN-13) are one package. */
+const sameCodes = (c) => [c, c.length === 12 ? `0${c}` : c.length === 13 && c.startsWith('0') ? c.slice(1) : c];
 
 // Meal tags as a bit mask: breakfast 1, lunch 2, dinner 4, snack 8; 15 = every meal.
 const MEAL_BITS = { breakfast: 1, lunch: 2, dinner: 4, snack: 8 };
@@ -547,11 +556,12 @@ export async function handleApi(request, env, path) {
         if (diff < -31 || diff > 31) fail(400, 'invalid_date', 'startDate');
         start = sd;
       }
+      const level = body.level == null ? null : num(body.level, 'level', { min: 0, max: 2, int: true });
       await env.DB.prepare('UPDATE programs SET is_active = 0 WHERE user_id = ?').bind(uid).run();
       const r = await env.DB.prepare(
         `INSERT INTO programs (user_id, name, weekdays, weeks, start_date, is_active, plan, level, created_at, updated_at)
          VALUES (?, ?, ?, ?, ?, 1, ?, ?, ?, ?) RETURNING *`,
-      ).bind(uid, f.name, f.weekdays, f.weeks, start, f.plan, body.level == null ? null : num(body.level, 'level', { min: 0, max: 2, int: true }), now, now).first();
+      ).bind(uid, f.name, f.weekdays, f.weeks, start, f.plan, level, now, now).first();
       return ok({ program: programOut(r) }, 201);
     }
     const id = num(seg[1], 'id', { min: 1, int: true });
@@ -586,12 +596,18 @@ export async function handleApi(request, env, path) {
       const exercises = workoutExercisesInput(body);
       if (!exercises.length) fail(400, 'invalid_array', 'exercises');
       const finished = body.status === 'finished';
+      // Everything is checked before the insert, so a bad request never leaves an empty workout behind.
+      const exIds = [...new Set(exercises.map((e) => e.exerciseId).filter((x) => x != null))];
+      const known = new Set((await selectIn(env, `SELECT id FROM exercises WHERE (owner_id IS NULL OR owner_id = ${Number(uid)}) AND id IN (#)`, exIds)).map((r) => r.id));
+      if (exIds.some((x) => !known.has(x))) fail(400, 'unknown_exercise', 'exercises');
+      let programId = body.programId == null ? null : num(body.programId, 'programId', { min: 1, int: true });
+      if (programId != null && !(await env.DB.prepare('SELECT 1 FROM programs WHERE id = ? AND user_id = ?').bind(programId, uid).first())) programId = null;
       const w = await env.DB.prepare(
         `INSERT INTO workouts (user_id, program_id, program_week, weekday, title, date, status, started_at, finished_at)
          VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?) RETURNING id`,
       ).bind(
         uid,
-        body.programId == null ? null : num(body.programId, 'programId', { min: 1, int: true }),
+        programId,
         body.week == null ? null : num(body.week, 'week', { min: 1, max: 52, int: true }),
         body.weekday == null ? null : num(body.weekday, 'weekday', { min: 0, max: 6, int: true }),
         str(body.title, 'title', { min: 1, max: 120 }),
@@ -600,10 +616,6 @@ export async function handleApi(request, env, path) {
         now,
         finished ? now : null,
       ).first();
-      if (body.programId != null) {
-        const p = await env.DB.prepare('SELECT 1 FROM programs WHERE id = ? AND user_id = ?').bind(body.programId, uid).first();
-        if (!p) await env.DB.prepare('UPDATE workouts SET program_id = NULL WHERE id = ?').bind(w.id).run();
-      }
       await insertWorkoutExercises(env, w.id, exercises, now);
       return ok({ workout: (await loadWorkouts(env, uid, 'id = ?', [w.id]))[0] }, 201);
     }
@@ -670,7 +682,7 @@ export async function handleApi(request, env, path) {
       const barcode = url.searchParams.get('barcode');
       if (barcode) {
         // A 12-digit UPC-A is the same code as a 13-digit EAN with a leading 0.
-        const codes = [barcode, barcode.length === 12 ? `0${barcode}` : barcode.length === 13 && barcode.startsWith('0') ? barcode.slice(1) : barcode];
+        const codes = sameCodes(barcode);
         const r = await env.DB.prepare(`${PRODUCT_SELECT} WHERE p.barcode IN (?, ?)`).bind(uid, codes[0], codes[1]).first();
         // Only our own library: found → the product, else null (the app opens the new-product form).
         return ok({ product: r ? productOut(r) : null });
@@ -679,12 +691,12 @@ export async function handleApi(request, env, path) {
       const meal = url.searchParams.get('meal');
       // Search covers everything, including products other people added.
       if (q) {
-        // Full-text index (products_fts, migration 0016): every word of the query as a word prefix, at most 300 candidates.
+        // Full-text index (products_fts, migration 0016): every word of the query as a word prefix; enough candidates that one letter still finds names starting with it.
         const needle = q.toLowerCase().replace(/ё/g, 'е');
         const words = needle.split(/[^\p{L}\p{N}]+/u).filter(Boolean).slice(0, 8);
         if (!words.length) return ok({ products: [] });
         const match = words.map((w) => `"${w.replace(/"/g, '')}"*`).join(' ');
-        const { results: hits } = await env.DB.prepare(`${PRODUCT_SELECT} WHERE p.id IN (SELECT rowid FROM products_fts WHERE products_fts MATCH ? LIMIT 300)
+        const { results: hits } = await env.DB.prepare(`${PRODUCT_SELECT} WHERE p.id IN (SELECT rowid FROM products_fts WHERE products_fts MATCH ? LIMIT 3000)
           ORDER BY (p.source IS NOT NULL), p.name COLLATE NOCASE`).bind(uid, match).all();
         const norm = (r) => fullName(r).toLowerCase().replace(/ё/g, 'е');
         // Best matches first (a single letter matches almost everything): the name starts with the query,
@@ -720,7 +732,7 @@ export async function handleApi(request, env, path) {
       const barcode = str(body.barcode ?? '', 'barcode', { max: 14, optional: true });
       if (barcode && !/^(\d{8}|\d{12,14})$/.test(barcode)) fail(400, 'invalid_barcode', 'barcode');
       if (barcode) {
-        const dup = await env.DB.prepare(`${PRODUCT_SELECT} WHERE p.barcode = ?`).bind(uid, barcode).first();
+        const dup = await env.DB.prepare(`${PRODUCT_SELECT} WHERE p.barcode IN (?, ?)`).bind(uid, ...sameCodes(barcode)).first();
         if (dup) return json(request, { error: 'barcode_taken', field: 'barcode', product: productOut(dup) }, 409);
       }
       const mealMask = body.meals === undefined ? 15 : maskOf(body.meals, 'meals');
@@ -763,7 +775,7 @@ export async function handleApi(request, env, path) {
         const barcode = body.barcode === undefined ? cur.barcode : str(body.barcode ?? '', 'barcode', { max: 14, optional: true }) || null;
         if (barcode && !/^(\d{8}|\d{12,14})$/.test(barcode)) fail(400, 'invalid_barcode', 'barcode');
         if (barcode && barcode !== cur.barcode) {
-          const dup = await env.DB.prepare(`${PRODUCT_SELECT} WHERE p.barcode = ? AND p.id != ?`).bind(uid, barcode, id).first();
+          const dup = await env.DB.prepare(`${PRODUCT_SELECT} WHERE p.barcode IN (?, ?) AND p.id != ?`).bind(uid, ...sameCodes(barcode), id).first();
           if (dup) return json(request, { error: 'barcode_taken', field: 'barcode', product: productOut(dup) }, 409);
         }
         await env.DB.prepare('UPDATE products SET name = ?, brand = ?, barcode = ?, protein = ?, fat = ?, carbs = ?, kcal = ?, icon = ? WHERE id = ?')
