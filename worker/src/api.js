@@ -156,7 +156,7 @@ async function calibrateProgram(env, uid, w) {
           if (r.exerciseId !== e.exerciseId || String(r.kg ?? '').trim()) continue;
           const top = Number(String(r.reps).split(/[–-]/).pop()) || best.reps;
           const step = best.weight >= 20 ? 2.5 : 1;
-          const kg = Math.max(step, Math.round(e1 / (1 + top / 30) / step) * step);
+          const kg = Math.max(step, Math.round((e1 / (1 + top / 30)) * ((r.pct ?? 100) / 100) / step) * step);
           r.kg = String(kg).replace('.', ',');
           changed = true;
         }
@@ -186,6 +186,7 @@ function programFields(body) {
         kg: str(String(r.kg ?? ''), 'plan', { max: 40, optional: true }) ?? '',
         rest: r.rest == null ? null : num(r.rest, 'plan', { min: 0, max: 900, int: true }),
         note: str(r.note ?? '', 'plan', { max: 120, optional: true }),
+        pct: r.pct == null ? null : num(r.pct, 'plan', { min: 30, max: 100, int: true }),
       }));
       for (const r of plan[wn][dn]) if (!/^\d{1,3}([–-]\d{1,3})?$/.test(r.reps)) fail(400, 'invalid_reps', 'plan');
     }

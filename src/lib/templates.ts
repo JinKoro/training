@@ -140,7 +140,7 @@ export function buildPlan(t: Template, weekdays: number[], weights: Record<strin
         if (!ex) continue;
         const base = weights[r.name];
         const kg = base > 0 && r.kind === 'm' ? String(weightFor(base, t.askReps, Number(r.reps.split('–').pop()), b.factor)).replace('.', ',') : '';
-        rows.push({ exerciseId: ex.id, sets: r.sets, reps: r.reps, kg, rest: r.rest, note: r.note });
+        rows.push({ exerciseId: ex.id, sets: r.sets, reps: r.reps, kg, rest: r.rest, note: r.note, pct: b.name === 'Разгрузка' && r.kind !== 'p' ? 70 : null });
       }
       if (rows.length) plan[w][wd] = rows;
     });

@@ -22,7 +22,7 @@ const parseRest = (t: string): number | null => {
   const v = m * 60 + sec;
   return sec <= 59 && v <= 600 ? v : null;
 };
-interface Row { exerciseId: number; sets: string; reps: string; kg: string; rest?: number | null; note?: string | null; /** rest as typed, until it parses or the field loses focus */ restT?: string }
+interface Row { exerciseId: number; sets: string; reps: string; kg: string; rest?: number | null; note?: string | null; pct?: number | null; /** rest as typed, until it parses or the field loses focus */ restT?: string }
 type EPlan = Record<number, Record<number, Row[]>>;
 
 const toEPlan = (p: Plan): EPlan => {
@@ -113,7 +113,7 @@ function Editor({ mode, program }: { mode: 'new' | 'edit'; program?: Program }) 
         const rows = plan[w]?.[d];
         if (!rows?.length) continue;
         out[w] ??= {};
-        out[w][d] = rows.map<PlanRow>((r) => ({ exerciseId: r.exerciseId, sets: Number(r.sets), reps: r.reps.trim().replace('-', '–'), kg: r.kg.trim().replace(/\s/g, ''), rest: r.rest ?? null, note: r.note ?? null }));
+        out[w][d] = rows.map<PlanRow>((r) => ({ exerciseId: r.exerciseId, sets: Number(r.sets), reps: r.reps.trim().replace('-', '–'), kg: r.kg.trim().replace(/\s/g, ''), rest: r.rest ?? null, note: r.note ?? null, pct: r.pct ?? null }));
       }
     }
     const body = { name: name.trim() || `Программа на ${weeksText(weeks).replace('неделя', 'неделю')}`, weekdays: act, weeks, plan: out };

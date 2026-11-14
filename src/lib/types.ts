@@ -19,7 +19,8 @@ export interface Exercise {
   subtitle: string | null; primary: string[]; secondary: string[]; description: string | null; steps: string[]; rest: number;
 }
 
-export interface PlanRow { exerciseId: number; sets: number; reps: string; kg: string; rest?: number | null; note?: string | null }
+/** pct: share of the working weight for this slot (70 in a deload week) — calibration applies it. */
+export interface PlanRow { exerciseId: number; sets: number; reps: string; kg: string; rest?: number | null; note?: string | null; pct?: number | null }
 export type Plan = Record<string, Record<string, PlanRow[]>>;
 
 export interface Program {
