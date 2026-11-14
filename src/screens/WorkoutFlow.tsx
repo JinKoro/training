@@ -14,7 +14,11 @@ import { SummaryBody } from './Summary';
 type Screen = 'set' | 'rest' | 'left' | 'done';
 type LogSet = { w: number; r: number };
 interface Snap { screen: Screen; ei: number; si: number; log: LogSet[][]; w: string; r: string; left: number; total: number; skipped: number[] }
-interface St extends Snap { step: number; restEndsAt: number | null; hist: Snap[]; menu: boolean; confirm: boolean; startedAt?: number }
+interface St extends Snap {
+  step: number; restEndsAt: number | null; hist: Snap[]; menu: boolean; confirm: boolean; startedAt?: number;
+  /** Rest changed with −15/+15 during this workout, per exercise index: used for the rest of that exercise's sets. */
+  restFor?: Record<number, number>; restOf?: number;
+}
 
 const num = (s: string) => Number(String(s).replace(',', '.'));
 const show = (v: number) => String(Math.round(v * 100) / 100).replace('.', ',');
@@ -130,9 +134,10 @@ function Flow({ workout }: { workout: Workout }) {
     enqueue({ method: 'PUT', path: `${path(s.ei)}/sets/${s.si}`, body: { weight: w, reps: r } });
     const nxt = s.si + 1 < e.w.length ? [s.ei, s.si + 1] : (() => { const n = firstOpen(log, s.ei + 1, s.skipped); return n < 0 ? null : [n, log[n].length]; })();
     if (!nxt) { finish(log); return; }
-    if (e.rest <= 0) { goTo({ screen: 'set', log, ...at(nxt[0], nxt[1]) }); return; }
-    goTo({ screen: 'rest', log, ...at(nxt[0], nxt[1]), left: e.rest, total: e.rest, restEndsAt: Date.now() + e.rest * 1000 });
-    void pushStart(e.rest, true);
+    const rest = s.restFor?.[s.ei] ?? e.rest;
+    if (rest <= 0) { goTo({ screen: 'set', log, ...at(nxt[0], nxt[1]) }); return; }
+    goTo({ screen: 'rest', log, ...at(nxt[0], nxt[1]), left: rest, total: rest, restEndsAt: Date.now() + rest * 1000, restOf: s.ei });
+    void pushStart(rest, true);
   };
 
   const skipEx = () => {
@@ -159,7 +164,10 @@ function Flow({ workout }: { workout: Workout }) {
     const cur = st.restEndsAt ? Math.max(0, Math.ceil((st.restEndsAt - Date.now()) / 1000)) : 0;
     const nl = Math.max(0, cur + d);
     void pushStart(nl);
-    setS({ ...st, restEndsAt: Date.now() + nl * 1000, total: d > 0 ? Math.max(st.total, nl) : st.total });
+    // The new length also becomes this exercise's rest for its next sets (this workout only).
+    const ri = st.restOf ?? st.ei;
+    const restFor = { ...st.restFor, [ri]: Math.max(0, Math.min(600, (st.restFor?.[ri] ?? EX[ri].rest) + d)) };
+    setS({ ...st, restEndsAt: Date.now() + nl * 1000, total: d > 0 ? Math.max(st.total, nl) : st.total, restFor });
   };
 
   const cancel = async () => {

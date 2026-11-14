@@ -1,6 +1,8 @@
 import { addDays, diffDays, fromDay, plural, toDay, today, weekdayIdx, weekStart, type Day } from './dates';
 import type { Entry, Exercise, Goal, Macros, Me, Meal, PlanRow, Program, Sex, TrainingMode, Workout } from './types';
 
+/** Rest between sets when neither the program row nor the exercise sets one (base exercises default to 3 min). */
+export const DEFAULT_REST = 180;
 export const kcal = (m: Macros) => Math.round(m[0] * 4 + m[1] * 9 + m[2] * 4);
 export const fmt = (n: number) => Math.round(n).toLocaleString('ru-RU');
 
@@ -171,7 +173,7 @@ export function workoutFromPlan(p: Program, week: number, weekday: number, date:
       return {
         exerciseId: r.exerciseId, name: ex?.name ?? 'Упражнение', kind: ex?.kind ?? null,
         muscles: ex ? exerciseSubtitle(ex) : '', type: ex?.type ?? 'weight_reps',
-        rest: r.rest ?? ex?.rest ?? 150,
+        rest: r.rest ?? ex?.rest ?? DEFAULT_REST,
         sets: setWeights(r.kg, r.sets).map((w) => ({ plannedWeight: w, plannedReps: reps })),
       };
     }),
@@ -195,7 +197,7 @@ export function workoutStats(w: Workout) {
 }
 /** Planned length of a session in minutes: each set ≈ 45 s of work plus its rest. */
 export const planMinutes = (rows: PlanRow[], byId: Map<number, Exercise>) =>
-  Math.round(rows.reduce((a, r) => a + r.sets * (45 + (r.rest ?? byId.get(r.exerciseId)?.rest ?? 150)), 0) / 60);
+  Math.round(rows.reduce((a, r) => a + r.sets * (45 + (r.rest ?? byId.get(r.exerciseId)?.rest ?? DEFAULT_REST)), 0) / 60);
 
 export const durationMin = (w: Workout) => (w.finishedAt ? Math.max(1, Math.round((w.finishedAt - w.startedAt) / 60000)) : null);
 

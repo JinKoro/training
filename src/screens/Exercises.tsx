@@ -1,7 +1,7 @@
 import { useState } from 'react';
 import { useApp } from '../app-context';
 import { api, ApiError } from '../lib/api';
-import { MUSCLE_RU, exerciseSubtitle, mmss } from '../lib/calc';
+import { DEFAULT_REST, MUSCLE_RU, exerciseSubtitle, mmss } from '../lib/calc';
 import { invalidate } from '../lib/query';
 import { go } from '../lib/router';
 import type { Exercise } from '../lib/types';
@@ -158,7 +158,7 @@ export function ExerciseFormScreen({ id }: { id?: number }) {
   const [muscles, setMuscles] = useState<string[]>(ex?.primary ?? []);
   const [kind, setKind] = useState<string | null>(ex?.kind ?? null);
   const [desc, setDesc] = useState(ex?.description ?? '');
-  const [rest, setRest] = useState(ex?.rest ?? 150);
+  const [rest, setRest] = useState(ex?.rest ?? DEFAULT_REST);
   const [busy, setBusy] = useState(false);
   const [dup, setDup] = useState(false);
   const [del, setDel] = useState(false);

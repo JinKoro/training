@@ -1,7 +1,7 @@
 import { useEffect, useState } from 'react';
 import { useApp } from '../app-context';
 import { api } from '../lib/api';
-import { mmss, planMinutes, programEnd, programProgress, timesPerWeek, weeksText } from '../lib/calc';
+import { DEFAULT_REST, mmss, planMinutes, programEnd, programProgress, timesPerWeek, weeksText } from '../lib/calc';
 import { addDays, fromDay, plural, today, WD_CAP } from '../lib/dates';
 import { invalidate } from '../lib/query';
 import { go } from '../lib/router';
@@ -133,7 +133,7 @@ export function ProgramScreen({ id }: { id: number }) {
                 <div key={i} className="col" style={{ fontSize: 14, gap: 2 }}>
                   <div className="between" style={{ gap: 8 }}>
                     <span className="ell" style={{ minWidth: 0 }}>{e?.name ?? 'Упражнение'}</span>
-                    <span className="muted" style={{ whiteSpace: 'nowrap', flex: 'none' }}>{`${r.sets}×${r.reps.replace('-', '–')} · ${mmss(r.rest ?? e?.rest ?? 150)}`}</span>
+                    <span className="muted" style={{ whiteSpace: 'nowrap', flex: 'none' }}>{`${r.sets}×${r.reps.replace('-', '–')} · ${mmss(r.rest ?? e?.rest ?? DEFAULT_REST)}`}</span>
                   </div>
                   {r.note ? <span className="muted" style={{ fontSize: 13, overflowWrap: 'anywhere' }}>{r.note}</span> : null}
                 </div>

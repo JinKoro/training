@@ -1,7 +1,7 @@
 import { useMemo, useState } from 'react';
 import { useApp } from '../app-context';
 import { api } from '../lib/api';
-import { planMinutes, programProgress, weeksText } from '../lib/calc';
+import { DEFAULT_REST, mmss, planMinutes, programProgress, weeksText } from '../lib/calc';
 import { WD_LONG, WD_SHORT } from '../lib/dates';
 import { invalidate } from '../lib/query';
 import { go } from '../lib/router';
@@ -10,7 +10,19 @@ import { Screen, errText, toast } from '../ui';
 import { ExercisePicker } from './ExercisePicker';
 import { DeleteProgram } from './Sport';
 
-interface Row { exerciseId: number; sets: string; reps: string; kg: string; rest?: number | null; note?: string | null }
+/** Rest typed as 3:00, 3,30, 2 (minutes) or 130 (1:30); up to 10 minutes. Null when it doesn't parse. */
+const parseRest = (t: string): number | null => {
+  const s = t.trim();
+  let m: number, sec: number;
+  const g = s.match(/^(\d{1,2})[:.,](\d{1,2})$/);
+  if (g) { m = +g[1]; sec = +g[2] * (g[2].length === 1 ? 10 : 1); }
+  else if (/^\d{1,2}$/.test(s)) { m = +s; sec = 0; }
+  else if (/^\d{3,4}$/.test(s)) { m = +s.slice(0, -2); sec = +s.slice(-2); }
+  else return null;
+  const v = m * 60 + sec;
+  return sec <= 59 && v <= 600 ? v : null;
+};
+interface Row { exerciseId: number; sets: string; reps: string; kg: string; rest?: number | null; note?: string | null; /** rest as typed, until it parses or the field loses focus */ restT?: string }
 type EPlan = Record<number, Record<number, Row[]>>;
 
 const toEPlan = (p: Plan): EPlan => {
@@ -88,7 +100,8 @@ function Editor({ mode, program }: { mode: 'new' | 'edit'; program?: Program }) 
         if (r) return { ...r };
       }
     }
-    return { exerciseId, sets: '3', reps: '10', kg: '' };
+    // New in the program: the exercise's own default rest (base exercises: 3 min); editable per row below.
+    return { exerciseId, sets: '3', reps: '10', kg: '', rest: exById.get(exerciseId)?.rest ?? DEFAULT_REST };
   };
 
   const save = async () => {
@@ -197,20 +210,28 @@ function Editor({ mode, program }: { mode: 'new' | 'edit'; program?: Program }) 
                 </div>
               ) : null}
               {list.length ? (
-                <div style={{ display: 'grid', gridTemplateColumns: '1fr 50px 58px 70px 28px', gap: 6, padding: '0 8px 0 12px' }} className="sub">
-                  <span /><span style={{ textAlign: 'center', fontSize: 12 }}>подх.</span><span style={{ textAlign: 'center', fontSize: 12 }}>повт.</span><span style={{ textAlign: 'center', fontSize: 12 }}>кг</span><span />
+                <div style={{ display: 'grid', gridTemplateColumns: 'repeat(4, minmax(0, 1fr))', gap: 6, padding: '0 12px' }} className="sub">
+                  {['подходы', 'повторы', 'кг', 'отдых'].map((l) => <span key={l} style={{ textAlign: 'center', fontSize: 12 }}>{l}</span>)}
                 </div>
               ) : null}
               {list.map((r, k) => {
                 const e = exById.get(r.exerciseId);
                 const set = (patch: Partial<Row>) => setRows((rows) => rows.map((x, i) => (i === k ? { ...x, ...patch } : x)));
                 return (
-                  <div key={`${r.exerciseId}-${k}`} className="a-in" style={{ display: 'grid', gridTemplateColumns: '1fr 50px 58px 70px 28px', gap: 6, alignItems: 'center', background: 'var(--card)', border: '1px solid var(--cardBorder)', borderRadius: 14, padding: '8px 8px 8px 12px' }}>
-                    <span style={{ fontWeight: 700, fontSize: 14, minWidth: 0 }}>{e?.name ?? 'Упражнение'}</span>
-                    <input aria-label="Подходы" inputMode="numeric" style={{ ...inp, ...bad(vSets(r.sets)) }} value={r.sets} onChange={(ev) => set({ sets: ev.target.value.replace(/\D/g, '') })} />
-                    <input aria-label={e?.type === 'time' ? 'Секунды' : 'Повторы'} placeholder={e?.type === 'time' ? 'сек' : undefined} style={{ ...inp, ...bad(vReps(r.reps)) }} value={r.reps} onChange={(ev) => set({ reps: ev.target.value.replace(/[^\d–-]/g, '') })} />
-                    <input aria-label="Вес" inputMode="decimal" style={{ ...inp, ...bad(vKg(r.kg)) }} value={r.kg} onChange={(ev) => set({ kg: ev.target.value.replace(/[^\d.,/ ]/g, '') })} />
-                    <button aria-label="Убрать упражнение" className="muted" style={{ height: 40 }} onClick={() => setRows((rows) => rows.filter((_, i) => i !== k))}>×</button>
+                  <div key={`${r.exerciseId}-${k}`} className="a-in col" style={{ gap: 8, background: 'var(--card)', border: '1px solid var(--cardBorder)', borderRadius: 14, padding: '8px 8px 10px 12px' }}>
+                    <div className="row" style={{ gap: 8 }}>
+                      <span className="grow" style={{ fontWeight: 700, fontSize: 14 }}>{e?.name ?? 'Упражнение'}</span>
+                      <button aria-label="Убрать упражнение" className="muted" style={{ width: 32, height: 32 }} onClick={() => setRows((rows) => rows.filter((_, i) => i !== k))}>×</button>
+                    </div>
+                    <div style={{ display: 'grid', gridTemplateColumns: 'repeat(4, minmax(0, 1fr))', gap: 6, paddingRight: 4 }}>
+                      <input aria-label="Подходы" inputMode="numeric" style={{ ...inp, ...bad(vSets(r.sets)) }} value={r.sets} onChange={(ev) => set({ sets: ev.target.value.replace(/\D/g, '') })} />
+                      <input aria-label={e?.type === 'time' ? 'Секунды' : 'Повторы'} placeholder={e?.type === 'time' ? 'сек' : undefined} style={{ ...inp, ...bad(vReps(r.reps)) }} value={r.reps} onChange={(ev) => set({ reps: ev.target.value.replace(/[^\d–-]/g, '') })} />
+                      <input aria-label="Вес" inputMode="decimal" style={{ ...inp, ...bad(vKg(r.kg)) }} value={r.kg} onChange={(ev) => set({ kg: ev.target.value.replace(/[^\d.,/ ]/g, '') })} />
+                      <input aria-label="Отдых" inputMode="decimal" style={{ ...inp, ...bad(r.restT == null || parseRest(r.restT) !== null) }}
+                        value={r.restT ?? mmss(r.rest ?? e?.rest ?? DEFAULT_REST)}
+                        onChange={(ev) => { const v = ev.target.value.replace(/[^\d:.,]/g, ''); const n = parseRest(v); set(n === null ? { restT: v } : { restT: v, rest: n }); }}
+                        onBlur={() => set({ restT: undefined })} />
+                    </div>
                   </div>
                 );
               })}

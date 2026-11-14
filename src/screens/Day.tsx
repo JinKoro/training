@@ -1,7 +1,7 @@
 import { useState } from 'react';
 import { useApp } from '../app-context';
 import { api } from '../lib/api';
-import { activeProgram, dayTitle, exerciseSubtitle, mmss, plannedOpen, planMinutes, planRows, programWeek, setWeights, showKg, slotDone, workoutFromPlan } from '../lib/calc';
+import { activeProgram, DEFAULT_REST, dayTitle, exerciseSubtitle, mmss, plannedOpen, planMinutes, planRows, programWeek, setWeights, showKg, slotDone, workoutFromPlan } from '../lib/calc';
 import { addDays, diffDays, isDayStr, plural, today, WD_CAP, weekStart } from '../lib/dates';
 import { invalidate, useQuery } from '../lib/query';
 import { go } from '../lib/router';
@@ -96,7 +96,7 @@ export function DayScreen({ date }: { date?: string }) {
               const ws = setWeights(r.kg, r.sets);
               const uniq = [...new Set(ws.map((w) => showKg(w)))];
               const wText = ws.every((w) => w === null) ? '—' : uniq.length === 1 ? `${uniq[0]} × ${r.sets}` : ws.map((w) => showKg(w)).join(' · ');
-              const rest = r.rest ?? ex?.rest ?? 150;
+              const rest = r.rest ?? ex?.rest ?? DEFAULT_REST;
               return (
                 <a key={i} className="card col a-in" style={{ gap: 10, padding: 12, borderRadius: 18 }} href={`#/exercises/all/${r.exerciseId}`}>
                   <div className="row">
