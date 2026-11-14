@@ -94,7 +94,7 @@ function Budget({ days, offset }: { days: DayInfo[]; offset: number }) {
       const before = days.slice(0, ti).reduce((a, d) => a + (d.kcal ?? 0), 0);
       const tday = days[ti];
       const x = Math.round((B - before - Math.max(tday.kcal ?? 0, kcal(tday.norm))) / rest.length);
-      hint = `Доешь сегодня норму, и на ${joinDays(rest.map((_, i) => ti + 1 + i))} останется по ${fmt(Math.max(0, x))}`;
+      hint = `Доешьте сегодня норму, и на ${joinDays(rest.map((_, i) => ti + 1 + i))} останется по ${fmt(Math.max(0, x))}`;
     } else hint = null;
   } else {
     label = 'Бюджет на неделю'; big = B;
@@ -291,7 +291,7 @@ function EmptyWeek({ days }: { days: DayInfo[] }) {
       </div>
       <a className="card row a-in" href={`#/food/${today()}/add/breakfast`}>
         <FoodArt kind="oat" size={48} />
-        <b className="grow">Добавь первый приём пищи</b>
+        <b className="grow">Добавьте первый приём пищи</b>
         <span style={{ color: 'var(--acc)', fontSize: 22, fontWeight: 800 }}>+</span>
       </a>
     </Screen>

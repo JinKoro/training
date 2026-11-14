@@ -170,7 +170,7 @@ function Editor({ mode, program }: { mode: 'new' | 'edit'; program?: Program }) 
         <div className="chips">
           {act.map((d) => <button key={d} className="chip" aria-pressed={d === dayX} onClick={() => setDay(d)}>{WD_SHORT[d]}</button>)}
         </div>
-      ) : <span className="muted">Выбери хотя бы один день</span>}
+      ) : <span className="muted">Выберите хотя бы один день</span>}
       {act.length ? (
         <>
           <div className="between"><b style={{ fontSize: 18 }}>Неделя {sel} · {WD_LONG[dayX]}</b><span className="muted" style={{ fontSize: 13 }}>{filled ? `${list.length} упр. · ~ ${planMinutes(list.map((r) => ({ ...r, sets: Number(r.sets) || 0 })), exById)} мин` : 'пусто'}</span></div>

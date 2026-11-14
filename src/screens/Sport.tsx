@@ -59,7 +59,7 @@ export function SportScreen() {
         </a>
         <a href="#/exercises/mine">
           <ExerciseArt kind="carry" size={wide ? 48 : 44} />
-          <div className="grow"><b>Мои упражнения</b><div className="sub">{own ? `${own} ${plural(own, ['своё', 'своих', 'своих'])}, видишь только ты` : 'Пока нет, видишь только ты'}</div></div><span className="muted">›</span>
+          <div className="grow"><b>Мои упражнения</b><div className="sub">{own ? `${own} ${plural(own, ['своё', 'своих', 'своих'])}, видите только вы` : 'Пока нет, видите только вы'}</div></div><span className="muted">›</span>
         </a>
       </div>
     </>

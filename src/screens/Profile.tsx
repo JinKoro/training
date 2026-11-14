@@ -387,7 +387,7 @@ function DesktopProfile() {
       toast('Калории пересчитаны');
     } catch (e) { toast(errText(e)); } finally { setBusy(false); }
   };
-  const label = !valid ? 'Исправь ошибки в данных' : state === 'saved' && !dirty ? 'Сохранено ✓' : 'Сохранить изменения';
+  const label = !valid ? 'Исправьте ошибки в данных' : state === 'saved' && !dirty ? 'Сохранено ✓' : 'Сохранить изменения';
   const btnStyle: React.CSSProperties = state === 'saved' && !dirty && valid ? { background: 'var(--good)', color: '#fff' } : {};
   const markDirty = <T,>(fn: (e: T) => void) => (e: T) => { fn(e); setState('idle'); };
   const section = (title: string, body: React.ReactNode) => (
