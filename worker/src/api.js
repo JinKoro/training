@@ -3,7 +3,7 @@ import {
   createSession, deleteOtherSessions, deleteSession, hashPassword, requireUser, verifyPassword,
 } from './auth.js';
 import { EMAIL_RE, arr, day, isDay, macros, num, oneOf, str } from './validate.js';
-import { SUB_IDS, guessSub } from './categories.js';
+import { SUB_IDS, SUB_NAMES, guessSub } from './categories.js';
 
 const MEALS = ['breakfast', 'lunch', 'snack', 'dinner'];
 const FOOD_ICONS = ['oat', 'eggs', 'buckwheat', 'chicken', 'curd', 'salmon', 'dish', ...SUB_IDS];
@@ -317,10 +317,14 @@ const todayOf = (request) => {
 };
 
 const LABEL_MODEL = '@cf/meta/llama-4-scout-17b-16e-instruct';
-const LABEL_PROMPT = `This is a photo of a food package. Find the nutrition facts table and return the values PER 100 g (or per 100 ml).
-If the table has several columns (per 100 g and per portion), use the per-100 g column. If only per-portion values and the portion weight are given, convert to per 100 g.
-Return only JSON: {"kcal": number|null, "protein": number|null, "fat": number|null, "carbs": number|null}.
-kcal is energy in kilocalories (not kJ). Use null for a value you cannot read. Decimal commas are decimal points.`;
+const LABEL_PROMPT = `This is a photo of a food package (front and/or the nutrition facts table). Read everything you can find and return only JSON:
+{"name": string|null, "brand": string|null, "barcode": string|null, "category": string|null, "kcal": number|null, "protein": number|null, "fat": number|null, "carbs": number|null}.
+- name: the product name in Russian as printed, without the brand and without the weight (e.g. "Творог 5%", "Молоко 2,5%"); null if not visible.
+- brand: the brand / trademark (e.g. "Простоквашино"); null if not visible.
+- barcode: the EAN/UPC digits printed under the barcode (8, 12 or 13 digits, digits only); null if not readable.
+- category: the id of the best matching category from this list, or null: ${Object.entries(SUB_NAMES).map(([id, n]) => `${id}=${n}`).join('; ')}.
+- kcal, protein, fat, carbs: values PER 100 g (or per 100 ml). If the table has several columns (per 100 g and per portion), use the per-100 g column. If only per-portion values and the portion weight are given, convert to per 100 g. kcal is energy in kilocalories (not kJ). Decimal commas are decimal points.
+Use null for anything you cannot read. Never guess.`;
 
 /** Vision model reads the label; any failure (quota, bad answer) returns nulls so the app falls back to on-phone OCR. */
 async function readLabelAI(env, image) {
@@ -332,10 +336,10 @@ async function readLabelAI(env, image) {
   try {
     r = await env.AI.run(LABEL_MODEL, {
       messages: [{ role: 'user', content: [{ type: 'text', text: LABEL_PROMPT }, { type: 'image_url', image_url: { url: image } }] }],
-      max_tokens: 200, temperature: 0,
+      max_tokens: 300, temperature: 0,
       response_format: {
         type: 'json_schema',
-        json_schema: { type: 'object', properties: Object.fromEntries(['kcal', 'protein', 'fat', 'carbs'].map((k) => [k, { type: ['number', 'null'] }])), required: ['kcal', 'protein', 'fat', 'carbs'] },
+        json_schema: { type: 'object', properties: { ...Object.fromEntries(['name', 'brand', 'barcode', 'category'].map((k) => [k, { type: ['string', 'null'] }])), ...Object.fromEntries(['kcal', 'protein', 'fat', 'carbs'].map((k) => [k, { type: ['number', 'null'] }])) }, required: ['name', 'brand', 'barcode', 'category', 'kcal', 'protein', 'fat', 'carbs'] },
       },
     });
   } catch (e) {
@@ -347,7 +351,14 @@ async function readLabelAI(env, image) {
   if (!m) return null;
   let j;
   try { j = JSON.parse(m[0]); } catch { return null; }
-  const out = { kcal: num(j.kcal, 900), protein: num(j.protein, 100), fat: num(j.fat, 100), carbs: num(j.carbs, 100) };
+  const text = (v, max) => (typeof v === 'string' && v.trim() && v.trim().length <= max ? v.trim() : null);
+  const code = typeof j.barcode === 'string' ? j.barcode.replace(/\D/g, '') : '';
+  const out = {
+    name: text(j.name, 80), brand: text(j.brand, 40),
+    barcode: /^(\d{8}|\d{12,14})$/.test(code) ? code : null,
+    category: typeof j.category === 'string' && SUB_NAMES[j.category] ? j.category : null,
+    kcal: num(j.kcal, 900), protein: num(j.protein, 100), fat: num(j.fat, 100), carbs: num(j.carbs, 100),
+  };
   return Object.values(out).some((v) => v !== null) ? out : null;
 }
 

@@ -5,7 +5,11 @@
  */
 import { api } from './api';
 
-export interface LabelMacros { protein: number | null; fat: number | null; carbs: number | null; kcal: number | null; text: string }
+export interface LabelMacros {
+  protein: number | null; fat: number | null; carbs: number | null; kcal: number | null; text: string;
+  /** Read by the server model only (on-phone OCR gives just the numbers). category = our sub-category id. */
+  name?: string | null; brand?: string | null; barcode?: string | null; category?: string | null;
+}
 
 /** Downscale and grayscale the photo: faster OCR and fewer misreads on glossy packaging. */
 async function prepare(file: File): Promise<HTMLCanvasElement> {
@@ -38,7 +42,7 @@ export async function readLabel(file: File, onProgress?: (pct: number) => void):
   onProgress?.(-1);
   try {
     const { label } = await api<{ label: Omit<LabelMacros, 'text'> | null }>('POST', '/products/label', { image: await toDataUrl(file) });
-    if (label && [label.protein, label.fat, label.carbs].some((v) => v !== null)) return { ...label, text: '' };
+    if (label && [label.protein, label.fat, label.carbs, label.kcal, label.name].some((v) => v != null)) return { ...label, text: '' };
   } catch { /* fall back to on-phone OCR */ }
   onProgress?.(0);
   return readLabelOnPhone(file, onProgress);

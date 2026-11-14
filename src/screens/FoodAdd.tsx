@@ -109,6 +109,7 @@ const entryItem = (e: Entry): FoodItem | null => (e.productId || e.dishId ? {
 
 const SCAN_ICON = 'M4 7V5a1 1 0 0 1 1-1h2M17 4h2a1 1 0 0 1 1 1v2M20 17v2a1 1 0 0 1-1 1h-2M7 20H5a1 1 0 0 1-1-1v-2M8 8v8M11 8v8M14 8v8M17 8v8';
 const PLUS_ICON = 'M12 5v14M5 12h14';
+const SPARK_ICON = 'M12 3l1.9 4.9L19 10l-5.1 2.1L12 17l-1.9-4.9L5 10l5.1-2.1zM19 15.5l.7 1.8 1.8.7-1.8.7-.7 1.8-.7-1.8-1.8-.7 1.8-.7z';
 const CLOCK_ICON = 'M12 3a9 9 0 1 0 0 18 9 9 0 0 0 0-18zM12 7v5l3 2';
 const X_ICON = 'M6 6l12 12M18 6L6 18';
 /** Taps on the history list must not take focus from the search field (that would close the list). */
@@ -456,6 +457,7 @@ function ProductForm({ barcode: initialBarcode, name: initialName, onSaved, comp
     ? { barcode: edit.barcode ?? '', brand: edit.brand ?? '', name: edit.title ?? edit.name, p: numStr(edit.protein), fat: numStr(edit.fat), c: numStr(edit.carbs), k: edit.kcal != null ? numStr(edit.kcal) : '', pn: '', pg: '' }
     : { barcode: initialBarcode ?? '', brand: '', name: initialName ?? '', p: '', fat: '', c: '', k: '', pn: '', pg: '' });
   const [dup, setDup] = useState<FoodItem | null>(null);
+  const [dupSame, setDupSame] = useState(false); // found by the photo (same product), not a typed duplicate barcode
   const [busy, setBusy] = useState(false);
   // Where the prefilled numbers came from, so the user knows to double-check them.
   const [source, setSource] = useState<string | null>(null);
@@ -466,8 +468,9 @@ function ProductForm({ barcode: initialBarcode, name: initialName, onSaved, comp
   // Nothing matched → «Другое» (once there is a name).
   const sub = picked ?? guessSub(f.name) ?? (f.name.trim() ? 'other' : null);
   const [catOpen, setCatOpen] = useState(false);
-  const fill = (v: { name?: string | null; brand?: string | null; protein: number | null; fat: number | null; carbs: number | null; kcal?: number | null }) => setF((x) => ({
+  const fill = (v: { name?: string | null; brand?: string | null; barcode?: string | null; protein: number | null; fat: number | null; carbs: number | null; kcal?: number | null }) => setF((x) => ({
     ...x,
+    barcode: v.barcode && !x.barcode.trim() ? v.barcode : x.barcode,
     name: v.name && !x.name.trim() ? v.name : x.name,
     brand: v.brand && !x.brand.trim() ? v.brand : x.brand,
     p: v.protein !== null ? String(v.protein).replace('.', ',') : x.p,
@@ -491,12 +494,22 @@ function ProductForm({ barcode: initialBarcode, name: initialName, onSaved, comp
     try {
       const { readLabel } = await import('../lib/label');
       const r = await readLabel(file, setOcr);
-      const got = [r.protein, r.fat, r.carbs].filter((v) => v !== null).length;
-      if (!got) setSource('Не получилось прочитать БЖУ. Сфотографируйте таблицу ближе и ровнее, без бликов');
-      else { fill(r); setSource(got === 3 ? 'Прочитано с этикетки — проверьте цифры' : 'Прочитано не всё — допишите недостающее'); }
+      const got = [r.name, r.protein, r.fat, r.carbs, r.kcal].filter((v) => v != null).length;
+      if (!got) { setSource('Не получилось прочитать фото. Сфотографируйте упаковку ближе и ровнее, без бликов'); return; }
+      fill(r);
+      if (r.category && SUB_INFO[r.category] && !picked) setPicked(r.category);
+      setSource('Заполнено по фото — проверьте');
+      // Already in the library? Same barcode, or exactly the same «brand · name» → offer the existing product.
+      const code = f.barcode.trim() || r.barcode;
+      const full = (b: string, n: string) => (b ? `${b} · ${n}` : n).trim().toLowerCase();
+      const want = full((f.brand.trim() || r.brand || '').trim(), (f.name.trim() || r.name || '').trim());
+      const found = code
+        ? (await api<{ product: FoodItem | null }>('GET', `/products?barcode=${code}`).catch(() => null))?.product
+        : want ? (await api<{ products: FoodItem[] }>('GET', `/products?q=${encodeURIComponent(want)}`).catch(() => null))?.products.find((p) => p.name.trim().toLowerCase() === want) : null;
+      if (found && found.id !== edit?.id) { setDup(found); setDupSame(true); }
     } catch { setSource('Не получилось распознать фото'); } finally { setOcr(null); }
   };
-  const set = (k: keyof typeof f) => (e: React.ChangeEvent<HTMLInputElement>) => { setF((x) => ({ ...x, [k]: e.target.value })); if (k === 'barcode') setDup(null); };
+  const set = (k: keyof typeof f) => (e: React.ChangeEvent<HTMLInputElement>) => { setF((x) => ({ ...x, [k]: e.target.value })); if (k === 'barcode') { setDup(null); setDupSame(false); } };
   const okMacro = (s: string) => s.trim() !== '' && /^\d{1,3}([.,]\d)?$/.test(s.trim()) && n(s) <= 100;
   const touched = (s: string) => s.trim() !== '';
   const errs = {
@@ -534,6 +547,19 @@ function ProductForm({ barcode: initialBarcode, name: initialName, onSaved, comp
   );
   return (
     <div className="col" style={{ gap: 12 }}>
+      {/* AI autofill from a photo of the package: everything the model can read (new products only). */}
+      {!edit ? (
+        <>
+          <button type="button" className="btn" disabled={ocr !== null} onClick={() => fileRef.current?.click()} aria-label="Заполнить по фото упаковки, AI"
+            style={{ height: 56, borderRadius: 16, fontSize: 16, background: 'transparent', color: 'var(--acc)', border: '2px solid var(--acc)', gap: 10 }}>
+            <Icon d={SPARK_ICON} size={20} />
+            <span>{ocr === null ? 'Заполнить по фото' : ocr < 0 ? 'Читаю фото…' : ocr ? `Читаю… ${ocr}%` : 'Загружаю…'}</span>
+            <span style={{ height: 20, padding: '0 7px', borderRadius: 6, background: 'var(--acc)', color: 'var(--onAcc)', fontSize: 11, fontWeight: 800, letterSpacing: '.04em', display: 'inline-flex', alignItems: 'center' }}>AI</span>
+          </button>
+          <input ref={fileRef} type="file" accept="image/*" capture="environment" onChange={onPhoto} style={{ display: 'none' }} />
+          {source ? <span className="muted" style={{ fontSize: 14 }}>{source}</span> : null}
+        </>
+      ) : null}
       <div className="field">
         <label htmlFor="pn-code">Штрихкод</label>
         <div className="row" style={{ gap: 8 }}>
@@ -542,7 +568,7 @@ function ProductForm({ barcode: initialBarcode, name: initialName, onSaved, comp
         </div>
         {dup ? (
           <>
-            <span className="err">Такой штрихкод уже есть</span>
+            <span className="err">{dupSame ? 'Такой продукт уже есть' : 'Такой штрихкод уже есть'}</span>
             <button className="item" onClick={() => onSaved(dup)}><FoodArt kind={dup.icon} size={40} /><b className="grow">{dup.name}</b><span style={{ color: 'var(--acc)' }}>›</span></button>
           </>
         ) : null}
@@ -567,14 +593,8 @@ function ProductForm({ barcode: initialBarcode, name: initialName, onSaved, comp
         </button>
       </div>
       <CategoryPicker open={catOpen} value={sub} onClose={() => setCatOpen(false)} onPick={(id) => { setPicked(id); setCatOpen(false); }} />
-      <div className="between" style={{ gap: 8 }}>
-        <span style={{ fontWeight: 700 }}>100 г</span>
-        <button type="button" className="btn small outline" disabled={ocr !== null} onClick={() => fileRef.current?.click()} style={{ height: 38, flex: 'none' }}>
-          {ocr === null ? 'Сфоткать этикетку' : ocr < 0 ? 'Читаю…' : ocr ? `Читаю… ${ocr}%` : 'Загружаю…'}
-        </button>
-        <input ref={fileRef} type="file" accept="image/*" capture="environment" onChange={onPhoto} style={{ display: 'none' }} />
-      </div>
-      {source ? <span className="muted" style={{ fontSize: 14 }}>{source}</span> : null}
+      <span style={{ fontWeight: 700 }}>100 г</span>
+      {source && edit ? <span className="muted" style={{ fontSize: 14 }}>{source}</span> : null}
       <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 8 }}>
         {box('k', 'Калории', 'var(--acc)', auto !== null ? String(auto) : undefined)}
         {box('p', 'Белки, г', 'var(--chart)')}
