@@ -1,20 +1,17 @@
 import { useEffect, useState } from 'react';
 import { useApp } from '../app-context';
 import { api } from '../lib/api';
-import { DEFAULT_REST, mmss, planMinutes, programEnd, programProgress, timesPerWeek, weeksText } from '../lib/calc';
-import { addDays, fromDay, plural, today, WD_CAP } from '../lib/dates';
+import { DEFAULT_REST, mmss, planMinutes, programProgress, timesPerWeek, weeksText } from '../lib/calc';
+import { plural, today, WD_CAP } from '../lib/dates';
 import { invalidate } from '../lib/query';
 import { go } from '../lib/router';
 import type { Program } from '../lib/types';
 import { ExerciseArt } from '../art';
 import { MoreButton, Screen, Sheet, errText, menuRow, toast } from '../ui';
 import { TodayWorkout } from './Week';
-
-const MONTH_PREP = ['январе', 'феврале', 'марте', 'апреле', 'мае', 'июне', 'июле', 'августе', 'сентябре', 'октябре', 'ноябре', 'декабре'];
+import { TemplatesBlock } from './Templates';
 
 export function programSubtitle(p: Program) {
-  const pr = programProgress(p);
-  if (pr.finished) return `закончена в ${MONTH_PREP[fromDay(addDays(programEnd(p), -1)).getMonth()]}`;
   return `${weeksText(p.weeks)} · ${timesPerWeek(p.weekdays.length)}`;
 }
 
@@ -78,16 +75,17 @@ export function SportScreen() {
       </div>
     </>
   ) : null;
+  const readyBlock = <TemplatesBlock />;
 
   return (
     <Screen title="Спорт">
       {!wide ? <h1 className="h1 a-h">Спорт</h1> : null}
       {wide ? (
         <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(360px, 1fr))', gap: 20, alignItems: 'start' }}>
-          <div className="col" style={{ gap: 14 }}><TodayWorkout />{currentCard}{programsBlock}</div>
+          <div className="col" style={{ gap: 14 }}><TodayWorkout />{currentCard}{programsBlock}{readyBlock}</div>
           <div className="col" style={{ gap: 14 }}>{exercisesBlock}</div>
         </div>
-      ) : <><TodayWorkout />{currentCard}{exercisesBlock}{programsBlock}</>}
+      ) : <><TodayWorkout />{currentCard}{exercisesBlock}{programsBlock}{readyBlock}</>}
     </Screen>
   );
 }

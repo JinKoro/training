@@ -498,12 +498,22 @@ export async function handleApi(request, env, path) {
       return ok({ programs: results.map(programOut) });
     }
     if (seg.length === 1 && method === 'POST') {
-      const f = programFields(await readJson(request));
+      const body = await readJson(request);
+      const f = programFields(body);
+      // Optional start week (a Monday within a month of today) — ready-made programs start on the week of the first workout.
+      let start = mondayOf(today);
+      if (body.startDate != null) {
+        const sd = str(body.startDate, 'startDate', { max: 10 });
+        if (!/^\d{4}-\d{2}-\d{2}$/.test(sd) || mondayOf(sd) !== sd) fail(400, 'invalid_date', 'startDate');
+        const diff = (Date.parse(sd) - Date.parse(start)) / 86400000;
+        if (diff < -31 || diff > 31) fail(400, 'invalid_date', 'startDate');
+        start = sd;
+      }
       await env.DB.prepare('UPDATE programs SET is_active = 0 WHERE user_id = ?').bind(uid).run();
       const r = await env.DB.prepare(
         `INSERT INTO programs (user_id, name, weekdays, weeks, start_date, is_active, plan, created_at, updated_at)
          VALUES (?, ?, ?, ?, ?, 1, ?, ?, ?) RETURNING *`,
-      ).bind(uid, f.name, f.weekdays, f.weeks, mondayOf(today), f.plan, now, now).first();
+      ).bind(uid, f.name, f.weekdays, f.weeks, start, f.plan, now, now).first();
       return ok({ program: programOut(r) }, 201);
     }
     const id = num(seg[1], 'id', { min: 1, int: true });

@@ -15,6 +15,7 @@ import { WorkoutFlow } from './screens/WorkoutFlow';
 import { SummaryScreen } from './screens/Summary';
 import { WorkoutEditScreen, WorkoutsScreen } from './screens/WorkoutEdit';
 import { SportScreen, ProgramScreen } from './screens/Sport';
+import { TemplateScreen, TemplateStartScreen } from './screens/Templates';
 import { ProgramEditorScreen } from './screens/ProgramEditor';
 import { ExerciseFormScreen, LibraryScreen } from './screens/Exercises';
 import { LogScreen } from './screens/Log';
@@ -101,6 +102,7 @@ function navFor(r: string[]): { tab: string | null; side: string; bar: boolean }
   if (s === 'week-macros') return { tab: 'week', side: 'week', bar: false };
   if (s === 'sport') return { tab: 'plan', side: 'plan', bar: true };
   if (s === 'program') return { tab: 'plan', side: 'plan', bar: r[1] !== 'new' && r[2] !== 'edit' };
+  if (s === 'template') return { tab: 'plan', side: 'plan', bar: false };
   if (s === 'exercises') return { tab: 'plan', side: 'library', bar: true };
   if (s === 'exercise') return { tab: 'plan', side: 'library', bar: false };
   if (s === 'log' || s === 'summary') return { tab: 'log', side: 'log', bar: s === 'log' };
@@ -153,6 +155,7 @@ function Routes({ r }: { r: string[] }) {
       if (b === 'new') return <ProgramEditorScreen mode="new" />;
       if (c === 'edit') return <ProgramEditorScreen mode="edit" id={Number(b)} />;
       return <ProgramScreen id={Number(b)} />;
+    case 'template': return c === 'start' ? <TemplateStartScreen id={b} /> : <TemplateScreen id={b} />;
     case 'exercises': return <LibraryScreen mine={b === 'mine'} selected={Number(c) || null} />;
     case 'exercise':
       if (b === 'new') return <ExerciseFormScreen />;
