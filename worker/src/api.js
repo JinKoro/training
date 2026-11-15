@@ -414,6 +414,27 @@ async function readLabelAI(env, image) {
   return Object.values(out).some((v) => v !== null) ? out : null;
 }
 
+// ---------- body measurements ----------
+
+const CIRCS = ['neck', 'chest', 'shoulders', 'waist', 'belly', 'hips', 'thigh', 'calf', 'arm'];
+// weight and body fat are kept in the profile history (the profile shows the latest one)
+const PROFILE_METRICS = { weight: ['weight_kg', { min: 30, max: 300 }], bodyFat: ['body_fat', { min: 3, max: 60 }] };
+
+async function measurementsOf(env, userId) {
+  const [{ results: prof }, { results: circ }] = await Promise.all([
+    env.DB.prepare('SELECT date, weight_kg, body_fat FROM profile_history WHERE user_id = ? AND (weight_kg IS NOT NULL OR body_fat IS NOT NULL)').bind(userId).all(),
+    env.DB.prepare('SELECT date, metric, value FROM measurements WHERE user_id = ?').bind(userId).all(),
+  ]);
+  const out = circ.map((r) => ({ date: r.date, metric: r.metric, value: r.value }));
+  for (const r of prof) {
+    if (r.weight_kg !== null) out.push({ date: r.date, metric: 'weight', value: r.weight_kg });
+    if (r.body_fat !== null) out.push({ date: r.date, metric: 'bodyFat', value: r.body_fat });
+  }
+  return out.sort((a, b) => (a.date < b.date ? -1 : a.date > b.date ? 1 : a.metric < b.metric ? -1 : 1));
+}
+
+const metricOf = (m) => (CIRCS.includes(m) || m in PROFILE_METRICS ? m : fail(400, 'invalid_option', 'metric'));
+
 // ---------- router ----------
 
 export async function handleApi(request, env, path) {
@@ -524,6 +545,41 @@ export async function handleApi(request, env, path) {
       const body = await readJson(request);
       await env.DB.batch(normStatements(env, uid, today, readNorms(body, 'norms')));
       return ok(await me(env, user));
+    }
+    if (seg[1] === 'measurements') {
+      if (seg.length === 2 && method === 'GET') return ok({ entries: await measurementsOf(env, uid) });
+      const date = day(seg[2], 'date');
+      if (date > today) fail(400, 'invalid_date', 'date');
+      // One entry per date: the given values are set, a null clears that metric for the date.
+      if (seg.length === 3 && method === 'PUT') {
+        const body = await readJson(request);
+        const values = body?.values && typeof body.values === 'object' ? body.values : fail(400, 'invalid_values', 'values');
+        const prof = {}, stmts = [];
+        for (const [k, v] of Object.entries(values)) {
+          metricOf(k);
+          if (k in PROFILE_METRICS) {
+            const [col, range] = PROFILE_METRICS[k];
+            prof[col] = v === null ? null : num(v, k, range);
+          } else if (v === null) {
+            stmts.push(env.DB.prepare('DELETE FROM measurements WHERE user_id = ? AND date = ? AND metric = ?').bind(uid, date, k));
+          } else {
+            stmts.push(env.DB.prepare(`INSERT INTO measurements (user_id, date, metric, value) VALUES (?, ?, ?, ?)
+              ON CONFLICT (user_id, date, metric) DO UPDATE SET value = excluded.value`).bind(uid, date, k, num(v, k, { min: 10, max: 250 })));
+          }
+        }
+        if (stmts.length) await env.DB.batch(stmts);
+        await writeProfile(env, uid, date, prof);
+        return ok({ entries: await measurementsOf(env, uid) });
+      }
+      if (seg.length === 4 && method === 'DELETE') {
+        const m = metricOf(seg[3]);
+        if (m in PROFILE_METRICS) {
+          await env.DB.prepare(`UPDATE profile_history SET ${PROFILE_METRICS[m][0]} = NULL WHERE user_id = ? AND date = ?`).bind(uid, date).run();
+        } else {
+          await env.DB.prepare('DELETE FROM measurements WHERE user_id = ? AND date = ? AND metric = ?').bind(uid, date, m).run();
+        }
+        return ok({ entries: await measurementsOf(env, uid) });
+      }
     }
     if (seg[1] === 'password' && method === 'POST') {
       const body = await readJson(request);

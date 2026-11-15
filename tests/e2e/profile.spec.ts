@@ -7,8 +7,8 @@ test.describe('Profile', () => {
     await expect(page.getByRole('link', { name: /Тренировочный день/ })).toContainText(`${fmt(kcal(user.norms.training!))} ккал`);
     await page.getByRole('link', { name: /Данные и замеры/ }).click();
     // the figure view first (numbers on the sign-up silhouette), «Изменить» opens the form
-    await expect(page.getByText('80 кг')).toBeVisible();
-    await expect(page.getByText('20 %')).toBeVisible();
+    await expect(page.getByText('80 кг').first()).toBeVisible();
+    await expect(page.getByText('20 %').first()).toBeVisible();
     await page.getByRole('link', { name: 'Изменить' }).click();
     await expect(page.getByLabel('Вес, кг')).toHaveValue('80');
     await expect(page.getByLabel('Или свой процент')).toHaveValue('20');
@@ -32,7 +32,7 @@ test.describe('Profile', () => {
     await s.getByRole('button', { name: 'Пересчитать' }).click();
     await expect(toast(page)).toHaveText('Калории пересчитаны');
     await expect(page).toHaveURL(/#\/profile\/body$/);
-    await expect(page.getByText('86,5 кг')).toBeVisible();
+    await expect(page.getByText('86,5 кг').first()).toBeVisible();
     await page.getByRole('link', { name: '‹ Профиль' }).click();
     await expect(page.getByRole('link', { name: /Тренировочный день/ })).toContainText(`${fmt(kcal(want.training!))} ккал`);
     await expect(page.getByRole('link', { name: /День отдыха/ })).toContainText(`${fmt(kcal(want.rest))} ккал`);
@@ -160,5 +160,48 @@ test.describe('Profile', () => {
     await expect(page).toHaveURL(/#\/profile\/norms/);
     await expect(page.locator('.card', { hasText: 'дни без тренировки' })).toContainText(`${fmt(kcal(want.rest))} ккал`);
     await expect(page.locator('.card', { hasText: 'если не задано' })).toContainText('Не задано');
+  });
+  test('body measurements: add, see the change, open the chart, edit and delete an entry', async ({ authed: page }) => {
+    await open(page, 'profile/body');
+    const card = page.locator('.card', { hasText: 'Замеры тела' });
+    await expect(card.getByRole('link', { name: 'Вес' })).toContainText('80 кг'); // the sign-up weight
+    await expect(card.getByRole('link', { name: 'Талия' })).toContainText('—');
+    await card.getByRole('link', { name: 'Внести замеры' }).click();
+    await expect(page.getByLabel('Вес, кг')).toHaveAttribute('placeholder', '80');
+    await expect(page.getByRole('button', { name: 'Сохранить' })).toBeDisabled();
+    await page.getByLabel('Талия').fill('5');
+    await expect(page.getByText('От 10 до 250 см')).toBeVisible();
+    await page.getByLabel('Талия').fill('84,5');
+    await page.getByLabel('Вес, кг').fill('79');
+    await page.getByRole('button', { name: 'Сохранить' }).click();
+    await expect(toast(page)).toHaveText('Замеры сохранены');
+    await expect(page).toHaveURL(/#\/profile\/body$/);
+    // one entry per date: today's weight replaces the sign-up one, and the figure follows it
+    await expect(card.getByRole('link', { name: 'Вес' })).toContainText('79 кг');
+    await expect(page.getByText('79 кг')).toHaveCount(2);
+    // an older entry: the change is counted from it
+    await card.getByRole('link', { name: 'Внести замеры' }).click();
+    await page.getByRole('button', { name: 'Вчера' }).click();
+    await page.getByLabel('Талия').fill('86');
+    await page.getByRole('button', { name: 'Сохранить' }).click();
+    await expect(card.getByRole('link', { name: 'Талия' })).toContainText('84,5 см');
+    await expect(card.getByRole('link', { name: 'Талия' })).toContainText('↓ 1,5');
+
+    await card.getByRole('link', { name: 'Талия' }).click();
+    await expect(page.getByRole('img', { name: 'Талия: 86, 84,5' })).toBeVisible();
+    await expect(page.getByText('↓ 1,5 см за 3 месяца')).toBeVisible();
+    await page.getByRole('button', { name: /^Запись/ }).last().click();
+    await page.getByRole('button', { name: 'Удалить' }).click();
+    await expect(toast(page)).toHaveText('Запись удалена');
+    await expect(page.getByRole('img', { name: 'Талия: 84,5' })).toBeVisible();
+    await page.getByRole('button', { name: /^Запись/ }).click();
+    await page.getByRole('button', { name: 'Изменить' }).click();
+    await page.getByLabel('Талия, см').fill('83');
+    await page.getByRole('button', { name: 'Сохранить' }).click();
+    await expect(toast(page)).toHaveText('Сохранено');
+    await expect(page.getByRole('img', { name: 'Талия: 83' })).toBeVisible();
+    await page.getByRole('button', { name: /^Запись/ }).click();
+    await page.getByRole('button', { name: 'Удалить' }).click();
+    await expect(page.getByText('Записей пока нет')).toBeVisible();
   });
 });

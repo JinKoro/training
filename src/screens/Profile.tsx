@@ -10,6 +10,7 @@ import type { Macros, Me, Sex } from '../lib/types';
 import { birthToInput, maskBirth, numIn, parseBirth, vBirth, vFat, vHeight, vName, vPassword, vSteps, vWeight, years } from '../lib/validate';
 import { EnergyFlow, energyFormFrom, type EnergyResult } from './Energy';
 import { BodyFigure } from '../art/Body';
+import { MeasuresCard } from './Measures';
 import { Field, Screen, Sheet, errText, toast, PasswordInput } from '../ui';
 
 type Pref = 'system' | 'light' | 'dark';
@@ -301,7 +302,7 @@ export function BodyScreen() {
     return (
       <div className="page">
         <div className="between"><h1 className="h1">Данные и замеры</h1><a className="btn sec small" href="#/profile">Изменить</a></div>
-        {card}
+        <div className="row" style={{ gap: 14, alignItems: 'flex-start' }}><div style={{ flex: 'none' }}>{card}</div><MeasuresCard /></div>
       </div>
     );
   }
@@ -309,6 +310,7 @@ export function BodyScreen() {
     <Screen className="modal">
       <div className="navbar"><a className="link" href="#/profile">‹ Профиль</a><b>Данные и замеры</b><a className="link" href="#/profile/edit">Изменить</a></div>
       {card}
+      <MeasuresCard />
     </Screen>
   );
 }
