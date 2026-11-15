@@ -189,10 +189,10 @@ test.describe('Workout flow', () => {
     await expect(page.locator('.a-in', { hasText: 'Выполнено' })).toContainText('80%');
     await page.getByRole('button', { name: 'Продолжить' }).click();
     await expect(page.getByText('✓ выполнено 80%')).toBeVisible();
+    // «Итог» on the week opens the program on the week this workout belongs to
     await page.getByRole('link', { name: 'Итог' }).click();
-    await expect(page).toHaveURL(/#\/summary\/\d+\/week/);
-    await expect(page.getByRole('heading', { name: /Грудь/ })).toBeVisible();
-    await page.getByRole('link', { name: '‹ Назад' }).click();
+    await expect(page).toHaveURL(/#\/program\/\d+\/week\/1$/);
+    await page.goBack();
     await expect(page).toHaveURL(/#\/week$/);
     // the day screen now offers the summary instead of a new workout
     await open(page, `day/${today()}`);
@@ -236,7 +236,12 @@ test.describe('Workout flow', () => {
     await page.locator('.fixed-bottom').getByRole('button', { name: 'Начать' }).click();
     await page.getByRole('button', { name: 'Сделал' }).click();
     await page.getByRole('button', { name: 'Продолжить' }).click();
-    await page.getByRole('link', { name: 'Итог' }).click();
+    await expect(page.getByText('✓ выполнено 100%')).toBeVisible(); // back on the week first
+    await open(page, `day/${today()}`);
+    // the day's main button keeps pulsing, so it is never «stable» for a normal click
+    await page.locator('.fixed-bottom').getByRole('button', { name: 'Итог ›' }).click({ force: true });
+    await expect(page).toHaveURL(/#\/summary\//);
+    await expect(page.getByRole('heading', { name: /Грудь/ })).toBeVisible();
     await page.getByRole('button', { name: 'Меню' }).click();
     await sheet(page, 'Тренировка').getByRole('button', { name: 'Удалить тренировку' }).click();
     await sheet(page, 'Тренировка').getByRole('button', { name: 'Да, удалить' }).click();

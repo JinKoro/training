@@ -99,14 +99,15 @@ export function SportScreen() {
   );
 }
 
-export function ProgramScreen({ id }: { id: number }) {
+/** `week` opens that week of the program (from a day card: the week the day belongs to). */
+export function ProgramScreen({ id, week: atWeek }: { id: number; week?: number }) {
   const { programs, exById, wide } = useApp();
   const p = programs.find((x) => x.id === id);
   const pr = p ? programProgress(p) : null;
-  const [sel, setSel] = useState<number>(() => (pr ? (pr.finished ? p!.weeks : pr.started ? pr.currentWeek : 1) : 1));
+  const [sel, setSel] = useState<number>(() => (pr ? (atWeek && atWeek >= 1 && atWeek <= p!.weeks ? atWeek : pr.finished ? p!.weeks : pr.started ? pr.currentWeek : 1) : 1));
   const [del, setDel] = useState(false);
   const [menu, setMenu] = useState(false);
-  useEffect(() => { if (wide && p) go('program', p.id, 'edit'); }, [wide, p]);
+  useEffect(() => { if (wide && p) go('program', p.id, 'edit', ...(atWeek ? [atWeek] : [])); }, [wide, p, atWeek]);
   if (!p || !pr) return <Screen className="modal"><a className="link" href="#/sport">‹ Спорт</a><div className="empty">Программа не найдена</div></Screen>;
   const cur = pr.finished ? p.weeks + 1 : pr.started ? pr.currentWeek : 0;
   const week = p.plan[String(sel)] ?? {};

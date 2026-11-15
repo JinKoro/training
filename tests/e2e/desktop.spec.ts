@@ -33,7 +33,9 @@ test.describe('Desktop layout (1440×900)', () => {
     problems.push(...(await layoutProblems(page)).map((p) => `Упражнения: ${p}`));
     expect(problems).toEqual([]);
 
-    await expect(side(page).getByRole('button', { name: `Выйти · ${user.name}` })).toBeVisible();
+    // bottom of the menu: who is signed in (opens the profile), «Выйти», then the collapse arrow
+    await expect(side(page).getByRole('link', { name: new RegExp(user.name) })).toHaveAttribute('href', '#/profile');
+    await expect(side(page).getByRole('button', { name: 'Выйти' })).toBeVisible();
     await side(page).getByRole('button', { name: 'Свернуть меню' }).click();
     await expect(side(page).getByRole('link', { name: 'Неделя' })).toHaveText('');
     await page.reload();
@@ -109,30 +111,50 @@ test.describe('Desktop layout (1440×900)', () => {
     await expect(page).toHaveURL(/#\/log$/);
   });
 
-  test('Еда: table, quick add from the side search, entry sheet, product form beside the list', async ({ authed: page }) => {
+  test('Еда: the phone day (week strip, ring, meal cards in two columns, week macros on the right), entry sheet, product form beside the list', async ({ authed: page, user }) => {
     const D = today();
+    await addEntry(user.token, D, 'breakfast', 'Гречка варёная', 100);
     await open(page, `food/${D}`);
-    const table = page.locator('table');
-    for (const m of ['Завтрак', 'Обед', 'Ужин', 'Перекус']) await expect(table).toContainText(m);
-    await page.getByLabel('Поиск по общей библиотеке').fill('Гречка варёная');
-    await page.getByRole('button', { name: 'Добавить Гречка варёная' }).click();
-    await expect(toast(page)).toHaveText('Добавлено в завтрак');
-    const row = table.locator('tr', { hasText: 'Гречка варёная' });
+    // no table and no quick-add side panel any more
+    await expect(page.locator('table')).toHaveCount(0);
+    await expect(page.getByLabel('Поиск по общей библиотеке')).toHaveCount(0);
+    await expect(page.getByRole('link', { name: /^Добавить в / })).toHaveCount(0);
+    await expect(page.getByRole('link', { name: 'Предыдущая неделя' })).toBeVisible();
+    await expect(page.getByRole('button', { name: 'Календарь' })).toBeVisible();
+    await expect(page.locator('a[aria-current="date"]')).toHaveAttribute('href', `#/food/${D}`);
+    await expect(page.getByRole('heading', { name: `Сегодня, ${dayMonth(D)}` })).toBeVisible();
+    await expect(page.getByRole('img', { name: /^Съедено 109 из / })).toBeVisible();
+    const card = (n: string) => page.locator('.card.col', { has: page.locator('b', { hasText: new RegExp(`^${n}$`) }) });
+    for (const m of ['Завтрак', 'Обед', 'Ужин', 'Перекус']) await expect(card(m).getByRole('link', { name: 'Добавить' })).toBeVisible();
+    // two columns: breakfast and lunch side by side, main column capped
+    const boxes = async () => [(await card('Завтрак').boundingBox())!, (await card('Обед').boundingBox())!];
+    await expect.poll(async () => { const [x, y] = await boxes(); return Math.abs(x.y - y.y); }).toBeLessThan(2); // after the cards' slide-in
+    const [b1, b2] = await boxes();
+    expect(b2!.x).toBeGreaterThan(b1!.x + b1!.width);
+    expect(b2!.x + b2!.width - b1!.x).toBeLessThanOrEqual(860);
+    const aside = page.locator('aside');
+    await expect(aside.getByText('Неделя', { exact: true })).toBeVisible();
+    expect(Math.round((await aside.boundingBox())!.width)).toBe(320);
+    await expect(card('Завтрак').getByRole('link', { name: '+ Создать блюдо' })).toBeVisible();
+    await expect(card('Завтрак').getByRole('button', { name: 'Скопировать приём пищи' })).toBeEnabled();
+
+    const row = card('Завтрак').locator('button.row', { hasText: 'Гречка варёная' });
     await expect(row).toContainText('100 г');
     await expect(row).toContainText('109');
-    await expect(page.getByText(`осталось ${fmt(kcal([150, 70, 250]) - 109)} ккал`)).toBeVisible();
+    await expect(page.getByText(`Осталось ${fmt(kcal([150, 70, 250]) - 109)} ккал`)).toBeVisible();
     await row.click();
     await sheet(page, 'Гречка варёная').getByRole('button', { name: 'Больше' }).click();
     await sheet(page, 'Гречка варёная').getByRole('button', { name: 'Сохранить' }).click();
     await expect(row).toContainText('150 г');
-    // next / previous day
-    await page.getByRole('link', { name: 'Следующий день' }).click();
-    await expect(table.locator('tr', { hasText: 'Гречка варёная' })).toHaveCount(0);
-    await page.getByRole('link', { name: 'Предыдущий день' }).click();
+    // next week and back with «К сегодня»
+    await page.getByRole('link', { name: 'Следующая неделя' }).click();
+    await expect(page.locator('button.row', { hasText: 'Гречка варёная' })).toHaveCount(0);
+    await page.getByRole('link', { name: 'К сегодня' }).click();
     await expect(row).toBeVisible();
+    expect(await layoutProblems(page)).toEqual([]);
 
     // add screen: search on the left, product form on the right
-    await table.getByRole('link', { name: 'Добавить' }).nth(1).click();
+    await card('Обед').getByRole('link', { name: 'Добавить' }).click();
     await expect(page.getByRole('heading', { name: 'Добавить в обед' })).toBeVisible();
     await expect(page.getByRole('heading', { name: 'Новый продукт' })).toBeVisible();
     await page.getByLabel('Название').fill('Кефир тестовый');
@@ -173,7 +195,7 @@ test.describe('Desktop layout (1440×900)', () => {
     // own kcal for a logged entry, from the entry sheet
     await addEntry(user.token, D, 'dinner', 'Гречка варёная', 100);
     await open(page, `food/${D}`);
-    const row = page.locator('table tr', { hasText: 'Гречка варёная' });
+    const row = page.locator('button.row', { hasText: 'Гречка варёная' });
     await expect(row).toContainText('109');
     await row.click();
     const s = sheet(page, 'Гречка варёная');

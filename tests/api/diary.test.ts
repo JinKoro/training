@@ -50,6 +50,36 @@ describe('dishes', () => {
     expect(ok.body.dish.meals).toEqual(['lunch', 'dinner']);
   });
 
+  it('an ingredient with own kcal/macros counts them in this dish only; the product stays', async () => {
+    const own = { protein: 30, fat: 2, carbs: 1, kcal: 150 };
+    const r = await a.post('/dishes', { name: 'Своё', cookedWeight: 200, ingredients: [{ productId: prod.id, grams: 100, custom: own }, { productId: prod.id, grams: 100 }] });
+    expect(r.status).toBe(201);
+    const d = r.body.dish;
+    close(d.protein, (30 + 20) / 2); close(d.fat, (2 + 10) / 2); close(d.carbs, 0.5); close(d.kcal, (150 + 200) / 2);
+    expect((await a.get(`/products/${prod.id}`)).body.product).toMatchObject({ protein: 20, fat: 10, carbs: 0, kcal: 200 });
+    // Used as an ingredient of another dish, its own values come along.
+    const outer = (await a.post('/dishes', { name: 'Сверху', cookedWeight: 100, ingredients: [{ dishId: d.id, grams: 200 }] })).body.dish;
+    close(outer.protein, 50); close(outer.kcal, 350);
+    // custom: null = the product's values
+    close((await a.post('/dishes', { name: 'Без', cookedWeight: 100, ingredients: [{ productId: prod.id, grams: 100, custom: null }] })).body.dish.protein, 20);
+  });
+
+  it.each([
+    [{ protein: 101, fat: 0, carbs: 0, kcal: 100 }, 'protein'], [{ protein: 60, fat: 30, carbs: 20, kcal: 100 }, 'carbs'],
+    [{ protein: 10, fat: 10, carbs: 10, kcal: 901 }, 'kcal'], [{ protein: 10, fat: 10, carbs: 10 }, 'kcal'], ['x', 'custom'], [[1], 'custom'],
+  ])('rejects ingredient custom %o', async (custom, field) => {
+    const r = await a.post('/dishes', { name: 'Блюдо', cookedWeight: 100, ingredients: [{ productId: prod.id, grams: 100, custom }] });
+    expect(r.status).toBe(400);
+    expect(r.body.field).toBe(field);
+  });
+
+  it('custom on a dish ingredient (a dish, not a product) is rejected', async () => {
+    const inner = (await a.post('/dishes', { name: 'Внутри', cookedWeight: 100, ingredients: [{ productId: prod.id, grams: 100 }] })).body.dish;
+    const r = await a.post('/dishes', { name: 'Снаружи', cookedWeight: 100, ingredients: [{ dishId: inner.id, grams: 100, custom: { protein: 1, fat: 1, carbs: 1, kcal: 10 } }] });
+    expect(r.status).toBe(400);
+    expect(r.body.field).toBe('custom');
+  });
+
   it('a rejected dish (bad 2nd ingredient) creates nothing', async () => {
     const c = await newUser({}, TODAY);
     expect((await c.post('/dishes', { name: 'Плохое', cookedWeight: 100, ingredients: [{ productId: 1, grams: 10 }, { productId: 99999999, grams: 10 }] })).status).toBe(400);

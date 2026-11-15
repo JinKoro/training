@@ -55,7 +55,7 @@ test.describe('Week screen', () => {
       await expect(page.locator('.card', { hasText: 'Ноги' })).toContainText('по плану');
       await expect(page.locator(`a[href="#/food/${d2}"]`)).toContainText('Еда · план');
       await page.getByRole('link', { name: 'Открыть план' }).click();
-      await expect(page).toHaveURL(new RegExp(`#/program/${p.id}$`));
+      await expect(page).toHaveURL(new RegExp(`#/program/${p.id}/week/\\d+$`));
       await page.goBack();
       await page.getByRole('button', { name: 'К сегодня' }).click();
       await expect(page.getByText(`Сегодня, ${dayMonth(D)}`)).toBeVisible();

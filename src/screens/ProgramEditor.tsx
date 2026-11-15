@@ -40,20 +40,20 @@ const vSets = (s: string) => /^\d{1,2}$/.test(s) && Number(s) >= 1 && Number(s) 
 const vReps = (s: string) => /^\d{1,3}([–-]\d{1,3})?$/.test(s.trim());
 const vKg = (s: string) => s.trim() === '' || /^\d{1,4}([.,]\d{1,2})?(\s*\/\s*\d{1,4}([.,]\d{1,2})?)*$/.test(s.trim());
 
-export function ProgramEditorScreen({ mode, id }: { mode: 'new' | 'edit'; id?: number }) {
+export function ProgramEditorScreen({ mode, id, week }: { mode: 'new' | 'edit'; id?: number; week?: number }) {
   const { programs } = useApp();
   const p = mode === 'edit' ? programs.find((x) => x.id === id) : undefined;
   if (mode === 'edit' && !p) return <Screen className="modal"><a className="link" href="#/sport">‹ Спорт</a><div className="empty">Программа не найдена</div></Screen>;
   // Keyed by updatedAt too: weights calibrated after a workout arrive in a reload, and the editor must show them.
-  return <Editor key={p ? `${p.id}-${p.updatedAt}` : 'new'} mode={mode} program={p} />;
+  return <Editor key={p ? `${p.id}-${p.updatedAt}` : 'new'} mode={mode} program={p} week={week} />;
 }
 
-function Editor({ mode, program }: { mode: 'new' | 'edit'; program?: Program }) {
+function Editor({ mode, program, week }: { mode: 'new' | 'edit'; program?: Program; week?: number }) {
   const { wide, exById } = useApp();
   const [name, setName] = useState(program?.name ?? '');
   const [days, setDays] = useState<boolean[]>(() => Array.from({ length: 7 }, (_, i) => (program ? program.weekdays.includes(i) : [0, 2, 4].includes(i))));
   const [weeks, setWeeks] = useState(program?.weeks ?? 8);
-  const [sel, setSel] = useState(() => (program ? Math.min(program.weeks, programProgress(program).currentWeek) : 1));
+  const [sel, setSel] = useState(() => (program ? (week && week >= 1 && week <= program.weeks ? week : Math.min(program.weeks, programProgress(program).currentWeek)) : 1));
   const [day, setDay] = useState(0);
   const [fresh, setFresh] = useState<Record<number, true>>({});
   const [pick, setPick] = useState(false);

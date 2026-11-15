@@ -207,7 +207,10 @@ export function WorkoutCard({ d, calendar, canTrain, from = 'calendar' }: { d: D
     const s = workoutStats(w);
     const dur = durationMin(w);
     sub = `✓ выполнено ${s.pct}%${dur ? ` · ${dur} мин` : ''}`;
-    btn = { text: calendar ? 'Итог' : 'Итог ›', href: calendar ? `#/summary/${w.id}/${from}` : `#/summary/${w.id}` };
+    // «Итог» opens the program on the week this workout belongs to; a workout outside a program keeps its summary
+    const wp = w.programId ? programs.find((x) => x.id === w.programId) : undefined;
+    const ofWeek = wp && w.week ? `#/program/${wp.id}/week/${w.week}` : null;
+    btn = { text: calendar ? 'Итог' : 'Итог ›', href: ofWeek ?? (calendar ? `#/summary/${w.id}/${from}` : `#/summary/${w.id}`) };
     if (calendar) btn2 = { text: 'Изменить', href: `#/workout-edit/${w.id}/${from}` };
   } else if (w) {
     sub = 'идёт тренировка';
@@ -221,7 +224,9 @@ export function WorkoutCard({ d, calendar, canTrain, from = 'calendar' }: { d: D
     if (!calendar) btn = { text: 'Календарь ›', href: `#/calendar/${d.date}` };
   } else {
     sub = d.planned?.rows.length ? `по плану · ~ ${planMinutes(d.planned.rows, exById)} мин` : 'по плану';
-    btn = { text: calendar ? 'Открыть план' : 'План ›', href: program ? `#/program/${program.id}` : '#/sport' };
+    // the plan of the week this day belongs to, not the current one
+    const pw = program ? programWeek(program, d.date) : null;
+    btn = { text: calendar ? 'Открыть план' : 'План ›', href: program ? `#/program/${program.id}${pw ? `/week/${pw}` : ''}` : '#/sport' };
   }
   return (
     <div className="card col a-in" style={{ gap: 12 }}>

@@ -154,8 +154,8 @@ function Routes({ r }: { r: string[] }) {
     case 'sport': return <SportScreen />;
     case 'program':
       if (b === 'new') return <ProgramEditorScreen mode="new" />;
-      if (c === 'edit') return <ProgramEditorScreen mode="edit" id={Number(b)} />;
-      return <ProgramScreen id={Number(b)} />;
+      if (c === 'edit') return <ProgramEditorScreen mode="edit" id={Number(b)} week={Number(d) || undefined} />;
+      return <ProgramScreen id={Number(b)} week={c === 'week' ? Number(d) || undefined : undefined} />;
     case 'template': return c === 'start' ? <TemplateStartScreen id={b} /> : <TemplateScreen id={b} />;
     case 'exercises': return <LibraryScreen mine={b === 'mine'} selected={Number(c) || null} />;
     case 'exercise':
@@ -209,9 +209,8 @@ function Sidebar({ active }: { active: string }) {
   const toggle = () => setCollapsed((v) => { try { localStorage.setItem('podhod-side', v ? '0' : '1'); } catch { /* */ } return !v; });
   return (
     <nav className={`sidebar ${collapsed ? 'collapsed' : ''}`} aria-label="Разделы">
-      <div className="between" style={{ padding: '0 4px 18px', flexDirection: collapsed ? 'column' : 'row' }}>
-        {!collapsed ? <div className="row"><Logo size={32} /><span className="display" style={{ fontSize: 19 }}>Подход</span><Beta /></div> : null}
-        <button className="icon-btn" style={{ background: 'var(--sub)' }} onClick={toggle} aria-expanded={!collapsed} aria-label={collapsed ? 'Развернуть меню' : 'Свернуть меню'}>{collapsed ? '›' : '‹'}</button>
+      <div className="row" style={{ padding: '0 4px 18px', minHeight: 44, justifyContent: collapsed ? 'center' : 'flex-start' }}>
+        <Logo size={32} />{collapsed ? null : <><span className="display" style={{ fontSize: 19 }}>Подход</span><Beta /></>}
       </div>
       {(SIDEBAR_ITEMS as [string, string, string, string][]).map(([k, label, , d]) => (
         <a key={k} href={SIDE_HREF[k]} aria-current={active === k ? 'page' : undefined} title={collapsed ? label : undefined}>
@@ -219,8 +218,18 @@ function Sidebar({ active }: { active: string }) {
         </a>
       ))}
       <div style={{ flex: 1 }} />
+      <div className="side-sep" />
+      {/* who is signed in: picture (first letter) and name, opens the profile */}
+      <a href="#/profile" className="side-user" title={collapsed ? (me.profile.name ?? '') : undefined}>
+        <span className="side-ava">{(me.profile.name ?? '?').charAt(0).toUpperCase()}</span>
+        {collapsed ? null : <span className="col" style={{ minWidth: 0, lineHeight: 1.2 }}><b className="ell">{me.profile.name ?? ''}</b><span className="muted ell" style={{ fontSize: 12, fontWeight: 600 }}>{me.user.email}</span></span>}
+      </a>
       <button className="side-btn muted" onClick={() => void logout()} title="Выйти">
-        <Icon d={LOGOUT_ICON_D} size={20} />{collapsed ? null : `Выйти · ${me.profile.name ?? ''}`}
+        <Icon d={LOGOUT_ICON_D} size={20} />{collapsed ? null : 'Выйти'}
+      </button>
+      <div className="side-sep" />
+      <button className="side-btn muted" onClick={toggle} aria-expanded={!collapsed} aria-label={collapsed ? 'Развернуть меню' : 'Свернуть меню'} title={collapsed ? 'Развернуть меню' : undefined}>
+        <span style={{ width: 20, textAlign: 'center', fontSize: 20, flex: 'none' }}>{collapsed ? '›' : '‹'}</span>{collapsed ? null : 'Свернуть меню'}
       </button>
     </nav>
   );

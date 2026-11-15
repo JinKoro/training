@@ -11,7 +11,7 @@ import { FOOD_CATS, SUB_INFO, guessSub } from '../lib/categories';
 import { FoodArt, Icon } from '../art';
 import { AmountInput, ErrorBox, MoreButton, Screen, Sheet, Skeleton, TOAST_MS, errText, menuRow, toast } from '../ui';
 import { SearchInput } from './ExercisePicker';
-import { Tiles } from './Food';
+import { AmountSheet, Tiles } from './Food';
 
 const asMeal = (m?: string): Meal => (MEALS.includes(m as Meal) ? (m as Meal) : 'breakfast');
 const asDate = (d?: string) => (isDayStr(d) ? d : today());
@@ -733,7 +733,9 @@ export function ProductNewScreen({ date, meal, barcode }: { date?: string; meal?
   );
 }
 
-interface Ing { product: FoodItem; grams: string }
+/** A dish ingredient: the product (or dish), raw grams, and optional own kcal/macros per 100 g for this dish only. */
+type Own = { protein: number; fat: number; carbs: number; kcal: number };
+interface Ing { product: FoodItem; grams: string; own?: Own }
 interface DishDraft { name: string; ings: Ing[]; meals: Meal[] }
 type DishView = { at: 'form' } | { at: 'search' } | { at: 'item'; id: number };
 
@@ -748,9 +750,21 @@ export function DishNewScreen({ date, meal, from }: { date?: string; meal?: stri
   const [draft, setDraft] = useState<DishDraft | null>(fromMeal ? null : { name: '', ings: [], meals: MEALS });
   useEffect(() => {
     if (draft || !day.data) return;
-    const ings = day.data.entries.filter((e) => e.meal === m).map((e) => ({ item: entryItem(e), grams: String(Math.round(e.grams)) }))
-      .filter((x) => x.item).map((x) => ({ product: x.item!, grams: x.grams }));
-    setDraft({ name: '', ings, meals: [m] });
+    let off = false;
+    // An entry with own values brings them along as the ingredient's own values (the product's are fetched for «Как было»).
+    void Promise.all(day.data.entries.filter((e) => e.meal === m).map(async (e): Promise<Ing | null> => {
+      const item = entryItem(e);
+      if (!item) return null;
+      const grams = String(Math.round(e.grams));
+      if (e.custom && e.productId) {
+        try {
+          const { product } = await api<{ product: FoodItem }>('GET', `/products/${e.productId}`);
+          return { product, grams, own: { protein: e.protein, fat: e.fat, carbs: e.carbs, kcal: kcal100(e) } };
+        } catch { /* fall back to the entry's numbers */ }
+      }
+      return { product: item, grams };
+    })).then((ings) => { if (!off) setDraft({ name: '', ings: ings.filter((x): x is Ing => !!x), meals: [m] }); });
+    return () => { off = true; };
   }, [draft, day.data, m]);
   // Each «+» starts a fresh search (no old text, «Недавние»); back from the weight screen keeps it.
   const [view, setView] = useState<DishView>({ at: 'form' });
@@ -785,7 +799,9 @@ function IngredientSearch({ date, meal, ing, onBack }: { date: string; meal: Mea
   );
 }
 
-const X3 = (it: FoodItem, g: number): [number, number, number] => [(it.protein * g) / 100, (it.fat * g) / 100, (it.carbs * g) / 100];
+const X3 = (it: Per100, g: number): [number, number, number] => [(it.protein * g) / 100, (it.fat * g) / 100, (it.carbs * g) / 100];
+/** The per-100 g values an ingredient counts with: its own ones, else the product's. */
+const effOf = (i: Ing): Per100 => (i.own ? { ...i.product, ...i.own } : i.product);
 
 /**
  * The dish form: name, ingredients (raw weight; a tap opens the weight sheet), totals of the whole dish, meal tags.
@@ -802,8 +818,8 @@ function DishForm({ title, cancel, draft, setDraft, onAddIngredient, onSaved }: 
   const patch = (p: Partial<DishDraft>) => setDraft((x) => x && { ...x, ...p });
   const gOf = (i: Ing) => n(i.grams) || 0;
   const totalW = ings.reduce((a, i) => a + gOf(i), 0);
-  const tot = ings.reduce<[number, number, number]>((a, i) => { const x = X3(i.product, gOf(i)); return [a[0] + x[0], a[1] + x[1], a[2] + x[2]]; }, [0, 0, 0]);
-  const totK = ings.reduce((a, i) => a + kcalAt(i.product, gOf(i)), 0);
+  const tot = ings.reduce<[number, number, number]>((a, i) => { const x = X3(effOf(i), gOf(i)); return [a[0] + x[0], a[1] + x[1], a[2] + x[2]]; }, [0, 0, 0]);
+  const totK = ings.reduce((a, i) => a + kcalAt(effOf(i), gOf(i)), 0);
   const valid = name.trim().length >= 2 && ings.length > 0 && ings.every((i) => gOf(i) >= 1 && gOf(i) <= 5000) && totalW <= 20000;
   const save = async () => {
     if (!valid || busy) return;
@@ -812,17 +828,24 @@ function DishForm({ title, cancel, draft, setDraft, onAddIngredient, onSaved }: 
       // No cooked weight to type any more: the dish weighs what its raw ingredients weigh.
       const { dish } = await api<{ dish: FoodItem }>('POST', '/dishes', {
         name: name.trim(), cookedWeight: totalW, meals,
-        ingredients: ings.map((i) => (i.product.type === 'dish' ? { dishId: i.product.id, grams: gOf(i) } : { productId: i.product.id, grams: gOf(i) })),
+        ingredients: ings.map((i) => (i.product.type === 'dish' ? { dishId: i.product.id, grams: gOf(i) }
+          : { productId: i.product.id, grams: gOf(i), ...(i.own ? { custom: i.own } : {}) })),
       });
       invalidate('/dishes', '/food/recent');
       onSaved(dish);
     } catch (e) { toast(errText(e)); setBusy(false); }
   };
+  // The ingredient sheet: own values here count only inside this dish (the product in the library never changes).
+  const [iov, setIov] = useState<OwnVals | null>(null);
   const cur = edit !== null ? ings[edit] : null;
-  const g = Number(ig) || 0;
-  const igOk = g >= 1 && g <= 5000;
   const closeIng = () => setEdit(null);
-  const saveIng = () => { if (!igOk || edit === null) return; patch({ ings: ings.map((x, j) => (j === edit ? { ...x, grams: String(g) } : x)) }); closeIng(); };
+  const saveIng = () => {
+    const g = Number(ig) || 0;
+    const { ok, vals } = ownCheck(iov);
+    if (g < 1 || g > 5000 || !ok || edit === null) return;
+    patch({ ings: ings.map((x, j) => (j === edit ? { product: x.product, grams: String(g), ...(vals && x.product.type === 'product' ? { own: vals } : {}) } : x)) });
+    closeIng();
+  };
   const removeIng = () => { if (edit === null) return; patch({ ings: ings.filter((_, j) => j !== edit) }); closeIng(); };
   const done = <button className={wide ? 'btn small' : 'btn big'} disabled={!valid || busy} onClick={() => void save()}>Готово</button>;
   return (
@@ -841,11 +864,11 @@ function DishForm({ title, cancel, draft, setDraft, onAddIngredient, onSaved }: 
             <button aria-label="Добавить ингредиент" onClick={onAddIngredient} style={{ width: 40, height: 40, borderRadius: 20, flex: 'none', background: 'var(--acc)', color: 'var(--onAcc)', display: 'inline-flex', alignItems: 'center', justifyContent: 'center', fontSize: 22, fontWeight: 800 }}>+</button>
           </div>
           {ings.map((i, k) => (
-            <button key={k} className="row" onClick={() => { setIg(String(Math.round(gOf(i)))); setEdit(k); }}
+            <button key={k} className="row" onClick={() => { setIg(String(Math.round(gOf(i)))); setIov(i.own ? ownOf(i.own) : null); setEdit(k); }}
               style={{ width: '100%', minHeight: 48, textAlign: 'left', background: 'var(--card)', borderRadius: 12 }}>
               <FoodArt kind={i.product.icon} size={40} />
-              <div className="grow" style={{ minWidth: 0 }}><div className="ell" style={{ fontWeight: 700, fontSize: 15 }}>{i.product.name}</div><div className="sub">{fmtG(gOf(i))} г · {macroLine(X3(i.product, gOf(i)))}</div></div>
-              <b style={{ fontSize: 15 }}>{fmt(kcalAt(i.product, gOf(i)))}</b>
+              <div className="grow" style={{ minWidth: 0 }}><div className="ell" style={{ fontWeight: 700, fontSize: 15 }}>{i.product.name}</div><div className="sub">{fmtG(gOf(i))} г · {macroLine(X3(effOf(i), gOf(i)))}</div></div>
+              <b style={{ fontSize: 15 }}>{fmt(kcalAt(effOf(i), gOf(i)))}</b>
             </button>
           ))}
         </section>
@@ -860,22 +883,11 @@ function DishForm({ title, cancel, draft, setDraft, onAddIngredient, onSaved }: 
         <div className="col" style={{ gap: 6 }}><span className="label">Приёмы пищи</span><MealChips value={meals} onChange={(v) => patch({ meals: v })} /></div>
         {!wide ? done : null}
       </div>
-      <Sheet open={!!cur} onClose={closeIng} label={cur?.product.name ?? 'Ингредиент'}>
-        {cur ? (
-          <>
-            <div className="col" style={{ gap: 0 }}><b style={{ fontSize: 20 }}>{cur.product.name}</b><span className="sub">в блюде, вес сырым</span></div>
-            <div style={{ display: 'grid', gridTemplateColumns: '52px 1fr 52px', gap: 10, alignItems: 'center' }}>
-              <button className="icon-btn" aria-label="Меньше" style={{ height: 52, width: 52, borderRadius: 18, border: '1px solid var(--track)' }} onClick={() => setIg(String(Math.max(0, g - 10)))}>−</button>
-              <div style={{ justifySelf: 'center', display: 'flex', alignItems: 'center', height: 56, padding: '0 18px', borderRadius: 18, background: 'var(--bg)' }}>
-                <AmountInput label="Граммы" value={ig} onChange={setIg} unit="г" size={28} />
-              </div>
-              <button className="icon-btn" aria-label="Больше" style={{ height: 52, width: 52, borderRadius: 18, border: '1px solid var(--track)' }} onClick={() => setIg(String(Math.min(5000, g + 10)))}>+</button>
-            </div>
-            <button className="btn" disabled={!igOk} onClick={saveIng}>Сохранить</button>
-            <button className="btn danger" onClick={removeIng}>Убрать из блюда</button>
-          </>
-        ) : null}
-      </Sheet>
+      {cur ? (
+        <AmountSheet name={cur.product.name} icon={cur.product.icon} base={cur.product} dish={cur.product.type === 'dish'} grams={ig} setGrams={setIg} step={10}
+          canOwn={cur.product.type === 'product'} ov={iov} setOv={setIov} ownTag={!!ownCheck(iov).vals}
+          onSave={saveIng} onRemove={removeIng} removeLabel="Убрать из блюда" onClose={closeIng} />
+      ) : null}
     </Screen>
   );
 }

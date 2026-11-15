@@ -325,7 +325,7 @@ const entryOut = (r) => ({
   grams: r.grams, portions: r.portions, name: r.name, icon: r.icon, protein: r.protein, fat: r.fat,
   carbs: r.carbs, kcal: r.kcal ?? null, portionName: r.portion_name, portionG: r.portion_g, custom: !!r.custom,
 });
-/** Own kcal / macros per 100 g for one diary entry (POST and PATCH /diary). */
+/** Own kcal / macros per 100 g for one diary entry (POST and PATCH /diary) or one dish ingredient (POST /dishes). */
 function customIn(v) {
   if (typeof v !== 'object' || Array.isArray(v)) fail(400, 'invalid_custom', 'custom');
   const p = num(v.protein, 'protein', { min: 0, max: 100 });
@@ -913,17 +913,25 @@ export async function handleApi(request, env, path) {
       if (!raw.length) fail(400, 'invalid_array', 'ingredients');
       // An ingredient is a product, or one of the user's dishes (e.g. a whole meal turned into a dish):
       // a dish is expanded into its own products, scaled to the grams used.
+      // A product ingredient may carry `custom`: own kcal / macros per 100 g for this dish only (the product stays as it is).
       const ings = [];
       for (const i of raw) {
         const grams = num(i.grams, 'ingredients', { min: 1, max: 5000 });
         if (i.dishId !== undefined && i.dishId !== null) {
+          if (i.custom !== undefined && i.custom !== null) fail(400, 'invalid_custom', 'custom');
           const d = await env.DB.prepare('SELECT * FROM dishes WHERE id = ? AND user_id = ?').bind(num(i.dishId, 'ingredients', { min: 1, int: true }), uid).first();
           if (!d) fail(400, 'invalid_product', 'ingredients');
-          const { results: parts } = await env.DB.prepare('SELECT product_id, grams FROM dish_ingredients WHERE dish_id = ? ORDER BY position').bind(d.id).all();
+          const { results: parts } = await env.DB.prepare('SELECT product_id, grams, protein, fat, carbs, kcal FROM dish_ingredients WHERE dish_id = ? ORDER BY position').bind(d.id).all();
           const rawTotal = parts.reduce((a, x) => a + x.grams, 0) || 1;
-          for (const x of parts) ings.push({ productId: x.product_id, grams: (x.grams / rawTotal) * grams * (rawTotal / d.cooked_weight_g) });
+          for (const x of parts) {
+            ings.push({
+              productId: x.product_id, grams: (x.grams / rawTotal) * grams * (rawTotal / d.cooked_weight_g),
+              custom: x.protein === null ? null : { protein: x.protein, fat: x.fat, carbs: x.carbs, kcal: x.kcal },
+            });
+          }
         } else {
-          ings.push({ productId: num(i.productId, 'ingredients', { min: 1, int: true }), grams });
+          const custom = i.custom === undefined || i.custom === null ? null : customIn(i.custom);
+          ings.push({ productId: num(i.productId, 'ingredients', { min: 1, int: true }), grams, custom });
         }
       }
       if (ings.length > 120) fail(400, 'invalid_array', 'ingredients');
@@ -931,14 +939,15 @@ export async function handleApi(request, env, path) {
       for (const i of ings) {
         const p = await env.DB.prepare('SELECT * FROM products WHERE id = ?').bind(i.productId).first();
         if (!p) fail(400, 'invalid_product', 'ingredients');
-        tp += (p.protein * i.grams) / 100; tf += (p.fat * i.grams) / 100; tc += (p.carbs * i.grams) / 100; tk += (kcalOf(p) * i.grams) / 100;
+        const v = i.custom ?? p;
+        tp += (v.protein * i.grams) / 100; tf += (v.fat * i.grams) / 100; tc += (v.carbs * i.grams) / 100; tk += (kcalOf(v) * i.grams) / 100;
       }
       const r = await env.DB.prepare(
         'INSERT INTO dishes (user_id, name, cooked_weight_g, protein, fat, carbs, kcal, meals, created_at) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?) RETURNING *',
       ).bind(uid, name, cooked, (tp / cooked) * 100, (tf / cooked) * 100, (tc / cooked) * 100, (tk / cooked) * 100, mealMask, now).first();
       await env.DB.batch(ings.map((i, k) => env.DB.prepare(
-        'INSERT INTO dish_ingredients (dish_id, position, product_id, grams) VALUES (?, ?, ?, ?)',
-      ).bind(r.id, k, i.productId, i.grams)));
+        'INSERT INTO dish_ingredients (dish_id, position, product_id, grams, protein, fat, carbs, kcal) VALUES (?, ?, ?, ?, ?, ?, ?, ?)',
+      ).bind(r.id, k, i.productId, i.grams, i.custom?.protein ?? null, i.custom?.fat ?? null, i.custom?.carbs ?? null, i.custom?.kcal ?? null)));
       return ok({ dish: dishOut(r) }, 201);
     }
     if (seg.length === 2 && method === 'GET') {

@@ -1,15 +1,14 @@
 import { useEffect, useMemo, useRef, useState } from 'react';
 import { useApp } from '../app-context';
 import { api } from '../lib/api';
-import { MEALS, MEAL_IN, MEAL_RU, entryKcal, entryMacros, fmt, fmt1, fmtG, fmtKcal, kcal, kcal100, kcalTenths, macroLine, sumKcal, sumMacros, weekRange } from '../lib/calc';
-import { addDays, dayMonth, diffDays, fromDay, isDayStr, plural, today, WD_CAP, WD_SHORT, weekDays, weekStart } from '../lib/dates';
+import { MEALS, MEAL_RU, entryKcal, entryMacros, fmt, fmt1, fmtG, fmtKcal, kcal, kcal100, kcalTenths, macroLine, sumKcal, sumMacros, weekRange } from '../lib/calc';
+import { addDays, dayMonth, diffDays, fromDay, isDayStr, plural, today, WD_SHORT, weekDays, weekStart } from '../lib/dates';
 import { useDays } from '../lib/hooks';
 import { go } from '../lib/router';
-import { invalidate, useQuery } from '../lib/query';
-import type { Entry, FoodItem, Meal } from '../lib/types';
+import { invalidate } from '../lib/query';
+import type { Entry, Meal } from '../lib/types';
 import { FoodArt, Icon } from '../art';
 import { AmountInput, ErrorBox, Screen, Sheet, Skeleton, errText, toast, NoNormCard } from '../ui';
-import { SearchInput } from './ExercisePicker';
 import { OwnMacros, ownCheck, ownOf, resetAdded, type OwnVals } from './FoodAdd';
 
 const COLORS = ['var(--chart)', 'var(--warn)', 'var(--good)'];
@@ -113,7 +112,6 @@ export function FoodScreen({ date }: { date?: string }) {
   const data = useDays(days);
   const [edit, setEdit] = useState<Entry | null>(null);
   const [copy, setCopy] = useState<Meal | null>(null);
-  const [target, setTarget] = useState<Meal | null>(null);
   useEffect(() => { resetAdded(); }, []);
 
   if (data.error) return <Screen title="Еда"><ErrorBox error={data.error} retry={data.reload} /></Screen>;
@@ -125,7 +123,6 @@ export function FoodScreen({ date }: { date?: string }) {
   const nn = info.noNorm;
   const over = !nn && eatenK > normK + 100;
   const byMeal = (m: Meal) => entries.filter((e) => e.meal === m);
-  const defaultTarget = target ?? MEALS.find((m) => !byMeal(m).length) ?? 'dinner';
 
   const sheets = (
     <>
@@ -134,70 +131,11 @@ export function FoodScreen({ date }: { date?: string }) {
     </>
   );
 
-  if (wide) {
-    return (
-      <Screen>
-        <div style={{ display: 'flex', flexWrap: 'wrap', gap: 24, alignItems: 'flex-start' }}>
-          <section className="col" style={{ flex: '2 1 560px', minWidth: 0, gap: 16 }}>
-            <div className="between" style={{ flexWrap: 'wrap' }}>
-              <div className="row">
-                <a className="icon-btn" aria-label="Предыдущий день" href={`#/food/${addDays(d, -1)}`}>‹</a>
-                <h1 className="display a-h" style={{ fontSize: 32 }}>{WD_CAP[diffDays(d, start)]}, {dayMonth(d)}</h1>
-                <a className="icon-btn" aria-label="Следующий день" href={`#/food/${addDays(d, 1)}`}>›</a>
-              </div>
-              <b style={{ color: over ? 'var(--warnT)' : 'var(--muted)' }}>{nn ? `съедено ${fmt(eatenK)} ккал` : over ? `сверх нормы ${fmt(eatenK - normK)} ккал` : `осталось ${fmt(normK - eatenK)} ккал`}</b>
-            </div>
-            {nn ? <NoNormCard /> : null}
-            <div className="card" style={{ overflowX: 'auto', padding: '6px 16px 12px' }}>
-              <table className="num" style={{ width: '100%', minWidth: 620, borderCollapse: 'collapse' }}>
-                <thead><tr className="muted" style={{ fontSize: 13 }}>{['Продукт', 'Вес', 'Ккал', 'Б', 'Ж', 'У'].map((h, i) => <th key={h} style={{ textAlign: i ? 'right' : 'left', padding: '10px 6px', fontWeight: 800 }}>{h}</th>)}</tr></thead>
-                <tbody>
-                  {MEALS.map((m) => {
-                    const list = byMeal(m);
-                    const mk = sumKcal(list);
-                    return [
-                      <tr key={m} style={{ borderTop: '1px solid var(--track)', cursor: 'pointer' }} onClick={() => setTarget(m)}>
-                        <td style={{ padding: '10px 6px', fontWeight: 800, color: 'var(--acc)' }}>
-                          <span className="row" style={{ gap: 6 }}>{MEAL_RU[m]}
-                            <button aria-label="Скопировать приём пищи" disabled={!list.length} onClick={(ev) => { ev.stopPropagation(); setCopy(m); }} style={{ width: 32, height: 32, opacity: list.length ? 1 : 0.35, color: 'var(--ink)' }}><Icon d={COPY_ICON} size={16} /></button>
-                            {list.length ? <a href={`#/food/${d}/dish/${m}/from-meal`} onClick={(ev) => ev.stopPropagation()} style={{ fontSize: 13, fontWeight: 800, color: 'var(--acc)' }}>Создать блюдо</a> : null}
-                            <a aria-label="Добавить" href={`#/food/${d}/add/${m}`} onClick={(ev) => ev.stopPropagation()} style={{ width: 32, height: 32, display: 'inline-flex', alignItems: 'center', justifyContent: 'center', borderRadius: 16, background: target === m || (!target && defaultTarget === m) ? 'var(--acc)' : 'var(--btn)', color: target === m || (!target && defaultTarget === m) ? 'var(--onAcc)' : 'var(--ink)' }}>+</a>
-                          </span>
-                        </td>
-                        <td /><td style={{ textAlign: 'right', fontWeight: 800, color: 'var(--acc)', padding: '10px 6px' }}>{list.length ? fmt(mk) : '—'}</td><td /><td /><td />
-                      </tr>,
-                      ...list.map((e) => {
-                        const mm = entryMacros(e);
-                        return (
-                          <tr key={e.id} style={{ borderTop: '1px solid var(--line)', cursor: 'pointer' }} onClick={() => setEdit(e)}>
-                            <td style={{ padding: '10px 6px' }}>{e.name}</td>
-                            <td style={{ textAlign: 'right', padding: '10px 6px' }}>{amount(e)}</td>
-                            <td style={{ textAlign: 'right', padding: '10px 6px' }}>{fmt(entryKcal(e))}</td>
-                            {mm.map((v, i) => <td key={i} style={{ textAlign: 'right', padding: '10px 6px' }}>{Math.round(v)}</td>)}
-                          </tr>
-                        );
-                      }),
-                    ];
-                  })}
-                </tbody>
-              </table>
-            </div>
-          </section>
-          <aside className="col" style={{ flex: '1 1 320px', minWidth: 0, gap: 16 }}>
-            <QuickAdd date={d} meal={defaultTarget} />
-            <WeekMacroCard days={data.days} d={d} />
-          </aside>
-        </div>
-        {sheets}
-      </Screen>
-    );
-  }
-
   const t = today();
   const rel = diffDays(d, t);
   const dayTitle = `${rel === 0 ? 'Сегодня' : rel === -1 ? 'Вчера' : rel === 1 ? 'Завтра' : WD_SHORT[diffDays(d, start)]}, ${dayMonth(d)}`;
-  return (
-    <Screen>
+  const head = (
+    <>
       <div className="row" style={{ gap: 8 }}>
         <a className="icon-btn" aria-label="Предыдущая неделя" href={`#/food/${addDays(d, -7)}`}>‹</a>
         <b className="grow" style={{ textAlign: 'center', fontSize: 17, whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis', minWidth: 0 }}>{weekRange(start)}</b>
@@ -239,7 +177,9 @@ export function FoodScreen({ date }: { date?: string }) {
           })}
         </div>
       </div>
-      {MEALS.map((m) => {
+    </>
+  );
+  const meals = MEALS.map((m) => {
         const list = byMeal(m);
         const mk = sumKcal(list);
         return (
@@ -263,7 +203,29 @@ export function FoodScreen({ date }: { date?: string }) {
             {list.length ? <a className="btn ghost" href={`#/food/${d}/dish/${m}/from-meal`} style={{ height: 48, borderRadius: 18, fontSize: 15 }}>+ Создать блюдо</a> : null}
           </div>
         );
-      })}
+  });
+
+  // Desktop: the phone day in a capped column, the meals in two columns, the week macros on the right.
+  if (wide) {
+    return (
+      <Screen>
+        <div style={{ display: 'flex', gap: 24, alignItems: 'flex-start' }}>
+          <section className="col" style={{ flex: '1 1 0', minWidth: 0, maxWidth: 860, gap: 14 }}>
+            {head}
+            <div style={{ display: 'grid', gridTemplateColumns: 'repeat(2, minmax(0, 1fr))', gap: 14, alignItems: 'start' }}>{meals}</div>
+          </section>
+          <aside className="col" style={{ flex: '0 0 320px', minWidth: 0, gap: 16 }}>
+            <WeekMacroCard days={data.days} d={d} />
+          </aside>
+        </div>
+        {sheets}
+      </Screen>
+    );
+  }
+  return (
+    <Screen>
+      {head}
+      {meals}
       {sheets}
     </Screen>
   );
@@ -293,17 +255,11 @@ function EntrySheet({ entry, onClose }: { entry: Entry | null; onClose: () => vo
   useEffect(() => { if (entry) { setGrams(String(Math.round(entry.grams))); setOv(entry.custom ? ownOf(entry) : null); } }, [entry]);
   if (!entry) return null;
   const g = Number(grams) || 0;
-  const canOwn = !entry.dishId && !!entry.productId; // «Как было» needs the product
-  const { ok: ovOk, vals } = ownCheck(ov);
-  const eff = vals ? { ...entry, ...vals } : entry;
-  const m = entryMacros({ ...eff, grams: g });
-  const tenths = kcalTenths(eff);
-  const per100 = fmtKcal(kcal100(eff), tenths);
+  const { vals } = ownCheck(ov);
   // Send `custom` only when it changes something: own values typed, or back to the product's («Как было»).
   const same = !!ov && (Object.keys(ov) as (keyof OwnVals)[]).every((k) => ov[k].trim() === ownOf(entry)[k]);
   const custom = vals ? (entry.custom || !same ? { custom: vals } : {}) : entry.custom ? { custom: null } : {};
   const save = async () => {
-    if (g < 1 || g > 5000 || !ovOk) return;
     onClose();
     try { await api('PATCH', `/diary/${entry.id}`, { grams: g, ...custom }); invalidate('/diary'); } catch (e) { toast(errText(e)); }
   };
@@ -312,19 +268,42 @@ function EntrySheet({ entry, onClose }: { entry: Entry | null; onClose: () => vo
     try { await api('DELETE', `/diary/${entry.id}`); invalidate('/diary'); } catch (e) { toast(errText(e)); }
   };
   return (
-    <Sheet open onClose={onClose} label={entry.name}>
-      <div className="row"><FoodArt kind={entry.icon} size={60} /><div className="grow"><b style={{ fontSize: 19 }}>{entry.name}</b><div className="muted" style={{ fontSize: 14 }}>{entry.dishId ? 'своё блюдо · ' : ''}{per100} ккал на 100 г{vals && (entry.custom || !same) ? ' · свои' : ''}</div></div></div>
+    <AmountSheet name={entry.name} icon={entry.icon} base={entry} dish={!!entry.dishId} grams={grams} setGrams={setGrams} step={50}
+      canOwn={!entry.dishId && !!entry.productId /* «Как было» needs the product */} ov={ov} setOv={setOv} ownTag={!!vals && (entry.custom || !same)}
+      onSave={() => void save()} onRemove={() => void remove()} removeLabel="Удалить из дневника" onClose={onClose} />
+  );
+}
+
+/**
+ * The sheet of one food with its weight: picture, name and kcal per 100 g, grams −/+, the four tiles for those grams,
+ * «Свои ккал и БЖУ», «Сохранить» and a danger button. Used for a diary entry and for a dish ingredient.
+ * `base` holds the per-100 g values shown while no (valid) own values are typed.
+ */
+export function AmountSheet({ name, icon, base, dish, grams, setGrams, step, canOwn, ov, setOv, ownTag, onSave, onRemove, removeLabel, onClose }: {
+  name: string; icon: string; base: { protein: number; fat: number; carbs: number; kcal?: number | null }; dish?: boolean;
+  grams: string; setGrams: (v: string) => void; step: number; canOwn: boolean; ov: OwnVals | null; setOv: (v: OwnVals | null) => void; ownTag: boolean;
+  onSave: () => void; onRemove: () => void; removeLabel: string; onClose: () => void;
+}) {
+  const g = Number(grams) || 0;
+  const { ok: ovOk, vals } = ownCheck(ov);
+  const eff = vals ? { ...base, ...vals } : base;
+  const m = entryMacros({ ...eff, grams: g });
+  const tenths = kcalTenths(eff);
+  const ok = g >= 1 && g <= 5000 && ovOk;
+  return (
+    <Sheet open onClose={onClose} label={name}>
+      <div className="row"><FoodArt kind={icon} size={60} /><div className="grow" style={{ minWidth: 0 }}><b style={{ fontSize: 19 }}>{name}</b><div className="muted" style={{ fontSize: 14 }}>{dish ? 'своё блюдо · ' : ''}{fmtKcal(kcal100(eff), tenths)} ккал на 100 г{ownTag ? ' · свои' : ''}</div></div></div>
       <div style={{ display: 'grid', gridTemplateColumns: '52px 1fr 52px', gap: 10, alignItems: 'center' }}>
-        <button className="icon-btn" aria-label="Меньше" style={{ height: 52, width: 52, borderRadius: 18, border: '1px solid var(--track)' }} onClick={() => setGrams(String(Math.max(0, g - 50)))}>−</button>
+        <button className="icon-btn" aria-label="Меньше" style={{ height: 52, width: 52, borderRadius: 18, border: '1px solid var(--track)' }} onClick={() => setGrams(String(Math.max(0, g - step)))}>−</button>
         <div style={{ justifySelf: 'center', display: 'flex', alignItems: 'center', height: 56, padding: '0 18px', borderRadius: 18, background: 'var(--bg)' }}>
           <AmountInput label="Граммы" value={grams} onChange={setGrams} unit="г" size={28} />
         </div>
-        <button className="icon-btn" aria-label="Больше" style={{ height: 52, width: 52, borderRadius: 18, border: '1px solid var(--track)' }} onClick={() => setGrams(String(Math.min(5000, g + 50)))}>+</button>
+        <button className="icon-btn" aria-label="Больше" style={{ height: 52, width: 52, borderRadius: 18, border: '1px solid var(--track)' }} onClick={() => setGrams(String(Math.min(5000, g + step)))}>+</button>
       </div>
       <Tiles m={m} k={entryKcal({ ...eff, grams: g })} tenths={tenths} />
-      {canOwn ? <OwnMacros value={ov} onChange={setOv} base={entry} /> : null}
-      <button className="btn" disabled={g < 1 || g > 5000 || !ovOk} onClick={save}>Сохранить</button>
-      <button className="btn danger" onClick={remove}>Удалить из дневника</button>
+      {canOwn ? <OwnMacros value={ov} onChange={setOv} base={base} /> : null}
+      <button className="btn" disabled={!ok} onClick={() => { if (ok) onSave(); }}>Сохранить</button>
+      <button className="btn danger" onClick={onRemove}>{removeLabel}</button>
     </Sheet>
   );
 }
@@ -391,40 +370,6 @@ function CopySheet({ date, meal, entries, onClose }: { date: string; meal: Meal 
       </div>
       <button className="btn big" style={{ height: 58 }} disabled={!sel.length || busy} onClick={run}>{sel.length ? `Скопировать в ${sel.length} ${plural(sel.length, ['день', 'дня', 'дней'])}` : 'Скопировать'}</button>
     </Sheet>
-  );
-}
-
-function QuickAdd({ date, meal }: { date: string; meal: Meal }) {
-  const [q, setQ] = useState('');
-  const recent = useQuery<{ items: FoodItem[] }>('/food/recent');
-  const search = useQuery<{ products: FoodItem[] }>(q.trim() ? `/products?q=${encodeURIComponent(q.trim())}` : '/products?limit=6', { keep: true });
-  const dishes = useQuery<{ dishes: FoodItem[] }>('/dishes');
-  const s = q.trim().toLowerCase();
-  const items = s
-    ? [...(dishes.data?.dishes ?? []).filter((x) => x.name.toLowerCase().includes(s)), ...(search.data?.products ?? [])]
-    : (recent.data?.items.length ? recent.data.items : search.data?.products ?? []);
-  const add = async (it: FoodItem) => {
-    let grams = it.portionG ?? 100;
-    try {
-      const last = await api<{ grams: number | null }>('GET', `/food/last-grams?type=${it.type}&id=${it.id}`);
-      if (last.grams) grams = last.grams;
-      await api('POST', '/diary', { date, meal, itemType: it.type, itemId: it.id, grams, portions: it.portionG && grams === it.portionG ? 1 : null });
-      invalidate('/diary', '/food/recent');
-      toast(`Добавлено ${MEAL_IN[meal]}`);
-    } catch (e) { toast(errText(e)); }
-  };
-  return (
-    <div className="card col" style={{ gap: 10 }}>
-      <a className="btn sec" style={{ height: 48, borderRadius: 18, fontSize: 15, alignSelf: 'flex-start' }} href={`#/food/${date}/add/${meal}`}>Добавить {MEAL_IN[meal]}</a>
-      <SearchInput value={q} onChange={setQ} placeholder="Поиск по общей библиотеке" />
-      {items.slice(0, 6).map((it) => (
-        <div key={`${it.type}${it.id}`} className="row">
-          <FoodArt kind={it.icon} size={44} />
-          <div className="grow"><b>{it.name}</b><div className="sub">{it.type === 'dish' ? 'своё блюдо' : `${fmtKcal(kcal100(it), kcalTenths(it))} ккал на 100 г`}</div></div>
-          <button aria-label={`Добавить ${it.name}`} onClick={() => void add(it)} style={{ width: 34, height: 34, borderRadius: 17, border: '2px solid var(--acc)', color: 'var(--acc)', fontWeight: 800 }}>+</button>
-        </div>
-      ))}
-    </div>
   );
 }
 

@@ -160,6 +160,9 @@ html[data-kb] .tabbar { display: none; }
 .sidebar.collapsed { width: 76px; }
 .sidebar a, .sidebar .side-btn { height: 46px; border-radius: 16px; padding: 0 13px; display: flex; align-items: center; gap: 12px; font-weight: 800; white-space: nowrap; overflow: hidden; }
 .sidebar a[aria-current="page"] { background: var(--acc); color: var(--onAcc); }
+.sidebar .side-sep { height: 1px; background: var(--line); margin: 8px 4px; flex: none; }
+.sidebar a.side-user { height: 52px; padding: 0 7px; gap: 10px; color: var(--ink); }
+.sidebar .side-ava { width: 36px; height: 36px; border-radius: 50%; background: var(--acc); color: var(--onAcc); display: inline-flex; align-items: center; justify-content: center; font-weight: 800; font-size: 15px; flex: none; }
 
 /* Food add: the back link turning into a counter */
 @keyframes check-pop { 0% { opacity: 0; transform: scale(.5); } 60% { opacity: 1; transform: scale(1.08); } 100% { transform: none; } }

@@ -216,10 +216,12 @@ test.describe('Food diary', () => {
     await expect(total).toContainText(fmt(kOf(200, 120)));
     await expect(total).toContainText(String(Math.round(200 * 0.04 + 1.2 * 23)));
 
-    // a tap on an ingredient: weight sheet (step 10), «Убрать из блюда»
+    // a tap on an ingredient: the same sheet as a diary entry (kcal per 100 g, tiles, own values; step 10), «Убрать из блюда»
     await ing('Гречка варёная').click();
     const s = sheet(page, 'Гречка варёная');
-    await expect(s.getByText('в блюде, вес сырым')).toBeVisible();
+    await expect(s.getByText('109 ккал на 100 г', { exact: true })).toBeVisible();
+    await expect(s.getByText('218', { exact: true })).toBeVisible(); // the kcal tile for 200 g
+    await expect(s.getByRole('button', { name: 'Свои ккал и БЖУ' })).toBeVisible();
     await s.getByRole('button', { name: 'Меньше' }).click();
     await s.getByRole('button', { name: 'Сохранить' }).click();
     await expect(ing('Гречка варёная')).toContainText('190 г');
@@ -261,6 +263,53 @@ test.describe('Food diary', () => {
     const after = (await call(user.token, 'GET', '/dishes')).dishes;
     expect(after.map((d: { name: string }) => d.name).sort()).toEqual(['Гречка с курицей', 'Мой завтрак']);
     expect(after.find((d: { name: string }) => d.name === 'Мой завтрак')).toMatchObject({ meals: ['breakfast'], cookedWeight: 270 });
+  });
+
+  test('own kcal and macros for a dish ingredient: the dish totals and the saved dish change, the product does not', async ({ authed: page, user }) => {
+    await open(page, `food/${D}/add/lunch`);
+    await page.getByRole('tab', { name: 'Блюда' }).click();
+    await page.getByRole('link', { name: '+ Новое блюдо' }).click();
+    await page.getByLabel('Название').fill('Своя гречка');
+    await page.getByRole('button', { name: 'Добавить ингредиент' }).click();
+    await search(page).fill('Гречка вар');
+    await page.locator('button.row', { hasText: 'Гречка варёная' }).first().click();
+    await page.getByLabel('Граммы').fill('200');
+    await page.getByRole('button', { name: 'Добавить в блюдо' }).click();
+    const ings = page.getByRole('region', { name: 'Ингредиенты' });
+    const row = ings.locator('button.row', { hasText: 'Гречка варёная' });
+    const total = page.locator('div', { hasText: /^Всё блюдо · / });
+    await expect(total).toContainText('218');
+
+    await row.click();
+    let s = sheet(page, 'Гречка варёная');
+    await s.getByRole('button', { name: 'Свои ккал и БЖУ' }).click();
+    await expect(s.getByLabel('Калории')).toHaveValue('109');
+    await s.getByLabel('Калории').fill('150');
+    await s.getByLabel('Белки, г').fill('120');
+    await expect(s.getByRole('button', { name: 'Сохранить' })).toBeDisabled();
+    await s.getByLabel('Белки, г').fill('10');
+    await expect(s.getByText('150 ккал на 100 г · свои', { exact: true })).toBeVisible();
+    await expect(s.getByText('300', { exact: true })).toBeVisible(); // tiles follow the own values
+    await s.getByRole('button', { name: 'Сохранить' }).click();
+    await expect(row).toContainText('200 г · Б 20 Ж 2 У 42');
+    await expect(row).toContainText('300');
+    await expect(ings).toContainText('300 ккал');
+    await expect(total).toContainText('300');
+
+    // reopened: the block is filled with the own values
+    await row.click();
+    s = sheet(page, 'Гречка варёная');
+    await expect(s.getByLabel('Калории')).toHaveValue('150');
+    await expect(s.getByLabel('Белки, г')).toHaveValue('10');
+    await s.getByRole('button', { name: 'Сохранить' }).click();
+
+    await page.getByRole('button', { name: 'Готово' }).click();
+    await expect(page.getByRole('heading', { name: 'Своя гречка' })).toBeVisible();
+    const { dishes } = await call(user.token, 'GET', '/dishes');
+    expect(dishes[0]).toMatchObject({ name: 'Своя гречка', cookedWeight: 200 });
+    for (const [k, v] of [['kcal', 150], ['protein', 10], ['fat', 1], ['carbs', 21]] as const) expect(dishes[0][k]).toBeCloseTo(v, 6);
+    const found = (await call(user.token, 'GET', `/products?q=${encodeURIComponent('Гречка варёная')}`)).products.find((p: { name: string }) => p.name === 'Гречка варёная');
+    expect(found).toMatchObject({ protein: 4, fat: 1, carbs: 21, kcal: null });
   });
 
   test('own kcal and macros for a logged entry: the day changes, the product does not', async ({ authed: page, user }) => {
