@@ -1,3 +1,4 @@
+import { requireUser } from './auth.js';
 import { DurableObject } from 'cloudflare:workers';
 import { json } from './http.js';
 
@@ -82,6 +83,7 @@ export class RestTimer extends DurableObject {
 }
 
 export async function handleTimer(request, env, pathname) {
+  await requireUser(env, request); // only a signed-in user of the app can start or stop a rest timer
   const body = await request.json().catch(() => null);
   if (!isApplePushEndpoint(body?.endpoint)) return json(request, { error: 'invalid_endpoint' }, 400);
 

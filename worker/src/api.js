@@ -363,6 +363,9 @@ const todayOf = (request) => {
   return isDay(t) ? t : new Date().toISOString().slice(0, 10);
 };
 
+// Login rate limit (failed tries): per e-mail and per IP address within a window.
+const LOGIN_WINDOW = 15 * 60_000, LOGIN_MAX_EMAIL = 10, LOGIN_MAX_IP = 30;
+
 const LABEL_MODEL = '@cf/meta/llama-4-scout-17b-16e-instruct';
 const LABEL_PROMPT = `This is a photo of a food package (front and/or the nutrition facts table). Read everything you can find and return only JSON:
 {"name": string|null, "brand": string|null, "barcode": string|null, "category": string|null, "kcal": number|null, "protein": number|null, "fat": number|null, "carbs": number|null}.
@@ -443,9 +446,25 @@ export async function handleApi(request, env, path) {
     }
     if (method === 'POST' && seg[1] === 'login') {
       const body = await readJson(request);
-      const email = String(body.email ?? '').trim().toLowerCase();
+      const email = String(body.email ?? '').trim().toLowerCase().slice(0, 200);
+      // Rate limit: at most LOGIN_MAX_EMAIL failed tries per e-mail and LOGIN_MAX_IP per address in LOGIN_WINDOW.
+      const keys = [['e:' + email, LOGIN_MAX_EMAIL], ['ip:' + (request.headers.get('CF-Connecting-IP') ?? 'local'), LOGIN_MAX_IP]];
+      const { results: tries } = await env.DB.prepare('SELECT key, count, window_start FROM login_attempts WHERE key IN (?, ?)')
+        .bind(keys[0][0], keys[1][0]).all();
+      for (const t of tries) {
+        const max = keys.find((k) => k[0] === t.key)[1];
+        if (now - t.window_start < LOGIN_WINDOW && t.count >= max) {
+          return json(request, { error: 'too_many_attempts', retryAfter: Math.ceil((t.window_start + LOGIN_WINDOW - now) / 1000) }, 429);
+        }
+      }
       const user = await env.DB.prepare('SELECT * FROM users WHERE email = ?').bind(email).first();
-      if (!user || !(await verifyPassword(String(body.password ?? ''), user))) fail(401, 'bad_credentials');
+      if (!user || !(await verifyPassword(String(body.password ?? ''), user))) {
+        await env.DB.batch(keys.map(([k]) => env.DB.prepare(`INSERT INTO login_attempts (key, count, window_start) VALUES (?, 1, ?)
+          ON CONFLICT (key) DO UPDATE SET count = CASE WHEN ? - window_start >= ? THEN 1 ELSE count + 1 END,
+            window_start = CASE WHEN ? - window_start >= ? THEN ? ELSE window_start END`).bind(k, now, now, LOGIN_WINDOW, now, LOGIN_WINDOW, now)));
+        fail(401, 'bad_credentials');
+      }
+      await env.DB.prepare('DELETE FROM login_attempts WHERE key = ?').bind(keys[0][0]).run();
       return ok({ token: await createSession(env, user.id) });
     }
     if (method === 'POST' && seg[1] === 'logout') {
@@ -757,16 +776,15 @@ export async function handleApi(request, env, path) {
       await env.DB.prepare('DELETE FROM products WHERE id = ?').bind(id).run();
       return ok({ ok: true });
     }
-    // Edit a product: its author can change everything; anyone can change the category (picture) of a shared product.
+    // Edit a product: only its author. A shared product is fixed for everyone else (own kcal/macros go into a diary entry instead).
     if (seg.length === 2 && method === 'PUT') {
       const id = num(seg[1], 'id', { min: 1, int: true });
       const cur = await env.DB.prepare('SELECT * FROM products WHERE id = ?').bind(id).first();
       if (!cur) fail(404, 'not_found');
+      if (cur.created_by !== uid) fail(403, 'forbidden');
       const body = await readJson(request);
       const icon = body.icon === undefined ? cur.icon : oneOf(body.icon, 'icon', SUB_IDS);
-      if (cur.created_by !== uid) {
-        await env.DB.prepare('UPDATE products SET icon = ? WHERE id = ?').bind(icon, id).run();
-      } else {
+      {
         const name = str(body.name ?? cur.name, 'name', { min: 2, max: 80 });
         const brand = body.brand === undefined ? cur.brand : brandIn(body.brand);
         const p = num(body.protein ?? cur.protein, 'protein', { min: 0, max: 100 });

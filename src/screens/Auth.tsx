@@ -63,7 +63,9 @@ function Login({ onAuthed, wide }: { onAuthed: (t: string) => void; wide?: boole
       const { token } = await api<{ token: string }>('POST', '/auth/login', { email, password });
       onAuthed(token);
     } catch (err) {
-      setBad(err instanceof ApiError && err.code === 'network' ? 'Нет связи с сервером' : 'Неверная почта или пароль');
+      setBad(err instanceof ApiError && err.code === 'network' ? 'Нет связи с сервером'
+        : err instanceof ApiError && err.code === 'too_many_attempts' ? 'Слишком много попыток. Попробуйте через 15 минут'
+        : 'Неверная почта или пароль');
     } finally { setBusy(false); }
   };
 

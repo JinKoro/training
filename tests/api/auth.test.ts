@@ -1,5 +1,5 @@
 import { describe, it, expect } from 'vitest';
-import { call, newUser, registerBody, uniq } from './helpers';
+import { BASE, call, newUser, registerBody, uniq } from './helpers';
 
 describe('auth: register', () => {
   it('registers, returns a token, /me shows the user, profile and norms', async () => {
@@ -149,5 +149,47 @@ describe('auth: login / logout / sessions', () => {
     expect((await call('GET', '/me', undefined, { token: t2 })).status).toBe(401);
     expect((await call('POST', '/auth/login', { email: body.email, password: body.password })).status).toBe(401);
     expect((await call('POST', '/auth/login', { email: body.email, password: 'newpassword1' })).status).toBe(200);
+  });
+});
+
+describe('login rate limit', () => {
+  it('after 10 failed tries for an e-mail the 11th is refused even with the right password; other e-mails still sign in', async () => {
+    const ip = { 'CF-Connecting-IP': '203.0.113.7' };
+    const body = registerBody();
+    await call('POST', '/auth/register', body);
+    for (let i = 0; i < 10; i++) {
+      const r = await call('POST', '/auth/login', { email: body.email, password: 'wrong-password' }, { headers: ip });
+      expect(r.status).toBe(401);
+    }
+    const blocked = await call('POST', '/auth/login', { email: body.email, password: body.password }, { headers: ip });
+    expect(blocked.status).toBe(429);
+    expect(blocked.body.error).toBe('too_many_attempts');
+    expect(blocked.body.retryAfter).toBeGreaterThan(0);
+    const other = registerBody();
+    await call('POST', '/auth/register', other);
+    expect((await call('POST', '/auth/login', { email: other.email, password: other.password }, { headers: ip })).status).toBe(200);
+  });
+
+  it('a successful sign-in clears the e-mail counter', async () => {
+    const ip = { 'CF-Connecting-IP': '203.0.113.8' };
+    const body = registerBody();
+    await call('POST', '/auth/register', body);
+    for (let i = 0; i < 9; i++) await call('POST', '/auth/login', { email: body.email, password: 'wrong-password' }, { headers: ip });
+    expect((await call('POST', '/auth/login', { email: body.email, password: body.password }, { headers: ip })).status).toBe(200);
+    for (let i = 0; i < 9; i++) expect((await call('POST', '/auth/login', { email: body.email, password: 'wrong-password' }, { headers: ip })).status).toBe(401);
+    expect((await call('POST', '/auth/login', { email: body.email, password: body.password }, { headers: ip })).status).toBe(200);
+  });
+});
+
+describe('rest timer', () => {
+  const timer = (path: string, body: unknown, token?: string) => fetch(`${BASE}${path}`, {
+    method: 'POST', headers: { 'Content-Type': 'application/json', ...(token ? { Authorization: `Bearer ${token}` } : {}) }, body: JSON.stringify(body),
+  });
+  it('needs a signed-in user: no token or a bad one → 401; signed in, the endpoint is still checked', async () => {
+    const body = { endpoint: 'https://web.push.apple.com/abc', seconds: 60 };
+    expect((await timer('/start', body)).status).toBe(401);
+    expect((await timer('/stop', body, 'nope')).status).toBe(401);
+    const u = await newUser();
+    expect((await timer('/start', { endpoint: 'https://evil.example/x', seconds: 60 }, u.token)).status).toBe(400);
   });
 });

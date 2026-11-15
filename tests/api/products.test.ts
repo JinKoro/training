@@ -113,12 +113,12 @@ describe('products: edit / delete / meals', () => {
     expect((await a.put(`/products/${p.id}`, { barcode: code })).status).toBe(409);
   });
 
-  it("someone else can change only the picture of a product, nothing else", async () => {
+  it("someone else can't change a product at all (not even its picture): 403, nothing changes", async () => {
     const p = await ownProduct(a, { name: 'Чужой продукт', protein: 10 });
     const r = await b.put(`/products/${p.id}`, { name: 'Взлом', protein: 99, icon: 'nuts', barcode: ean0() });
-    expect(r.status).toBe(200);
-    expect(r.body.product).toMatchObject({ title: 'Чужой продукт', protein: 10, icon: 'nuts', barcode: null });
-    expect((await b.put(`/products/${p.id}`, { icon: 'nope' })).status).toBe(400);
+    expect(r.status).toBe(403);
+    expect((await a.get(`/products/${p.id}`)).body.product).toMatchObject({ title: 'Чужой продукт', protein: 10, barcode: null });
+    expect((await a.get(`/products/${p.id}`)).body.product.icon).not.toBe('nuts');
     expect((await b.put('/products/99999999', { icon: 'nuts' })).status).toBe(404);
   });
 
@@ -248,5 +248,15 @@ describe('products: search', () => {
     const t = tag();
     await ownProduct(a, { name: `Соабник ${t}` });
     expect(names(await a.get(`/products?q=${encodeURIComponent('со')}`))).toContain(`Соабник ${t}`);
+  });
+});
+
+describe('a shared product is fixed', () => {
+  it('only its author can change a product: a base library product → 403, nothing changes', async () => {
+    const u = await newUser();
+    const before = (await u.get('/products/1')).body.product;
+    const r = await u.put('/products/1', { icon: 'other', protein: 1 });
+    expect(r.status).toBe(403);
+    expect((await u.get('/products/1')).body.product).toMatchObject({ icon: before.icon, protein: before.protein });
   });
 });

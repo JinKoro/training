@@ -1,4 +1,4 @@
-import { TIMER_URL } from './api';
+import { TIMER_URL, getToken } from './api';
 
 /** Rest-timer push via the existing Cloudflare worker (Apple Web Push; works only from the home-screen app on iPhone). */
 const VAPID_PUBLIC_KEY = 'BBNp3N111r3Hl06kNkE5fWo5WCRQzqmlw_9f7afJTTgo0erK2NopkenjQqXLavUO6QhWLIFPLCuABTUiA__JeT8';
@@ -21,7 +21,8 @@ async function endpoint(ask: boolean): Promise<string | null> {
 
 async function call(path: string, body: Record<string, unknown>) {
   try {
-    await fetch(`${TIMER_URL}${path}`, { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify(body) });
+    const token = getToken();
+    await fetch(`${TIMER_URL}${path}`, { method: 'POST', headers: { 'Content-Type': 'application/json', ...(token ? { Authorization: `Bearer ${token}` } : {}) }, body: JSON.stringify(body) });
   } catch { /* fire and forget */ }
 }
 
