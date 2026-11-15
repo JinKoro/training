@@ -70,8 +70,8 @@ document.addEventListener('touchmove', (e) => {
 
 /**
  * Every text field: a length limit when the field has none of its own (numbers 16 — barcodes are up to 14 —, passwords 128, text 200,
- * textareas 1000 — the server checks again). On focus a number is selected whole (typing replaces it), text gets
- * the caret at the end, so a long name is edited from where it ends instead of wherever the tap landed.
+ * textareas 1000 — the server checks again), and on focus the caret goes to the end, so a long name is edited
+ * from where it ends instead of wherever the tap landed.
  */
 const TEXTLIKE = new Set(['text', 'search', 'email', 'password', 'tel', 'url', '']);
 document.addEventListener('focusin', (e) => {
@@ -83,13 +83,6 @@ document.addEventListener('focusin', (e) => {
     el.maxLength = isArea ? 1000 : mode === 'numeric' || mode === 'decimal' ? 16 : el.type === 'password' ? 128 : 200;
   }
   if (el.type === 'email' || el.type === 'password') return; // no selection API there
-  // Numbers (kcal, grams, sets, kg…): select the whole value, so typing replaces it instead of erasing digit by digit.
-  const mode = el.getAttribute('inputmode');
-  if (!isArea && (mode === 'numeric' || mode === 'decimal')) {
-    const all = () => { try { if (document.activeElement === el) el.setSelectionRange(0, el.value.length); } catch { /* */ } };
-    setTimeout(all, 0); setTimeout(all, 60);
-    return;
-  }
   // Only a plain caret moves: a selection (select-all to replace, a double tap on a word) stays as it is.
   const end = () => { try { if (document.activeElement === el && el.selectionStart === el.selectionEnd) el.setSelectionRange(el.value.length, el.value.length); } catch { /* */ } };
   // iOS places the caret at the tap point after focus: move it on the next ticks.
