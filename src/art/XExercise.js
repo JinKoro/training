@@ -6,8 +6,9 @@ import { MORE_KINDS, MORE_LABELS } from './XExerciseMore.js';
 export const EXERCISE_LABELS = {bench:'Жим штанги лёжа',pulldown:'Тяга верхнего блока',legext:'Разгибания ног',legcurl:'Сгибания ног',press:'Жим гантелей сидя',curl:'Сгибания рук с гантелями',legpress:'Жим ногами',hyper:'Гиперэкстензия',squat:'Приседания со штангой',lunge:'Выпады с гантелями',carry:'Фермерская прогулка'};
 
 export const EXERCISE_COLORS = {
-  dark:  { bg:'#2E3A4B', ink:'#F3F5F7', equip:'#A9CBFA', floor:'#4A5563', muscle:'#E2703A' },
-  light: { bg:'#E9EEF8', ink:'#12151C', equip:'#3F63D0', floor:'#C3CAD5', muscle:'#E2703A' },
+  // same warm neutrals as the app (design: XExercise)
+  dark:  { bg:'#3C3D42', ink:'#F4F4F5', equip:'#FF6A2B', floor:'#4A4B51', muscle:'#F43F5E' },
+  light: { bg:'#F1EFEB', ink:'#1A1A1A', equip:'#3F63D0', floor:'#CFCAC3', muscle:'#F43F5E' },
 };
 
 // Per kind, draw in order: `pre` (always), then `start` OR `end` (by phase), then `post` (always; the orange working-muscle dot). All inside the stroke group below.

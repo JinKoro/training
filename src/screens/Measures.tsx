@@ -1,7 +1,7 @@
 import { useMemo, useState } from 'react';
 import { useApp } from '../app-context';
 import { api } from '../lib/api';
-import { dayMonth, fromDay, isDayStr, MONTH_GEN, today, addDays, type Day } from '../lib/dates';
+import { dayMonth, fromDay, isDayStr, MONTH_GEN, MONTH_NOM, WD_SHORT, today, addDays, toDay, type Day } from '../lib/dates';
 import { CIRCS, METRICS, PERIODS, change, f1, inPeriod, latest, metricOf, seriesOf, type MEntry, type Metric, type MetricKey } from '../lib/measures';
 import { invalidate, useQuery } from '../lib/query';
 import { go } from '../lib/router';
@@ -58,6 +58,37 @@ export function MeasuresCard() {
   );
 }
 
+/** A month of days in the app's own look (the browser's date picker looks foreign); days after `max` are off. */
+function MonthPicker({ value, max, onPick }: { value: Day; max: Day; onPick: (d: Day) => void }) {
+  const [m, setM] = useState(() => { const d = fromDay(value); return d.getFullYear() * 12 + d.getMonth(); });
+  const y = Math.floor(m / 12), mo = m % 12;
+  const first = (new Date(y, mo, 1).getDay() + 6) % 7, n = new Date(y, mo + 1, 0).getDate();
+  const maxM = fromDay(max).getFullYear() * 12 + fromDay(max).getMonth();
+  const arrow = (dir: -1 | 1, label: string, off: boolean) => (
+    <button type="button" aria-label={label} disabled={off} onClick={() => setM(m + dir)}
+      style={{ width: 40, height: 40, borderRadius: 12, background: 'var(--btn)', fontWeight: 800, fontSize: 18, opacity: off ? 0.35 : 1 }}>{dir < 0 ? '‹' : '›'}</button>
+  );
+  return (
+    <div className="col" style={{ gap: 8 }}>
+      <div className="between" style={{ alignItems: 'center' }}>
+        {arrow(-1, 'Предыдущий месяц', false)}<b style={{ fontSize: 16 }}>{MONTH_NOM[mo]} {y}</b>{arrow(1, 'Следующий месяц', m >= maxM)}
+      </div>
+      <div style={{ display: 'grid', gridTemplateColumns: 'repeat(7, minmax(0, 1fr))', gap: 4, textAlign: 'center' }}>
+        {WD_SHORT.map((w) => <span key={w} className="muted" style={{ fontSize: 12, fontWeight: 800, padding: '2px 0' }}>{w}</span>)}
+        {Array.from({ length: first }, (_, i) => <span key={`e${i}`} />)}
+        {Array.from({ length: n }, (_, i) => {
+          const d = toDay(new Date(y, mo, i + 1)), cur = d === value, off = d > max;
+          return (
+            <button key={d} type="button" aria-pressed={cur} aria-label={dayMonth(d)} disabled={off} onClick={() => onPick(d)}
+              style={{ height: 40, minWidth: 0, padding: 0, borderRadius: 12, fontWeight: 800, fontSize: 15, opacity: off ? 0.35 : 1,
+                background: cur ? 'var(--acc)' : 'var(--bg)', color: cur ? 'var(--onAcc)' : 'var(--ink)', border: d === max && !cur ? '2px solid var(--acc)' : 0 }}>{i + 1}</button>
+          );
+        })}
+      </div>
+    </div>
+  );
+}
+
 /** «Внести замеры»: a date, weight and fat, then the circumferences; only the filled fields are saved. */
 export function MeasureScreen() {
   const { me, wide } = useApp();
@@ -102,13 +133,7 @@ export function MeasureScreen() {
             <button key={n} type="button" aria-pressed={pick === i} onClick={() => setPick(i as 0 | 1 | 2)} style={{ height: 40, fontSize: 14, minWidth: 0 }}>{n}</button>
           ))}
         </div>
-        {pick === 2 ? (
-          <Field id="ms-date" label="Дата замера" error={dateOk ? null : 'Не позже сегодняшнего дня'}>
-            {/* iOS gives a date input its own min width; reset so it fits the card */}
-            <input id="ms-date" type="date" className="input" value={other} max={t} onChange={(e) => setOther(e.target.value)}
-              style={{ height: 50, borderRadius: 12, background: 'var(--bg)', display: 'block', minWidth: 0, width: '100%', WebkitAppearance: 'none', appearance: 'none', fontWeight: 800, lineHeight: '50px' }} />
-          </Field>
-        ) : null}
+        {pick === 2 ? <MonthPicker value={other} max={t} onPick={setOther} /> : null}
         {dateOk ? <span className="sub">Замер за {dayMonth(date)}</span> : null}
       </section>
       <section className="card col a-in" style={{ gap: 12, padding: '14px 16px 16px' }}>
