@@ -1,4 +1,4 @@
-import { createContext, useContext, useEffect, useState } from 'react';
+import { createContext, useContext, useEffect, useLayoutEffect, useState } from 'react';
 
 export type ThemePref = 'system' | 'light' | 'dark';
 export type Theme = 'light' | 'dark';
@@ -28,9 +28,16 @@ export function useResolvedTheme(pref: ThemePref): Theme {
     return () => m.removeEventListener('change', on);
   }, []);
   const theme = pref === 'system' ? system : pref;
-  useEffect(() => {
-    document.documentElement.dataset.theme = theme;
+  useLayoutEffect(() => {
+    // Buttons animate their background (press feedback); without this they would fade into the new theme
+    // 0.15 s after everything else and look like they lag behind the switch.
+    const root = document.documentElement;
+    root.classList.add('theme-switch');
+    root.dataset.theme = theme;
+    void root.offsetHeight; // apply the new colours with transitions off
+    const id = requestAnimationFrame(() => requestAnimationFrame(() => root.classList.remove('theme-switch')));
     document.querySelector('meta[name="theme-color"]')?.setAttribute('content', theme === 'light' ? '#F6F5F2' : '#26272A');
+    return () => { cancelAnimationFrame(id); root.classList.remove('theme-switch'); };
   }, [theme]);
   return theme;
 }
