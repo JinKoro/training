@@ -1,7 +1,7 @@
 import { useEffect, useRef, useState } from 'react';
 import { useApp } from '../app-context';
 import { api, ApiError } from '../lib/api';
-import { MEALS, MEAL_IN, MEAL_RU, fmt, fmtG, fmtKcal, kcal, kcal100, kcalAt, kcalTenths, macroLine, sumKcal } from '../lib/calc';
+import { MEALS, MEAL_IN, MEAL_RU, fmt, fmt1, fmtG, fmtKcal, kcal, kcal100, kcalAt, kcalTenths, macroLine, sumKcal } from '../lib/calc';
 import { addDays, dayMonth, diffDays, isDayStr, today } from '../lib/dates';
 import { getCamera, parkCamera } from '../lib/camera';
 import { invalidate, useQuery, forget } from '../lib/query';
@@ -324,6 +324,7 @@ export function ItemScreen({ date, type, id, meal }: { date?: string; type: 'pro
   const [tags, setTags] = useState<Meal[] | null>(null);
   const [menu, setMenu] = useState(false);
   const [confirmDel, setConfirmDel] = useState(false);
+  const [ov, setOv] = useState<null | { k: string; p: string; fat: string; c: string }>(null);
   const { me } = useApp();
   const it = q.data?.product ?? q.data?.dish;
   const removeProduct = async () => {
@@ -345,12 +346,33 @@ export function ItemScreen({ date, type, id, meal }: { date?: string; type: 'pro
   const g = Number(grams) || 0;
   const piece = it.portionName === 'шт' && it.portionG ? it.portionG : null;
   const step = piece ?? 50;
-  const m100 = per100(it).map((x) => (x * g) / 100) as [number, number, number];
+  // «Свои ккал и БЖУ»: per 100 g, only for this entry (a label in the library can be wrong); the product stays as it is.
+  const okM = (s: string) => /^\d{1,3}([.,]\d)?$/.test(s.trim()) && n(s) <= 100;
+  const ovBad = ov ? {
+    k: !(/^\d{1,3}([.,]\d)?$/.test(ov.k.trim()) && n(ov.k) <= 900), p: !okM(ov.p), fat: !okM(ov.fat),
+    c: !okM(ov.c) || n(ov.p) + n(ov.fat) + n(ov.c) > 100,
+  } : null;
+  const ovOk = !ovBad || !Object.values(ovBad).some(Boolean);
+  const eff: FoodItem = ov && ovOk ? { ...it, protein: n(ov.p), fat: n(ov.fat), carbs: n(ov.c), kcal: n(ov.k) } : it;
+  const ovChanged = !!ov && ovOk && (eff.protein !== it.protein || eff.fat !== it.fat || eff.carbs !== it.carbs || kcal100(eff) !== kcal100(it));
+  const m100 = per100(eff).map((x) => (x * g) / 100) as [number, number, number];
+  const own = it.type === 'product' && it.createdBy === me.user.id;
+  const ovBox = (key: 'k' | 'p' | 'fat' | 'c', label: string, color: string) => (
+    <div className="field">
+      <label htmlFor={`ov-${key}`} className="sub" style={{ fontSize: 13 }}><span>{label}</span></label>
+      <input id={`ov-${key}`} inputMode="decimal" className="input" value={ov![key]} aria-invalid={ovBad![key]}
+        onChange={(e) => { const v = e.target.value; setOv((o) => (o ? { ...o, [key]: v } : o)); }}
+        style={{ height: 48, borderRadius: 10, borderLeft: `4px solid ${color}`, fontWeight: 800 }} />
+    </div>
+  );
   const add = async () => {
-    if (g < 1 || g > 5000 || busy) return;
+    if (g < 1 || g > 5000 || busy || !ovOk) return;
     setBusy(true);
     // Optimistic: go back at once, the request finishes in the background (an error still shows a toast).
-    api('POST', '/diary', { date: d, meal: m, itemType: it.type, itemId: it.id, grams: g, portions: it.portionG && Math.abs(g / it.portionG - Math.round(g / it.portionG)) < 1e-6 && Math.round(g / it.portionG) > 0 ? Math.round(g / it.portionG) : null })
+    api('POST', '/diary', {
+      date: d, meal: m, itemType: it.type, itemId: it.id, grams: g, portions: it.portionG && Math.abs(g / it.portionG - Math.round(g / it.portionG)) < 1e-6 && Math.round(g / it.portionG) > 0 ? Math.round(g / it.portionG) : null,
+      ...(ovChanged ? { custom: { protein: eff.protein, fat: eff.fat, carbs: eff.carbs, kcal: eff.kcal } } : {}),
+    })
       .then(() => invalidate('/diary', '/food/recent'))
       .catch((e) => toast(errText(e)));
     toast(`${it.name} — ${MEAL_IN[m]}`);
@@ -366,8 +388,8 @@ export function ItemScreen({ date, type, id, meal }: { date?: string; type: 'pro
           <>
             <b style={{ fontSize: 18 }}>Продукт</b>
             <div className="col" style={{ gap: 0 }}>
-              <a href={`#/food/${d}/product-edit/${it.id}`} style={{ ...menuRow, ...(it.createdBy === me.user.id ? {} : { borderBottom: 0 }) }}>Изменить</a>
-              {it.createdBy === me.user.id ? <button onClick={() => setConfirmDel(true)} style={{ ...menuRow, color: 'var(--warn)', borderBottom: 0 }}>Удалить продукт</button> : null}
+              <a href={`#/food/${d}/product-edit/${it.id}`} style={menuRow}>Изменить</a>
+              <button onClick={() => setConfirmDel(true)} style={{ ...menuRow, color: 'var(--warn)', borderBottom: 0 }}>Удалить продукт</button>
             </div>
           </>
         ) : (
@@ -382,7 +404,8 @@ export function ItemScreen({ date, type, id, meal }: { date?: string; type: 'pro
       </Sheet>
       <div className="between">
         <button className="link" onClick={() => history.back()}>‹ Назад</button>
-        {it.type === 'product' ? <MoreButton onClick={() => { setConfirmDel(false); setMenu(true); }} /> : null}
+        {/* only the user's own product can be changed or deleted; a shared one is fixed («Свои ккал и БЖУ» below is per entry) */}
+        {own ? <MoreButton onClick={() => { setConfirmDel(false); setMenu(true); }} /> : null}
       </div>
       <div className="col" style={{ alignItems: 'center', gap: 8, textAlign: 'center' }}>
         <FoodArt kind={it.icon} size={150} />
@@ -404,14 +427,26 @@ export function ItemScreen({ date, type, id, meal }: { date?: string; type: 'pro
           {chips.map(([l, v]) => <button key={l} className="chip" aria-pressed={g === v} onClick={() => setGrams(String(v))}>{l}</button>)}
         </div>
       </div>
-      <Tiles m={m100} k={kcalAt(it, g)} big tenths={kcalTenths(it)} />
+      <Tiles m={m100} k={kcalAt(eff, g)} big tenths={kcalTenths(eff)} />
+      {it.type === 'product' ? (
+        !ov ? <button className="btn sec" style={{ height: 48, borderRadius: 18, fontSize: 15 }}
+          onClick={() => setOv({ k: fmt1(kcal100(it)), p: fmt1(it.protein), fat: fmt1(it.fat), c: fmt1(it.carbs) })}>Свои ккал и БЖУ</button> : (
+          <div className="col" style={{ gap: 8 }}>
+            <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 8 }}>
+              {ovBox('k', 'Калории', 'var(--acc)')}{ovBox('p', 'Белки, г', 'var(--chart)')}{ovBox('fat', 'Жиры, г', 'var(--warn)')}{ovBox('c', 'Углеводы, г', 'var(--good)')}
+            </div>
+            <div className="between"><span className="muted" style={{ fontSize: 14, fontWeight: 700 }}>На 100 г, только для этой записи</span>
+              <button className="btn sec small" style={{ height: 40, flex: 'none' }} onClick={() => setOv(null)}>Как было</button></div>
+          </div>
+        )
+      ) : null}
       {it.type === 'dish' ? (
         <div className="col" style={{ gap: 6 }}>
           <span className="label">Приёмы пищи</span>
           <MealChips value={tags ?? it.meals ?? MEALS} onChange={(v) => void saveTags(v)} />
         </div>
       ) : null}
-      <div className="fixed-bottom"><button className="btn big" disabled={busy || g < 1 || g > 5000} onClick={add}>Добавить {MEAL_IN[m]}</button></div>
+      <div className="fixed-bottom"><button className="btn big" disabled={busy || g < 1 || g > 5000 || !ovOk} onClick={add}>Добавить {MEAL_IN[m]}</button></div>
     </Screen>
   );
 }

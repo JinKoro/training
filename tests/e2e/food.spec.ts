@@ -149,15 +149,27 @@ test.describe('Food diary', () => {
     await expect(entryRow(page, 'Батончик тестовый')).toBeVisible();
   });
 
-  test('a shared product from the library has no delete', async ({ authed: page }) => {
+  test('a shared product cannot be changed; own kcal and macros go into this one entry only', async ({ authed: page, user }) => {
     await open(page, `food/${D}/add/lunch`);
-    await page.getByRole('tab', { name: 'Библиотека' }).click();
-    await expect(page.getByText('Остальные продукты, в том числе добавленные другими, ищите через поиск.')).toBeVisible();
-    await page.locator('a.row.grow').first().click();
+    await search(page).fill('гречка вар');
+    await page.getByRole('link', { name: /Гречка варёная/ }).first().click();
     await expect(page.getByText('Общая библиотека')).toBeVisible();
-    await page.getByRole('button', { name: 'Меню' }).click();
-    await expect(sheet(page, 'Продукт').getByRole('link', { name: 'Изменить' })).toBeVisible();
-    await expect(sheet(page, 'Продукт').getByRole('button', { name: 'Удалить продукт' })).toHaveCount(0);
+    // no «⋯»: only the user's own product can be changed or deleted
+    await expect(page.getByRole('button', { name: 'Меню', exact: true })).toHaveCount(0);
+    await page.getByRole('button', { name: 'Свои ккал и БЖУ' }).click();
+    await page.getByLabel('Калории').fill('274,5');
+    await page.getByRole('button', { name: '150 г' }).click();
+    await expect(page.locator('.num', { hasText: '411,8' }).first()).toBeVisible(); // label kcal with tenths -> one decimal
+    await page.getByLabel('Белки, г').fill('120');
+    await expect(page.getByRole('button', { name: 'Добавить в обед' })).toBeDisabled();
+    await page.getByLabel('Белки, г').fill('4');
+    await page.getByRole('button', { name: 'Добавить в обед' }).click();
+    await expect(toast(page)).toHaveText('Гречка варёная — в обед');
+    await expect.poll(async () => (await call(user.token, 'GET', `/diary?from=${D}&to=${D}`)).entries.length).toBe(1);
+    const { entries } = await call(user.token, 'GET', `/diary?from=${D}&to=${D}`);
+    expect(entries[0]).toMatchObject({ grams: 150, kcal: 274.5, protein: 4 });
+    const { product } = await call(user.token, 'GET', `/products/${entries[0].productId}`);
+    expect(product.kcal).not.toBe(274.5); // the library keeps its values
   });
 
   test('new dish from ingredients; dish from a meal', async ({ authed: page, user }) => {

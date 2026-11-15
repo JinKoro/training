@@ -949,6 +949,16 @@ export async function handleApi(request, env, path) {
       const item = await itemFor(env, uid, type, num(body.itemId, 'itemId', { min: 1, int: true }));
       const grams = num(body.grams, 'grams', { min: 1, max: 5000 });
       const portions = num(body.portions, 'portions', { min: 0, max: 100, optional: true });
+      // Own kcal / macros per 100 g for this entry only (a product's label can be wrong); the product itself stays as it is.
+      let m = { protein: item.protein, fat: item.fat, carbs: item.carbs, kcal: item.kcal };
+      if (body.custom != null) {
+        if (type !== 'product' || typeof body.custom !== 'object') fail(400, 'invalid_custom', 'custom');
+        const p = num(body.custom.protein, 'protein', { min: 0, max: 100 });
+        const f = num(body.custom.fat, 'fat', { min: 0, max: 100 });
+        const c = num(body.custom.carbs, 'carbs', { min: 0, max: 100 });
+        if (p + f + c > 100.0001) fail(400, 'invalid_macros', 'carbs');
+        m = { protein: p, fat: f, carbs: c, kcal: num(body.custom.kcal, 'kcal', { min: 0, max: 900 }) };
+      }
       const pos = await env.DB.prepare('SELECT COALESCE(MAX(position), -1) + 1 AS p FROM diary_entries WHERE user_id = ? AND date = ? AND meal = ?')
         .bind(uid, date, meal).first();
       const r = await env.DB.prepare(
@@ -956,7 +966,7 @@ export async function handleApi(request, env, path) {
          VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?) RETURNING *`,
       ).bind(
         uid, date, meal, pos.p, type === 'product' ? item.id : null, type === 'dish' ? item.id : null, grams, portions,
-        item.name, FOOD_ICONS.includes(item.icon) ? item.icon : 'dish', item.protein, item.fat, item.carbs, item.kcal,
+        item.name, FOOD_ICONS.includes(item.icon) ? item.icon : 'dish', m.protein, m.fat, m.carbs, m.kcal,
         item.portionName, item.portionG, now,
       ).first();
       return ok({ entry: entryOut(r) }, 201);

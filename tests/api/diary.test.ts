@@ -189,3 +189,24 @@ describe('recent foods and last grams', () => {
     expect((await c.get('/food/unknown')).status).toBe(404);
   });
 });
+
+describe('own kcal / macros for one entry', () => {
+  it('a product entry can carry its own values per 100 g; the product itself stays as it is', async () => {
+    const r = await a.post('/diary', { date: TODAY, meal: 'lunch', itemType: 'product', itemId: prod.id, grams: 150, custom: { protein: 22.5, fat: 8, carbs: 1, kcal: 274.5 } });
+    expect(r.status).toBe(201);
+    expect(r.body.entry).toMatchObject({ protein: 22.5, fat: 8, carbs: 1, kcal: 274.5, grams: 150, productId: prod.id });
+    const p = (await a.get(`/products/${prod.id}`)).body.product;
+    expect(p).toMatchObject({ protein: 20, fat: 10, carbs: 0, kcal: 200 });
+    const plain = (await a.post('/diary', { date: TODAY, meal: 'lunch', itemType: 'product', itemId: prod.id, grams: 100 })).body.entry;
+    expect(plain).toMatchObject({ protein: 20, fat: 10, carbs: 0, kcal: 200 });
+  });
+
+  it.each([
+    [{ protein: 101, fat: 0, carbs: 0, kcal: 100 }, 'protein'], [{ protein: 60, fat: 30, carbs: 20, kcal: 100 }, 'carbs'],
+    [{ protein: 10, fat: 10, carbs: 10, kcal: 901 }, 'kcal'], [{ protein: 10, fat: 10, carbs: 10 }, 'kcal'], ['x', 'custom'],
+  ])('rejects custom %o', async (custom, field) => {
+    const r = await a.post('/diary', { date: TODAY, meal: 'lunch', itemType: 'product', itemId: prod.id, grams: 100, custom });
+    expect(r.status).toBe(400);
+    expect(r.body.field).toBe(field);
+  });
+});
