@@ -37,8 +37,12 @@ test.describe('Registration wizard', () => {
     await expect(create).toBeEnabled();
     await create.click();
 
-    // Step 2: «О себе»
+    // The account exists right after step 1; the body steps only fill the profile (no way back to step 1).
     await expect(page.getByText('Шаг 2 из 4')).toBeVisible();
+    expect(await page.evaluate(() => localStorage.getItem('podhod-token'))).toBeTruthy();
+    await expect(page.getByRole('button', { name: '‹ Назад' })).toHaveCount(0);
+
+    // Step 2: «О себе»
     await expect(page.getByRole('heading', { name: 'О себе' })).toBeVisible();
     await page.getByRole('button', { name: 'Женщина' }).click();
     await expect(page.getByRole('button', { name: 'Женщина' })).toHaveAttribute('aria-pressed', 'true');
@@ -92,13 +96,12 @@ test.describe('Registration wizard', () => {
     await expect(page.getByText(`${fmt(kcal(norms.rest))} ккал`, { exact: true })).toBeVisible();
     void offer;
 
-    // Back keeps the data typed in step 1 and the body data.
+    await expect(page.getByText(/Расчёт примерный.*не медицинская рекомендация/)).toBeVisible();
+
+    // Back keeps the body data.
     await page.getByRole('button', { name: '‹ Назад' }).click();
     await page.getByRole('button', { name: '‹ Назад' }).click();
-    await page.getByRole('button', { name: '‹ Назад' }).click();
-    await expect(page.getByText('Шаг 1 из 4')).toBeVisible();
-    await expect(page.getByLabel('Имя')).toHaveValue('Аня');
-    await page.getByRole('button', { name: 'Создать аккаунт' }).click();
+    await expect(page.getByText('Шаг 2 из 4')).toBeVisible();
     await expect(page.getByLabel('Вес, кг')).toHaveValue('62,5');
     await page.getByRole('button', { name: 'Дальше' }).click();
     await page.getByRole('button', { name: 'Дальше' }).click();
@@ -117,7 +120,7 @@ test.describe('Registration wizard', () => {
     await expect(page.getByRole('link', { name: /Фулбади/ })).toHaveCount(3);
   });
 
-  test('an e-mail that is taken sends the user back to step 1 with a message', async ({ page, allowErrors }) => {
+  test('an e-mail that is taken is refused on step 1', async ({ page, allowErrors }) => {
     allowErrors(/http 409 POST \/api\/auth\/register|status of 409/);
     const existing = await registerUser();
     await open(page, 'register');
@@ -126,17 +129,78 @@ test.describe('Registration wizard', () => {
     await page.getByLabel('Пароль', { exact: true }).fill('password123');
     await page.getByLabel('Пароль ещё раз').fill('password123');
     await page.getByRole('button', { name: 'Создать аккаунт' }).click();
+    await expect(page.getByText('Эта почта уже занята')).toBeVisible();
+    await expect(page.getByText('Шаг 1 из 4')).toBeVisible();
+    await expect(page.getByRole('button', { name: 'Создать аккаунт' })).toBeDisabled();
+  });
+
+  const step1 = async (page: import('@playwright/test').Page) => {
+    await open(page, 'register');
+    await page.getByLabel('Имя').fill('Олег');
+    await page.getByLabel('Почта').fill(`skip-${Date.now()}-${Math.random().toString(36).slice(2, 6)}@test.dev`);
+    await page.getByLabel('Пароль', { exact: true }).fill('password123');
+    await page.getByLabel('Пароль ещё раз').fill('password123');
+    await page.getByRole('button', { name: 'Создать аккаунт' }).click();
+    await expect(page.getByText('Шаг 2 из 4')).toBeVisible();
+  };
+
+  test('«Пропустить» on «О себе» skips everything: no calories, the week and food show what was eaten only', async ({ page }) => {
+    await step1(page);
+    await page.getByRole('button', { name: 'Пропустить' }).click();
+    await expect(page).toHaveURL(/#\/week/);
+    await expect(page.getByText('Норма калорий не задана')).toBeVisible();
+    await expect(page.getByText('Бюджет на неделю')).toHaveCount(0);
+    await tab(page, 'Еда').click();
+    await expect(page.getByText('Норма калорий не задана')).toBeVisible();
+    await expect(page.getByText('Съедено за день')).toBeVisible();
+    await expect(page.getByText(/Осталось/)).toHaveCount(0);
+    await tab(page, 'Профиль').click();
+    await expect(page.getByRole('link', { name: /Норма калорий/ })).toContainText('Рассчитать');
+    // «Рассчитать» opens the calculation: after it the calories are set
+    await page.getByRole('link', { name: /Норма калорий/ }).click();
+    await page.getByRole('button', { name: 'Мужчина' }).click();
     await page.getByLabel('Дата рождения').pressSequentially('01011990');
     await page.getByLabel('Вес, кг').fill('80');
     await page.getByLabel('Рост, см').fill('180');
     await page.getByRole('button', { name: 'Дальше' }).click();
     await page.getByLabel('Мой процент').fill('18');
     await page.getByRole('button', { name: 'Дальше' }).click();
-    await page.getByLabel('Шагов в день').fill('5000');
-    await page.getByRole('button', { name: 'Готово' }).click();
-    await expect(page.getByText('Шаг 1 из 4')).toBeVisible();
-    await expect(page.getByText('Эта почта уже занята')).toBeVisible();
-    await expect(page.getByRole('button', { name: 'Создать аккаунт' })).toBeDisabled();
+    await page.getByLabel('Шагов в день').fill('8000');
+    await page.getByRole('button', { name: 'Сохранить' }).click();
+    await expect(page).toHaveURL(/#\/profile\/norms/);
+    await open(page, 'food');
+    await expect(page.getByText(/Осталось \d/)).toBeVisible();
+    await expect(page.getByText('Норма калорий не задана')).toHaveCount(0);
+  });
+
+  test('«Пропустить» on «Процент жира» keeps step 2; on «Расход и норма» keeps the body fat too', async ({ page }) => {
+    await step1(page);
+    await page.getByRole('button', { name: 'Женщина' }).click();
+    await page.getByLabel('Дата рождения').pressSequentially('01011995');
+    await page.getByLabel('Вес, кг').fill('58');
+    await page.getByLabel('Рост, см').fill('165');
+    await page.getByRole('button', { name: 'Дальше' }).click();
+    await page.getByRole('button', { name: 'Пропустить' }).click();
+    await expect(page).toHaveURL(/#\/week/);
+    await open(page, 'profile/body');
+    await expect(page.getByText('58 кг')).toBeVisible();
+    await expect(page.getByText('165')).toBeVisible();
+    await expect(page.getByText('Женщина · 31 год')).toBeVisible();
+
+    await page.evaluate(() => localStorage.removeItem('podhod-token'));
+    await page.reload();
+    await step1(page);
+    await page.getByLabel('Дата рождения').pressSequentially('01011990');
+    await page.getByLabel('Вес, кг').fill('90');
+    await page.getByLabel('Рост, см').fill('185');
+    await page.getByRole('button', { name: 'Дальше' }).click();
+    await page.getByLabel('Мой процент').fill('22');
+    await page.getByRole('button', { name: 'Дальше' }).click();
+    await page.getByRole('button', { name: 'Пропустить' }).click();
+    await expect(page).toHaveURL(/#\/week/);
+    await expect(page.getByText('Норма калорий не задана')).toBeVisible();
+    await open(page, 'profile/body');
+    await expect(page.getByText('22 %')).toBeVisible();
   });
 });
 
@@ -182,5 +246,26 @@ test.describe('Login / logout', () => {
     await page.evaluate(() => localStorage.setItem('podhod-token', 'deadbeef'));
     await page.reload();
     await expect(page.getByRole('heading', { name: 'Вход' })).toBeVisible();
+  });
+});
+
+test.describe('Delete the account', () => {
+  test('wrong password is refused; the right one deletes the account and signs out', async ({ page, user, allowErrors }) => {
+    allowErrors(/http 400 DELETE \/api\/me|status of 400|http 401|status of 401/);
+    await login(page, user.token);
+    await open(page, 'profile');
+    await page.getByRole('link', { name: /Удалить аккаунт/ }).click();
+    await expect(page.getByText('Удалится навсегда')).toBeVisible();
+    await expect(page.getByText(/Продукты, которые вы добавили в общую библиотеку/)).toBeVisible();
+    const del = page.getByRole('button', { name: 'Удалить аккаунт навсегда' });
+    await expect(del).toBeDisabled();
+    await page.getByLabel('Пароль для подтверждения').fill('wrong-password');
+    await del.click();
+    await expect(page.getByText('Неверный пароль')).toBeVisible();
+    await page.getByLabel('Пароль для подтверждения').fill(user.password);
+    await del.click();
+    await expect(page).toHaveURL(/#\/login/);
+    await expect(page.getByRole('heading', { name: 'Вход' })).toBeVisible();
+    expect(await page.evaluate(() => localStorage.getItem('podhod-token'))).toBeNull();
   });
 });

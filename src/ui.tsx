@@ -59,15 +59,26 @@ export function Sheet({ open, onClose, children, label }: { open: boolean; onClo
   );
 }
 
-export function MacroBar({ name, value, norm, color, over }: { name: string; value: number; norm: number; color: string; over?: boolean }) {
+/** `norm` null = no calories set: grams only, no bar. */
+export function MacroBar({ name, value, norm, color, over }: { name: string; value: number; norm: number | null; color: string; over?: boolean }) {
   const pct = norm ? Math.min(100, Math.round((value / norm) * 100)) : 0;
   return (
     <div style={{ display: 'grid', gridTemplateColumns: '84px 1fr 84px', alignItems: 'center', gap: 10 }}>
       <span style={{ fontWeight: 700 }}>{name}</span>
-      <div className="bar"><i className="a-fill" style={{ width: `${pct}%`, background: over ? 'var(--warn)' : color }} /></div>
+      <div className="bar" style={norm === null ? { background: 'transparent' } : undefined}>{norm === null ? null : <i className="a-fill" style={{ width: `${pct}%`, background: over ? 'var(--warn)' : color }} />}</div>
       <span className="num" style={{ fontWeight: 800, textAlign: 'right', color: over ? 'var(--warnT)' : 'var(--ink)' }}>
-        {Math.round(value)} / {Math.round(norm)}
+        {norm === null ? `${Math.round(value)} г` : `${Math.round(value)} / ${Math.round(norm)}`}
       </span>
+    </div>
+  );
+}
+
+/** «Норма калорий не задана» + «Рассчитать»: shown on the week and food screens until calories are set. */
+export function NoNormCard() {
+  return (
+    <div className="card row a-in" style={{ gap: 12 }}>
+      <span className="col grow" style={{ gap: 2, minWidth: 0 }}><b>Норма калорий не задана</b><span className="muted" style={{ fontSize: 14 }}>Без неё видно только, сколько съедено</span></span>
+      <a className="btn small" href="#/profile/recalc" style={{ flex: 'none' }}>Рассчитать</a>
     </div>
   );
 }

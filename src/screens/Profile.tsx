@@ -1,10 +1,10 @@
 import { useMemo, useState } from 'react';
 import { useApp } from '../app-context';
-import { api, ApiError } from '../lib/api';
-import { activeProgram, fmt, kcal, programWeek, setNormFor, suggestNorms, timesPerWeek, weekRange, weekTrainingDays } from '../lib/calc';
+import { api, ApiError, setToken } from '../lib/api';
+import { activeProgram, fmt, hasNorm, kcal, programWeek, setNormFor, suggestNorms, timesPerWeek, weekRange, weekTrainingDays } from '../lib/calc';
 import { ageFrom, today, WD_SHORT, weekDays, weekStart } from '../lib/dates';
 import { useDays } from '../lib/hooks';
-import { invalidate } from '../lib/query';
+import { clearCache, invalidate } from '../lib/query';
 import { go } from '../lib/router';
 import type { Macros, Me, Sex } from '../lib/types';
 import { birthToInput, maskBirth, numIn, parseBirth, vBirth, vFat, vHeight, vName, vPassword, vSteps, vWeight, years } from '../lib/validate';
@@ -58,7 +58,9 @@ export function ProfileScreen() {
       <ThisWeek hasProgram={!!activeProgram(programs)} />
       <span className="label">Питание</span>
       <div className="list">
-        {n.training ? (
+        {!hasNorm(me) ? (
+          <a href="#/profile/recalc"><span className="grow">Норма калорий</span><span className="muted">Рассчитать ›</span></a>
+        ) : n.training ? (
           <>
             <a href="#/profile/norms"><span className="grow">Тренировочный день</span><span className="muted">{fmt(kcal(n.training))} ккал ›</span></a>
             <a href="#/profile/norms"><span className="grow">День отдыха</span><span className="muted">{fmt(kcal(n.rest))} ккал ›</span></a>
@@ -72,7 +74,10 @@ export function ProfileScreen() {
         <a href="#/profile/body"><span className="grow">Данные и замеры</span><span className="muted">›</span></a>
       </div>
       <span className="label">Безопасность</span>
-      <div className="list"><a href="#/profile/password"><span className="grow">Пароль</span><span className="muted">Сменить ›</span></a></div>
+      <div className="list">
+        <a href="#/profile/password"><span className="grow">Пароль</span><span className="muted">Сменить ›</span></a>
+        <a href="#/profile/delete"><span className="grow" style={{ color: 'var(--warnT)' }}>Удалить аккаунт</span><span className="muted">›</span></a>
+      </div>
     </Screen>
   );
 }
@@ -104,14 +109,14 @@ function ThisWeek({ hasProgram }: { hasProgram: boolean }) {
  * Null when nothing that drives the formula changed or the profile lacks what it needs (sex, body fat).
  */
 type Offer = { rows: [string, Macros | null, Macros][]; norms: { training: Macros | null; rest: Macros } };
-function recalcOffer(me: Me, body: { weight: number; steps: number; bodyFat?: number; sex?: Sex }): Offer | null {
+function recalcOffer(me: Me, body: { weight?: number; steps?: number; bodyFat?: number; sex?: Sex }): Offer | null {
   const p = me.profile;
-  const sex = body.sex ?? p.sex, fat = body.bodyFat ?? p.bodyFat;
+  const sex = body.sex ?? p.sex, fat = body.bodyFat ?? p.bodyFat, weight = body.weight ?? p.weight, steps = body.steps ?? p.steps ?? 0;
   // Any formula input changed: weight, steps, body fat or sex.
-  if (body.weight === p.weight && body.steps === p.steps && fat === p.bodyFat && sex === p.sex) return null;
-  if (!sex || fat == null || !body.weight) return null;
+  if (weight === p.weight && steps === (p.steps ?? 0) && fat === p.bodyFat && sex === p.sex) return null;
+  if (!sex || fat == null || !weight) return null;
   const mode = p.trainingMode ?? 'time';
-  const norms = suggestNorms({ sex, weight: body.weight, bodyFat: fat, steps: body.steps, trainingMode: mode, trainingMin: p.trainingMin ?? 60, trainingKcal: p.trainingKcal ?? 0 }, me.user.goal);
+  const norms = suggestNorms({ sex, weight, bodyFat: fat, steps, trainingMode: mode, trainingMin: p.trainingMin ?? 60, trainingKcal: p.trainingKcal ?? 0 }, me.user.goal);
   const d = today();
   const rows: Offer['rows'] = [];
   if (norms.training) rows.push(['День тренировки', setNormFor(me, d, 'training'), norms.training]);
@@ -149,12 +154,16 @@ function useProfileForm() {
     fat: me.profile.bodyFat == null ? '' : String(me.profile.bodyFat).replace('.', ','), sex: (me.profile.sex ?? '') as Sex | '',
   };
   const [f, setF] = useState(init);
-  const errs: Record<string, string | null> = { name: vName(f.name), weight: vWeight(f.weight), height: vHeight(f.height), birth: vBirth(f.birth), steps: vSteps(f.steps), fat: f.fat.trim() ? vFat(f.fat) : null };
+  // Body data may be empty (skipped at sign-up): an empty field is left as it is, only a filled one is checked and saved.
+  const opt = (s: string, v: (x: string) => string | null) => (s.trim() ? v(s) : null);
+  const errs: Record<string, string | null> = { name: vName(f.name), weight: opt(f.weight, vWeight), height: opt(f.height, vHeight), birth: opt(f.birth, vBirth), steps: opt(f.steps, vSteps), fat: opt(f.fat, vFat) };
   const valid = !Object.values(errs).some(Boolean);
   const dirty = JSON.stringify(f) !== JSON.stringify(init);
   const set = (k: Exclude<keyof typeof f, 'sex'>) => (e: React.ChangeEvent<HTMLInputElement>) => setF((p) => ({ ...p, [k]: k === 'birth' ? maskBirth(e.target.value) : e.target.value }));
   const body = () => ({
-    name: f.name.trim(), weight: numIn(f.weight), height: numIn(f.height), birthDate: parseBirth(f.birth), steps: Number(f.steps.replace(/\s/g, '')),
+    name: f.name.trim(),
+    ...(f.weight.trim() ? { weight: numIn(f.weight) } : {}), ...(f.height.trim() ? { height: numIn(f.height) } : {}),
+    ...(f.birth.trim() ? { birthDate: parseBirth(f.birth) } : {}), ...(f.steps.trim() ? { steps: Number(f.steps.replace(/\s/g, '')) } : {}),
     ...(f.sex ? { sex: f.sex } : {}), ...(f.fat.trim() ? { bodyFat: numIn(f.fat) } : {}),
   });
   const iso = parseBirth(f.birth);
@@ -311,7 +320,8 @@ const okG = (s: string) => /^\d{1,4}$/.test(s.trim()) && Number(s) <= 1000;
 function useNormsForm() {
   const { me } = useApp();
   const cur = currentNorms(me);
-  const init = { training: cur.training ? cur.training.map(String) : ['', '', ''], rest: cur.rest.map(String) };
+  // No calories yet (skipped at sign-up): empty fields, not zeros.
+  const init = { training: cur.training ? cur.training.map(String) : ['', '', ''], rest: hasNorm(me) ? cur.rest.map(String) : ['', '', ''] };
   const [v, setV] = useState(init);
   // The form follows the saved norms when they change (a recalculation, a save elsewhere), not only on mount.
   const key = JSON.stringify(init);
@@ -546,10 +556,57 @@ function DesktopProfile() {
           </div>
         ))}
         {section('Тема', <ThemePicker size={72} />)}
-        {section('Безопасность', <a className="btn small outline" href="#/profile/password">Сменить пароль</a>)}
+        {section('Безопасность', (
+          <div className="row" style={{ gap: 10, flexWrap: 'wrap' }}>
+            <a className="btn small outline" href="#/profile/password">Сменить пароль</a>
+            <a className="btn small outline" href="#/profile/delete" style={{ color: 'var(--warnT)' }}>Удалить аккаунт</a>
+          </div>
+        ))}
       </div>
       <RecalcSheet offer={offer} busy={busy} onRecalc={() => void recalc()} onLater={() => setOffer(null)} />
     </Screen>
   );
 }
 
+
+/** Delete the account for good: what goes, what stays (own products in the shared library), the password. */
+export function DeleteAccountScreen() {
+  const { wide } = useApp();
+  const [pass, setPass] = useState('');
+  const [err, setErr] = useState<string | null>(null);
+  const [busy, setBusy] = useState(false);
+  const del = async () => {
+    if (!pass || busy) return;
+    setBusy(true); setErr(null);
+    try {
+      await api('DELETE', '/me', { password: pass });
+      setToken(null); clearCache(); location.hash = '#/login'; location.reload();
+    } catch (e) {
+      setErr(e instanceof ApiError && e.code === 'bad_password' ? 'Неверный пароль' : errText(e));
+      setBusy(false);
+    }
+  };
+  const body = (
+    <div className="col" style={{ gap: 14, maxWidth: wide ? 520 : undefined }}>
+      <section className="card col a-in" style={{ gap: 12 }}>
+        <div className="col" style={{ gap: 6 }}><b style={{ color: 'var(--warnT)' }}>Удалится навсегда</b><span className="muted" style={{ lineHeight: 1.45 }}>Профиль и нормы, дневник еды, блюда, тренировки, программы и свои упражнения. Вернуть их будет нельзя.</span></div>
+        <div style={{ height: 1, background: 'var(--line)' }} />
+        <div className="col" style={{ gap: 6 }}><b>Останется</b><span className="muted" style={{ lineHeight: 1.45 }}>Продукты, которые вы добавили в общую библиотеку, — без вашего имени.</span></div>
+      </section>
+      <section className="card col a-in" style={{ gap: 12 }}>
+        <Field label="Пароль для подтверждения" id="del-pass" error={err}>
+          <PasswordInput id="del-pass" autoComplete="current-password" value={pass} onChange={(v) => { setPass(v); setErr(null); }} invalid={!!err} />
+        </Field>
+        <button className="btn big" disabled={!pass || busy} onClick={() => void del()} style={pass ? { background: 'var(--warn)', color: '#fff' } : undefined}>Удалить аккаунт навсегда</button>
+        <a className="btn sec" href="#/profile">Отмена</a>
+      </section>
+    </div>
+  );
+  if (wide) return <div className="page"><h1 className="h1">Удаление аккаунта</h1>{body}</div>;
+  return (
+    <Screen className="modal">
+      <div className="navbar"><a className="link" href="#/profile">‹ Профиль</a><b>Удаление аккаунта</b><span style={{ width: 76 }} /></div>
+      {body}
+    </Screen>
+  );
+}

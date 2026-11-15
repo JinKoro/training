@@ -20,6 +20,9 @@ export function setNormFor(me: Me, date: Day, type: 'training' | 'rest'): Macros
   return (found ?? first)?.macros ?? null;
 }
 
+/** False when no calories were ever set (skipped at sign-up): screens then show only what was eaten. */
+export const hasNorm = (me: Me) => me.norms.some((n) => n.type === 'rest' && !!n.macros);
+
 /** Norm used for a day: a training day without its own norm falls back to the rest-day norm. */
 export function normFor(me: Me, date: Day, type: 'training' | 'rest'): Macros {
   const rest = setNormFor(me, date, 'rest') ?? [0, 0, 0];
@@ -269,7 +272,7 @@ export const fmtG = (n: number) => (n >= 10 || Number.isInteger(n) ? String(Math
 // ---------- week ----------
 export interface DayInfo {
   date: Day; isTraining: boolean; isPlan: boolean; isToday: boolean;
-  norm: Macros; eaten: Macros | null; kcal: number | null; meals: Record<Meal, Macros> | null; mealKcal: Record<Meal, number> | null;
+  norm: Macros; noNorm: boolean; eaten: Macros | null; kcal: number | null; meals: Record<Meal, Macros> | null; mealKcal: Record<Meal, number> | null;
   workout: Workout | null; planned: { week: number; weekday: number; rows: PlanRow[] } | null;
 }
 
@@ -287,6 +290,7 @@ export function plannedOpen(program: Program | undefined, date: Day, workouts: W
 export function buildDays(days: Day[], me: Me, program: Program | undefined, workouts: Workout[], entries: Entry[]): DayInfo[] {
   const t = today();
   const totals = dayTotals(entries);
+  const noNorm = !hasNorm(me);
   return days.map((date) => {
     const workout = workouts.find((w) => w.date === date) ?? null;
     const planned = plannedOpen(program, date, workouts);
@@ -295,7 +299,7 @@ export function buildDays(days: Day[], me: Me, program: Program | undefined, wor
     const isPlan = date > t;
     return {
       date, isTraining, isPlan, isToday: date === t,
-      norm: normFor(me, date, isTraining ? 'training' : 'rest'),
+      norm: normFor(me, date, isTraining ? 'training' : 'rest'), noNorm,
       eaten: isPlan ? null : tot?.macros ?? [0, 0, 0],
       kcal: isPlan ? null : Math.round(tot?.kcal ?? 0),
       meals: tot?.meals ?? null, mealKcal: tot?.mealKcal ?? null,

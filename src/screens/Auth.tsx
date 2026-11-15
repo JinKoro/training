@@ -1,8 +1,8 @@
 import { useState, type FormEvent } from 'react';
-import { api, ApiError } from '../lib/api';
+import { api, ApiError, setToken } from '../lib/api';
 import { useRoute } from '../lib/router';
 import { vEmail, vName, vPassword } from '../lib/validate';
-import { EnergyFlow, emptyEnergyForm, type EnergyForm, type EnergyResult } from './Energy';
+import { EnergyFlow, emptyEnergyForm, type EnergyForm } from './Energy';
 import { ExerciseArt, FoodArt, Logo } from '../art';
 import { Beta, Field, PasswordInput } from '../ui';
 
@@ -93,7 +93,6 @@ function Login({ onAuthed, wide }: { onAuthed: (t: string) => void; wide?: boole
 }
 
 function Register({ onAuthed, wide }: { onAuthed: (t: string) => void; wide?: boolean }) {
-  const [step, setStep] = useState(1);
   const [f, setF] = useState({ name: '', email: '', password: '', password2: '' });
   const [init] = useState<EnergyForm>(emptyEnergyForm);
   const [touched, setTouched] = useState<Record<string, boolean>>({});
@@ -110,32 +109,43 @@ function Register({ onAuthed, wide }: { onAuthed: (t: string) => void; wide?: bo
   const show = (k: string, err: string | null) => (touched[k] ? err : null);
   const ok1 = !Object.values(e1).some(Boolean);
 
-  const submit = async (r: EnergyResult) => {
+  // The account is made right after step 1; steps 2-4 only fill the profile and can be skipped.
+  // The token is stored at once (the app opens signed in if closed mid-way), the app itself opens after the last step.
+  const [token, setTok] = useState<string | null>(null);
+  const create = async () => {
     if (busy) return;
     setBusy(true); setServerErr(null);
     try {
-      const { token } = await api<{ token: string }>('POST', '/auth/register', {
-        email: f.email.trim(), password: f.password, name: f.name.trim(), ...r.profile, goal: r.goal, norms: r.norms,
-      });
-      onAuthed(token);
+      const r = await api<{ token: string }>('POST', '/auth/register', { email: f.email.trim(), password: f.password, name: f.name.trim() });
+      setToken(r.token); setTok(r.token);
     } catch (err) {
-      if (err instanceof ApiError && err.code === 'email_taken') { setServerErr({ field: 'email', text: 'Эта почта уже занята' }); setStep(1); }
+      if (err instanceof ApiError && err.code === 'email_taken') setServerErr({ field: 'email', text: 'Эта почта уже занята' });
       else setServerErr({ field: 'form', text: err instanceof ApiError && err.code === 'network' ? 'Нет связи с сервером' : 'Не получилось создать аккаунт' });
     } finally { setBusy(false); }
   };
+  const finish = async (body: Record<string, unknown> | null) => {
+    if (busy || !token) return;
+    setBusy(true); setServerErr(null);
+    try {
+      if (body) await api('PUT', '/me/profile', body);
+      onAuthed(token);
+    } catch (err) {
+      setServerErr({ field: 'form', text: err instanceof ApiError && err.code === 'network' ? 'Нет связи с сервером' : 'Не получилось сохранить' });
+      setBusy(false);
+    }
+  };
 
-  // The body-data steps stay mounted after the first visit, so going back to step 1 keeps what was typed there.
-  const [visited, setVisited] = useState(false);
-  const flow = visited ? (
-    <div className="col" style={{ flex: 1, display: step === 2 ? 'flex' : 'none' }}>
+  const flow = token ? (
+    <div className="col" style={{ flex: 1 }}>
       <EnergyFlow mode="register" init={init} wide={!!wide} busy={busy} error={serverErr?.field === 'form' ? serverErr.text : null}
-        onBack={() => setStep(1)} onDone={(r) => void submit(r)} />
+        onDone={(r) => void finish({ ...r.profile, goal: r.goal, norms: r.norms })}
+        onSkip={(done) => void finish(Object.keys(done).length ? done : null)} />
     </div>
   ) : null;
   return (
     <>
     {flow}
-    {step === 1 ? <form className="col" style={{ gap: 18, flex: 1 }} onSubmit={(e) => { e.preventDefault(); if (ok1) { setVisited(true); setStep(2); } else setTouched({ name: true, email: true, password: true, password2: true }); }}>
+    {!token ? <form className="col" style={{ gap: 18, flex: 1 }} onSubmit={(e) => { e.preventDefault(); if (ok1) void create(); else setTouched({ name: true, email: true, password: true, password2: true }); }}>
       <div className="between">
         {!wide ? <a className="link" href="#/login">‹ Вход</a> : <span />}
         <span className="muted" style={{ fontWeight: 700 }}>Шаг 1 из 4</span>
@@ -149,7 +159,8 @@ function Register({ onAuthed, wide }: { onAuthed: (t: string) => void; wide?: bo
       <Field label="Пароль" id="r-pass" error={show('password', e1.password)}><PasswordInput id="r-pass" autoComplete="new-password" value={f.password} onChange={(v) => set('password')({ target: { value: v } } as React.ChangeEvent<HTMLInputElement>)} invalid={!!show('password', e1.password)} /></Field>
       <Field label="Пароль ещё раз" id="r-pass2" error={show('password2', e1.password2)}><PasswordInput id="r-pass2" autoComplete="new-password" value={f.password2} onChange={(v) => set('password2')({ target: { value: v } } as React.ChangeEvent<HTMLInputElement>)} invalid={!!show('password2', e1.password2)} /></Field>
       <div style={{ flex: 1 }} />
-      <button className="btn big" disabled={!ok1}>Создать аккаунт</button>
+      {serverErr?.field === 'form' ? <span className="err">{serverErr.text}</span> : null}
+      <button className="btn big" disabled={!ok1 || busy}>Создать аккаунт</button>
     </form> : null}
     </>
   );

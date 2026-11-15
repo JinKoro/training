@@ -21,7 +21,7 @@ import { ExerciseFormScreen, LibraryScreen } from './screens/Exercises';
 import { LogScreen } from './screens/Log';
 import { FoodScreen } from './screens/Food';
 import { AddFoodScreen, DishNewScreen, ItemScreen, ProductEditScreen, ProductNewScreen, ScanScreen } from './screens/FoodAdd';
-import { NormsScreen, PasswordScreen, ProfileEditScreen, ProfileScreen, RecalcScreen, BodyScreen } from './screens/Profile';
+import { NormsScreen, PasswordScreen, ProfileEditScreen, ProfileScreen, RecalcScreen, BodyScreen, DeleteAccountScreen } from './screens/Profile';
 
 function useWide() {
   const q = '(min-width: 900px)';
@@ -172,6 +172,7 @@ function Routes({ r }: { r: string[] }) {
     case 'profile':
       if (b === 'edit') return <ProfileEditScreen />;
       if (b === 'body') return <BodyScreen />;
+      if (b === 'delete') return <DeleteAccountScreen />;
       if (b === 'norms') return <NormsScreen />;
       if (b === 'recalc') return <RecalcScreen />;
       if (b === 'password') return <PasswordScreen />;

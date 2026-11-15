@@ -8,7 +8,7 @@ import { go } from '../lib/router';
 import { invalidate, useQuery } from '../lib/query';
 import type { Entry, FoodItem, Meal } from '../lib/types';
 import { FoodArt, Icon } from '../art';
-import { AmountInput, ErrorBox, Screen, Sheet, Skeleton, errText, toast } from '../ui';
+import { AmountInput, ErrorBox, Screen, Sheet, Skeleton, errText, toast, NoNormCard } from '../ui';
 import { SearchInput } from './ExercisePicker';
 import { resetAdded } from './FoodAdd';
 
@@ -122,7 +122,8 @@ export function FoodScreen({ date }: { date?: string }) {
   const entries = data.entries.filter((e) => e.date === d);
   const eaten = info.eaten ?? sumMacros(entries.map(entryMacros));
   const eatenK = info.kcal ?? Math.round(sumKcal(entries)), normK = kcal(info.norm);
-  const over = eatenK > normK + 100;
+  const nn = info.noNorm;
+  const over = !nn && eatenK > normK + 100;
   const byMeal = (m: Meal) => entries.filter((e) => e.meal === m);
   const defaultTarget = target ?? MEALS.find((m) => !byMeal(m).length) ?? 'dinner';
 
@@ -144,8 +145,9 @@ export function FoodScreen({ date }: { date?: string }) {
                 <h1 className="display a-h" style={{ fontSize: 32 }}>{WD_CAP[diffDays(d, start)]}, {dayMonth(d)}</h1>
                 <a className="icon-btn" aria-label="Следующий день" href={`#/food/${addDays(d, 1)}`}>›</a>
               </div>
-              <b style={{ color: over ? 'var(--warnT)' : 'var(--muted)' }}>{over ? `сверх нормы ${fmt(eatenK - normK)} ккал` : `осталось ${fmt(normK - eatenK)} ккал`}</b>
+              <b style={{ color: over ? 'var(--warnT)' : 'var(--muted)' }}>{nn ? `съедено ${fmt(eatenK)} ккал` : over ? `сверх нормы ${fmt(eatenK - normK)} ккал` : `осталось ${fmt(normK - eatenK)} ккал`}</b>
             </div>
+            {nn ? <NoNormCard /> : null}
             <div className="card" style={{ overflowX: 'auto', padding: '6px 16px 12px' }}>
               <table className="num" style={{ width: '100%', minWidth: 620, borderCollapse: 'collapse' }}>
                 <thead><tr className="muted" style={{ fontSize: 13 }}>{['Продукт', 'Вес', 'Ккал', 'Б', 'Ж', 'У'].map((h, i) => <th key={h} style={{ textAlign: i ? 'right' : 'left', padding: '10px 6px', fontWeight: 800 }}>{h}</th>)}</tr></thead>
@@ -220,17 +222,18 @@ export function FoodScreen({ date }: { date?: string }) {
         <h1 className="display a-h ell" style={{ fontSize: 17, minWidth: 0 }}>{dayTitle}</h1>
         {rel !== 0 ? <a href={`#/food/${t}`} style={{ flex: 'none', border: '1px solid var(--track)', color: 'var(--acc)', borderRadius: 999, padding: '6px 12px', fontWeight: 800, fontSize: 14 }}>К сегодня</a> : null}
       </div>
+      {nn ? <NoNormCard /> : null}
       <div className="card row a-in" style={{ borderRadius: 22, padding: 14, gap: 16 }}>
-        <Ring eaten={eatenK} norm={normK} over={over} />
+        <Ring eaten={eatenK} norm={nn ? 0 : normK} over={over} />
         <div className="col grow" style={{ gap: 9 }}>
-          <b style={{ fontSize: 15, color: over ? 'var(--warnT)' : 'var(--ink)' }}>{over ? `Сверх нормы ${fmt(eatenK - normK)} ккал` : `Осталось ${fmt(normK - eatenK)} ккал`}</b>
-          <span className="sub" style={{ whiteSpace: 'nowrap' }}>{fmt(normK)} · {info.isTraining ? 'тренировка' : 'отдых'}</span>
+          <b style={{ fontSize: 15, color: over ? 'var(--warnT)' : 'var(--ink)' }}>{nn ? 'Съедено за день' : over ? `Сверх нормы ${fmt(eatenK - normK)} ккал` : `Осталось ${fmt(normK - eatenK)} ккал`}</b>
+          {nn ? null : <span className="sub" style={{ whiteSpace: 'nowrap' }}>{fmt(normK)} · {info.isTraining ? 'тренировка' : 'отдых'}</span>}
           {[0, 1, 2].map((i) => {
-            const o = eaten[i] > info.norm[i] + 3;
+            const o = !nn && eaten[i] > info.norm[i] + 3;
             return (
               <div key={i} className="col" style={{ gap: 4 }}>
-                <div className="between" style={{ fontSize: 14 }}><b>{NAMES[i]}</b><span className="num" style={{ color: o ? 'var(--warnT)' : 'var(--ink)' }}>{Math.round(eaten[i])} / {info.norm[i]}</span></div>
-                <div className="bar" style={{ height: 7 }}><i className="a-fill" style={{ width: `${Math.min(100, (eaten[i] / (info.norm[i] || 1)) * 100)}%`, background: COLORS[i] }} /></div>
+                <div className="between" style={{ fontSize: 14 }}><b>{NAMES[i]}</b><span className="num" style={{ color: o ? 'var(--warnT)' : 'var(--ink)' }}>{nn ? `${Math.round(eaten[i])} г` : `${Math.round(eaten[i])} / ${info.norm[i]}`}</span></div>
+                <div className="bar" style={{ height: 7, ...(nn ? { visibility: 'hidden' } : {}) }}><i className="a-fill" style={{ width: `${Math.min(100, (eaten[i] / (info.norm[i] || 1)) * 100)}%`, background: COLORS[i] }} /></div>
               </div>
             );
           })}
@@ -270,11 +273,11 @@ function Ring({ eaten, norm, over }: { eaten: number; norm: number; over: boolea
   const len = 2 * Math.PI * 48;
   const dash = Math.min(1, norm ? eaten / norm : 0) * len;
   return (
-    <div style={{ position: 'relative', width: 116, height: 116, flex: 'none' }} aria-label={`Съедено ${eaten} из ${norm} ккал`} role="img">
+    <div style={{ position: 'relative', width: 116, height: 116, flex: 'none' }} aria-label={norm ? `Съедено ${eaten} из ${norm} ккал` : `Съедено ${eaten} ккал`} role="img">
       <svg width="116" height="116" viewBox="0 0 116 116" aria-hidden="true">
         <circle cx="58" cy="58" r="48" fill="none" stroke="var(--track)" strokeWidth="12" />
-        <circle cx="58" cy="58" r="48" fill="none" stroke={over ? 'var(--warn)' : 'var(--acc)'} strokeWidth="12" strokeLinecap="round"
-          strokeDasharray={`${dash} ${len}`} transform="rotate(-90 58 58)" style={{ transition: 'stroke-dasharray 1.1s cubic-bezier(.2,.8,.2,1)' }} />
+        {dash > 0 ? <circle cx="58" cy="58" r="48" fill="none" stroke={over ? 'var(--warn)' : 'var(--acc)'} strokeWidth="12" strokeLinecap="round"
+          strokeDasharray={`${dash} ${len}`} transform="rotate(-90 58 58)" style={{ transition: 'stroke-dasharray 1.1s cubic-bezier(.2,.8,.2,1)' }} /> : null}
       </svg>
       <div style={{ position: 'absolute', inset: 0, display: 'flex', flexDirection: 'column', alignItems: 'center', justifyContent: 'center' }}>
         <b className="display num" style={{ fontSize: 22 }}>{fmt(eaten)}</b><span className="sub" style={{ fontSize: 12 }}>съедено</span>
@@ -425,12 +428,12 @@ function WeekMacroCard({ days, d }: { days: ReturnType<typeof useDays>['days']; 
       {[0, 1, 2].map((j) => {
         const goal = days.reduce((a, x) => a + x.norm[j], 0);
         const eaten = days.slice(0, idx + 1).reduce((a, x) => a + (x.eaten?.[j] ?? 0), 0);
-        const per = remaining.length ? Math.max(0, Math.round((goal - eaten) / remaining.length)) : null;
+        const per = remaining.length && !days[0].noNorm ? Math.max(0, Math.round((goal - eaten) / remaining.length)) : null;
         const pre = j === 0 && remaining.length ? (remaining.length === 2 && remaining[0].date === days[5].date ? 'на выходные ' : `на ${remaining.length} дн. `) : '';
         return (
           <div key={j} className="col" style={{ gap: 6 }}>
-            <div className="between"><b>{NAMES[j]}</b>{per !== null ? <span className="muted" style={{ fontSize: 13 }}>{pre}по {per} г</span> : null}</div>
-            <div className="bar" style={{ height: 10, borderRadius: 5 }}><i className="a-fill" style={{ width: `${Math.min(100, (eaten / (goal || 1)) * 100)}%`, background: COLORS[j] }} /></div>
+            <div className="between"><b>{NAMES[j]}</b>{per !== null ? <span className="muted" style={{ fontSize: 13 }}>{pre}по {per} г</span> : days[0].noNorm ? <span className="num" style={{ fontWeight: 800 }}>{Math.round(eaten)} г</span> : null}</div>
+            {days[0].noNorm ? null : <div className="bar" style={{ height: 10, borderRadius: 5 }}><i className="a-fill" style={{ width: `${Math.min(100, (eaten / (goal || 1)) * 100)}%`, background: COLORS[j] }} /></div>}
           </div>
         );
       })}

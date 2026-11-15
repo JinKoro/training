@@ -18,6 +18,20 @@ describe('auth: register', () => {
     expect(me.body.norms.find((n: any) => n.type === 'rest').macros).toEqual([140, 60, 200]);
   });
 
+  it('the account is made from step 1 alone (name, e-mail, password): no body data, no calories', async () => {
+    const r = await call('POST', '/auth/register', { email: `${uniq()}@test.example`, password: 'password123', name: 'Только имя' });
+    expect(r.status).toBe(201);
+    const me = await call('GET', '/me', undefined, { token: r.body.token });
+    expect(me.body.profile).toMatchObject({ name: 'Только имя', weight: null, height: null, birthDate: null, steps: null, sex: null, bodyFat: null });
+    expect(me.body.norms).toEqual([]);
+    // the later steps fill the profile and the calories
+    const put = await call('PUT', '/me/profile', { sex: 'f', weight: 60, height: 168 }, { token: r.body.token });
+    expect(put.status).toBe(200);
+    expect(put.body.profile).toMatchObject({ sex: 'f', weight: 60, height: 168, birthDate: null });
+    expect(put.body.norms).toEqual([]);
+    expect((await call('POST', '/auth/register', { email: `${uniq()}@test.example`, password: 'password123' })).body.field).toBe('name');
+  });
+
   it('accepts training norms = null (not set)', async () => {
     const r = await call('POST', '/auth/register', registerBody({ norms: { training: null, rest: [1, 2, 3] } }));
     expect(r.status).toBe(201);
@@ -48,7 +62,6 @@ describe('auth: register', () => {
     ['impossible birthDate', { birthDate: '1990-02-30' }, 'birthDate'],
     ['fractional steps', { steps: 100.5 }, 'steps'],
     ['bad goal', { goal: 'bulk' }, 'goal'],
-    ['norms missing', { norms: undefined }, 'norms'],
     ['norms wrong length', { norms: { training: [1, 2], rest: [1, 2, 3] } }, 'norms'],
     ['norms negative', { norms: { training: null, rest: [1, -2, 3] } }, 'norms'],
     ['bad sex', { sex: 'x' }, 'sex'],
@@ -191,5 +204,31 @@ describe('rest timer', () => {
     expect((await timer('/stop', body, 'nope')).status).toBe(401);
     const u = await newUser();
     expect((await timer('/start', { endpoint: 'https://evil.example/x', seconds: 60 }, u.token)).status).toBe(400);
+  });
+});
+
+describe('delete the account', () => {
+  it('needs the password; deletes the user and all their data; own shared products stay without the author', async () => {
+    const a = await newUser();
+    const code = String(Date.now()).slice(-8);
+    const prod = await a.post('/products', { name: 'Продукт удалённого', barcode: code, protein: 10, fat: 5, carbs: 20 });
+    expect(prod.status).toBe(201);
+    expect((await a.post('/diary', { date: '2026-11-10', meal: 'lunch', itemType: 'product', itemId: prod.body.id ?? prod.body.product?.id, grams: 100 })).status).toBeLessThan(300);
+
+    const wrong = await a.req('DELETE', '/me', { password: 'nope-nope' });
+    expect(wrong.status).toBe(400);
+    expect(wrong.body).toEqual({ error: 'bad_password', field: 'password' });
+    expect((await a.get('/me')).status).toBe(200);
+
+    expect((await a.req('DELETE', '/me', { password: 'password123' })).status).toBe(200);
+    expect((await a.get('/me')).status).toBe(401);
+    expect((await call('POST', '/auth/login', { email: a.email, password: 'password123' })).status).toBe(401);
+    // the e-mail is free again
+    expect((await call('POST', '/auth/register', registerBody({ email: a.email }))).status).toBe(201);
+
+    const b = await newUser();
+    const found = await b.get(`/products?barcode=${code}`);
+    expect(found.body.product).toMatchObject({ name: 'Продукт удалённого' });
+    expect(found.body.product.own ?? false).toBe(false);
   });
 });

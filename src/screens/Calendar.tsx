@@ -28,7 +28,7 @@ export function CalendarScreen({ date, food }: { date?: string; food?: boolean }
   if (data.error) return <Screen title="Календарь"><ErrorBox error={data.error} retry={data.reload} /></Screen>;
   if (!data.days) return <Screen title="Календарь"><Skeleton n={4} /></Screen>;
   const d = data.days.find((x) => x.date === selected)!;
-  const status = d.isToday ? ['идёт день', 'var(--acc)'] : d.isPlan ? ['впереди', 'var(--muted)']
+  const status = d.isToday ? ['идёт день', 'var(--acc)'] : d.isPlan ? ['впереди', 'var(--muted)'] : d.noNorm ? ['прошёл', 'var(--muted)']
     : (d.kcal ?? 0) > kcal(d.norm) + 100 ? ['перебор', 'var(--warnT)'] : ['в норме', 'var(--goodT)'];
 
   const grid = (
@@ -49,7 +49,7 @@ export function CalendarScreen({ date, food }: { date?: string; food?: boolean }
           const isSel = x.date === selected;
           const past = x.date < t;
           const hasFood = (x.kcal ?? 0) > 0;
-          const foodColor = x.isToday ? (hasFood ? 'var(--track)' : null) : past && hasFood ? ((x.kcal ?? 0) > kcal(x.norm) + 100 ? 'var(--warn)' : 'var(--good)') : null;
+          const foodColor = x.isToday ? (hasFood ? 'var(--track)' : null) : past && hasFood ? (x.noNorm ? 'var(--chart)' : (x.kcal ?? 0) > kcal(x.norm) + 100 ? 'var(--warn)' : 'var(--good)') : null;
           const missed = past && x.isTraining && !x.workout;
           return (
             <button key={x.date} onClick={() => setSel(x.date)} aria-pressed={isSel} title={dayMonth(x.date)}

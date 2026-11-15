@@ -431,9 +431,12 @@ export async function handleApi(request, env, path) {
       if (!EMAIL_RE.test(email)) fail(400, 'invalid_email', 'email');
       const password = typeof body.password === 'string' ? body.password : '';
       if (password.length < 8 || password.length > 128) fail(400, 'invalid_password', 'password');
-      const profile = profileFields(body, { partial: false });
+      // The account is made right after step 1 (name, e-mail, password): body data and calories are optional,
+      // filled later by the sign-up steps or in the profile.
+      const profile = profileFields(body, { partial: true });
+      if (profile.name === undefined) profile.name = str(body.name, 'name', { min: 1, max: 100 });
       const goal = oneOf(body.goal ?? 'keep', 'goal', ['lose', 'keep', 'gain']);
-      const norms = readNorms(body.norms, 'norms');
+      const norms = body.norms == null ? null : readNorms(body.norms, 'norms');
       const exists = await env.DB.prepare('SELECT 1 FROM users WHERE email = ?').bind(email).first();
       if (exists) fail(409, 'email_taken', 'email');
       const { hash, salt } = await hashPassword(password);
@@ -441,7 +444,7 @@ export async function handleApi(request, env, path) {
         'INSERT INTO users (email, password_hash, password_salt, goal, created_at, theme) VALUES (?, ?, ?, ?, ?, \'light\') RETURNING id',
       ).bind(email, hash, salt, goal, now).first();
       await writeProfile(env, user.id, today, profile);
-      await env.DB.batch(normStatements(env, user.id, today, norms));
+      if (norms) await env.DB.batch(normStatements(env, user.id, today, norms));
       return ok({ token: await createSession(env, user.id) }, 201);
     }
     if (method === 'POST' && seg[1] === 'login') {
@@ -480,6 +483,18 @@ export async function handleApi(request, env, path) {
   // --- me ---
   if (seg[0] === 'me') {
     if (seg.length === 1 && method === 'GET') return ok(await me(env, user));
+    if (seg.length === 1 && method === 'DELETE') {
+      // Delete the account for good (the password confirms it). Everything of the user goes with it (ON DELETE CASCADE);
+      // products they added to the shared library stay, without the author (created_by → NULL).
+      const body = await readJson(request);
+      if (!(await verifyPassword(String(body.password ?? ''), user))) fail(400, 'bad_password', 'password');
+      await env.DB.batch([
+        env.DB.prepare('UPDATE products SET created_by = NULL WHERE created_by = ?').bind(uid),
+        env.DB.prepare('DELETE FROM login_attempts WHERE key = ?').bind('e:' + user.email),
+        env.DB.prepare('DELETE FROM users WHERE id = ?').bind(uid),
+      ]);
+      return ok();
+    }
     if (seg.length === 1 && method === 'PATCH') {
       const body = await readJson(request);
       if (body.theme !== undefined) {

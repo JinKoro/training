@@ -6,7 +6,7 @@ import { useDays } from '../lib/hooks';
 import { go } from '../lib/router';
 import type { Macros } from '../lib/types';
 import { FoodArt, Icon } from '../art';
-import { ErrorBox, MacroBar, Screen, Skeleton } from '../ui';
+import { ErrorBox, MacroBar, NoNormCard, Screen, Skeleton } from '../ui';
 
 const MACRO_COLORS = ['var(--chart)', 'var(--warn)', 'var(--good)'];
 const MACRO_NAMES = ['Белки', 'Жиры', 'Углеводы'];
@@ -40,6 +40,7 @@ export function WeekScreen({ offset }: { offset: number }) {
     <>
       <WeekHeader start={start} offset={offset} onOffset={setOffset} />
       <Budget days={ds} offset={offset} />
+      {ds[0].noNorm ? <NoNormCard /> : null}
       <Bars days={ds} selected={selected} onSelect={setSel} />
     </>
   );
@@ -83,7 +84,9 @@ function Budget({ days, offset }: { days: DayInfo[]; offset: number }) {
   const B = days.reduce((a, d) => a + kcal(d.norm), 0);
   const eaten = days.reduce((a, d) => a + (d.kcal ?? 0), 0);
   let label: string, big: number, hint: string | null;
-  if (offset < 0) {
+  // No calories set: only what was eaten (no budget, no «left», no «over»).
+  if (days[0].noNorm) { label = 'Съедено за неделю'; big = eaten; hint = null; }
+  else if (offset < 0) {
     label = 'Съедено за неделю'; big = eaten;
     hint = eaten > B ? `Больше бюджета на ${fmt(eaten - B)} ккал из ${fmt(B)}` : `Меньше бюджета на ${fmt(B - eaten)} ккал из ${fmt(B)}`;
   } else if (offset === 0) {
@@ -118,16 +121,16 @@ function Budget({ days, offset }: { days: DayInfo[]; offset: number }) {
 }
 
 function Bars({ days, selected, onSelect }: { days: DayInfo[]; selected: number; onSelect: (i: number) => void }) {
-  const scale = Math.max(3000, ...days.map((d) => d.kcal ?? kcal(d.norm)));
+  const scale = Math.max(3000, ...days.map((d) => d.kcal ?? (d.noNorm ? 0 : kcal(d.norm))));
   return (
     <div style={{ display: 'grid', gridTemplateColumns: 'repeat(7, 1fr)', gap: 6, height: 128 }}>
       {days.map((d, k) => {
-        const val = d.isPlan ? kcal(d.norm) : d.kcal ?? 0;
-        const over = !d.isPlan && !d.isToday && (d.kcal ?? 0) > kcal(d.norm) + 100;
+        const val = d.isPlan ? (d.noNorm ? 0 : kcal(d.norm)) : d.kcal ?? 0;
+        const over = !d.noNorm && !d.isPlan && !d.isToday && (d.kcal ?? 0) > kcal(d.norm) + 100;
         const isSel = k === selected;
         return (
           <button key={d.date} onClick={() => onSelect(k)} aria-pressed={isSel}
-            title={d.isPlan ? `${WD_SHORT[k]}: норма ${kcal(d.norm)} ккал` : `${WD_SHORT[k]}: ${d.kcal} ккал`}
+            title={d.isPlan ? (d.noNorm ? WD_SHORT[k] : `${WD_SHORT[k]}: норма ${kcal(d.norm)} ккал`) : `${WD_SHORT[k]}: ${d.kcal} ккал`}
             style={{ display: 'flex', flexDirection: 'column', alignItems: 'center', justifyContent: 'flex-end', gap: 4 }}>
             <i className="a-bar" style={{
               width: '100%', maxWidth: 34, height: Math.max(4, Math.round((val / scale) * 90)), borderRadius: '6px 6px 2px 2px',
@@ -149,17 +152,17 @@ function Bars({ days, selected, onSelect }: { days: DayInfo[]; selected: number;
 
 export function FoodCard({ d, title, meals }: { d: DayInfo; title?: string; meals?: boolean }) {
   const normK = kcal(d.norm);
-  const over = !d.isPlan && !d.isToday && (d.kcal ?? 0) > normK + 100;
+  const over = !d.noNorm && !d.isPlan && !d.isToday && (d.kcal ?? 0) > normK + 100;
   const suffix = d.isToday ? 'пока' : d.isPlan ? 'план' : 'итог';
   const eaten: Macros = d.eaten ?? [0, 0, 0];
   return (
     <div className="card col a-in" style={{ gap: 10 }}>
       <div className="between">
         <span className="row" style={{ fontWeight: 800 }}><span style={{ color: 'var(--acc)' }}><Icon d="M3 12h18a9 9 0 0 1-18 0zM8 8c0-2 2-2 2-4M13 8c0-2 2-2 2-4" size={20} /></span>{title ?? `Еда · ${suffix}`}</span>
-        <span><b className="display num" style={{ fontSize: 17, color: over ? 'var(--warnT)' : d.isPlan ? 'var(--muted)' : 'var(--ink)' }}>{fmt(d.kcal ?? 0)}</b><span className="muted"> / {fmt(normK)} ккал</span></span>
+        <span><b className="display num" style={{ fontSize: 17, color: over ? 'var(--warnT)' : d.isPlan ? 'var(--muted)' : 'var(--ink)' }}>{fmt(d.kcal ?? 0)}</b><span className="muted">{d.noNorm ? ' ккал' : ` / ${fmt(normK)} ккал`}</span></span>
       </div>
       {[0, 1, 2].map((i) => (
-        <MacroBar key={i} name={MACRO_NAMES[i]} value={eaten[i]} norm={d.norm[i]} color={MACRO_COLORS[i]} over={!d.isToday && !d.isPlan && eaten[i] - d.norm[i] > 3} />
+        <MacroBar key={i} name={MACRO_NAMES[i]} value={eaten[i]} norm={d.noNorm ? null : d.norm[i]} color={MACRO_COLORS[i]} over={!d.noNorm && !d.isToday && !d.isPlan && eaten[i] - d.norm[i] > 3} />
       ))}
       {meals && d.meals && !d.isPlan ? (
         <div style={{ display: 'grid', gridTemplateColumns: 'repeat(4, 1fr)', gap: 6 }}>
@@ -273,10 +276,12 @@ function EmptyWeek({ days }: { days: DayInfo[] }) {
   return (
     <Screen title="Неделя">
       <div><b>Неделя 1</b><div className="muted" style={{ fontSize: 14 }}>{weekRange(days[0].date)}</div></div>
-      <div className="col" style={{ gap: 2 }}>
-        <span className="muted" style={{ fontSize: 14, fontWeight: 700 }}>Бюджет на неделю</span>
-        <span><span className="display num" style={{ fontSize: 44 }}>{fmt(B)}</span> <span style={{ fontSize: 18 }}>ккал</span></span>
-      </div>
+      {days[0].noNorm ? <NoNormCard /> : (
+        <div className="col" style={{ gap: 2 }}>
+          <span className="muted" style={{ fontSize: 14, fontWeight: 700 }}>Бюджет на неделю</span>
+          <span><span className="display num" style={{ fontSize: 44 }}>{fmt(B)}</span> <span style={{ fontSize: 18 }}>ккал</span></span>
+        </div>
+      )}
       <div style={{ display: 'grid', gridTemplateColumns: 'repeat(7, 1fr)', gap: 6, height: 100, alignItems: 'end' }}>
         {WD_SHORT.map((w, i) => (
           <div key={w} className="col" style={{ alignItems: 'center', gap: 4 }}>
@@ -325,8 +330,9 @@ function MacroWeek({ j, days }: { j: number; days: DayInfo[] }) {
   const past = days.filter((d) => !d.isPlan);
   const sum = Math.round(past.reduce((a, d) => a + (d.eaten?.[j] ?? 0), 0));
   const rest = days.filter((d) => d.isPlan);
+  const nn = days[0].noNorm;
   let left = 0, line: { text: string; warn: boolean } | null = null;
-  if (rest.length) {
+  if (rest.length && !nn) {
     const before = days.filter((d) => !d.isPlan && !d.isToday).reduce((a, d) => a + (d.eaten?.[j] ?? 0), 0);
     const tday = ti >= 0 ? Math.max(days[ti].eaten?.[j] ?? 0, days[ti].norm[j]) : 0;
     left = Math.max(0, Math.round((goal - before - tday) / rest.length));
@@ -340,20 +346,20 @@ function MacroWeek({ j, days }: { j: number; days: DayInfo[] }) {
   const max = 1.1 * Math.max(1, ...days.map((d) => Math.max(d.eaten?.[j] ?? 0, d.norm[j], d.isPlan ? left : 0)));
   return (
     <div className="card col a-in" style={{ gap: 10 }}>
-      <div className="between"><b style={{ fontSize: 17 }}>{MACRO_NAMES[j]}</b><span className="muted"><b style={{ color: 'var(--ink)' }}>{fmt(sum)}</b> из {fmt(goal)} г за неделю</span></div>
+      <div className="between"><b style={{ fontSize: 17 }}>{MACRO_NAMES[j]}</b><span className="muted"><b style={{ color: 'var(--ink)' }}>{fmt(sum)}</b>{nn ? ' г за неделю' : ` из ${fmt(goal)} г за неделю`}</span></div>
       <div style={{ display: 'grid', gridTemplateColumns: 'repeat(7, 1fr)', gap: 6, height: 64, alignItems: 'end' }}>
         {days.map((d, k) => {
           const g = d.isPlan ? left : d.eaten?.[j] ?? 0;
-          const over = !d.isPlan && !d.isToday && g > d.norm[j] + 3;
+          const over = !nn && !d.isPlan && !d.isToday && g > d.norm[j] + 3;
           return (
             <div key={d.date} style={{ position: 'relative', height: '100%', display: 'flex', alignItems: 'flex-end', justifyContent: 'center' }}
-              title={d.isPlan ? `${WD_SHORT[k]}: план ${left} г` : `${WD_SHORT[k]}: ${Math.round(g)} из ${d.norm[j]} г`}>
+              title={d.isPlan ? `${WD_SHORT[k]}: план ${left} г` : nn ? `${WD_SHORT[k]}: ${Math.round(g)} г` : `${WD_SHORT[k]}: ${Math.round(g)} из ${d.norm[j]} г`}>
               <i className="a-bar" style={{
                 width: '100%', maxWidth: 30, height: Math.round((g / max) * 64), borderRadius: '5px 5px 2px 2px', boxSizing: 'border-box',
                 background: d.isPlan ? 'transparent' : d.isToday ? 'var(--acc)' : over ? 'var(--warn)' : 'var(--chart)',
-                border: d.isPlan ? '2px dashed var(--chart)' : 'none', animationDelay: `${0.15 + k * 0.05}s`,
+                border: d.isPlan && !nn ? '2px dashed var(--chart)' : 'none', animationDelay: `${0.15 + k * 0.05}s`,
               }} />
-              <i style={{ position: 'absolute', left: 2, right: 2, bottom: Math.round((d.norm[j] / max) * 64), height: 2, background: 'var(--ink)', opacity: 0.7 }} />
+              {nn ? null : <i style={{ position: 'absolute', left: 2, right: 2, bottom: Math.round((d.norm[j] / max) * 64), height: 2, background: 'var(--ink)', opacity: 0.7 }} />}
             </div>
           );
         })}

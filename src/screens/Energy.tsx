@@ -39,9 +39,15 @@ const NOTE: React.CSSProperties = { fontSize: 14, lineHeight: 1.4 };
  * Body data -> body fat -> expenditure and suggested calories.
  * Registration uses it as steps 2-4 of 4; the profile uses it as its own 3-step recalculation.
  */
-export function EnergyFlow({ mode, init, wide, busy, error, onBack, onDone }: {
+export function EnergyFlow({ mode, init, wide, busy, error, onBack, onDone, onSkip }: {
   mode: 'register' | 'recalc'; init: EnergyForm; wide: boolean; busy: boolean; error?: string | null;
-  onBack: () => void; onDone: (r: EnergyResult) => void;
+  /** Absent: no way back from the first step (sign-up after the account is made). */
+  onBack?: () => void; onDone: (r: EnergyResult) => void;
+  /**
+   * Sign-up only: «Пропустить» skips this step and the ones after it (they depend on it). Gets what the passed steps
+   * filled: nothing on «О себе», sex/birth/weight/height on «Процент жира», plus body fat on «Расход и норма».
+   */
+  onSkip?: (done: Partial<EnergyResult['profile']>) => void;
 }) {
   const reg = mode === 'register';
   const [step, setStep] = useState(0);
@@ -79,6 +85,14 @@ export function EnergyFlow({ mode, init, wide, busy, error, onBack, onDone }: {
     });
   };
 
+  const skip = () => {
+    if (!onSkip) return;
+    const done: Partial<EnergyResult['profile']> = {};
+    if (step >= 1) Object.assign(done, { sex: f.sex, birthDate: parseBirth(f.birth)!, weight: w, height: numIn(f.height) });
+    if (step >= 2) done.bodyFat = fat;
+    onSkip(done);
+  };
+
   const total = reg ? 4 : 3, no = reg ? step + 2 : step + 1;
   const seg = <T extends string>(opts: [T, string][], cur: T, pick: (v: T) => void) => (
     <div className="seg">{opts.map(([k, l]) => <button key={k} type="button" aria-pressed={cur === k} onClick={() => pick(k)}>{l}</button>)}</div>
@@ -110,7 +124,7 @@ export function EnergyFlow({ mode, init, wide, busy, error, onBack, onDone }: {
   return (
     <div className="col" style={{ gap: 14, flex: 1, width: '100%', maxWidth: wide ? (step === 2 ? 880 : 560) : undefined, alignSelf: 'center' }}>
       <div className="between">
-        <button type="button" className="link" onClick={() => (step === 0 ? onBack() : setStep(step - 1))}>{step === 0 && !reg ? '‹ Нормы' : '‹ Назад'}</button>
+        {step > 0 || onBack ? <button type="button" className="link" onClick={() => (step === 0 ? onBack?.() : setStep(step - 1))}>{step === 0 && !reg ? '‹ Нормы' : '‹ Назад'}</button> : <span />}
         <span className="muted" style={{ fontWeight: 700 }}>Шаг {no} из {total}</span>
       </div>
       <div style={{ display: 'grid', gridTemplateColumns: `repeat(${total}, 1fr)`, gap: 6 }}>
@@ -198,6 +212,7 @@ export function EnergyFlow({ mode, init, wide, busy, error, onBack, onDone }: {
               ))}
             </div>
             {reg ? <span className="muted" style={NOTE}>Желаемые калории можно будет поменять в профиле.</span> : null}
+            <span className="muted" style={{ fontSize: 13, lineHeight: 1.4 }}>Расчёт примерный, по общим формулам. Это не медицинская рекомендация: при болезнях, беременности или особой диете посоветуйтесь с врачом.</span>
           </div>
         </div>
       ) : null}
@@ -205,6 +220,7 @@ export function EnergyFlow({ mode, init, wide, busy, error, onBack, onDone }: {
       <div style={{ flex: 1 }} />
       {error ? <span className="err">{error}</span> : null}
       <button type="button" className="btn big" disabled={!okStep || busy} onClick={next}>{step < 2 ? 'Дальше' : reg ? 'Готово' : 'Сохранить'}</button>
+      {onSkip ? <button type="button" className="btn sec" disabled={busy} onClick={skip} style={{ marginTop: -4 }}>Пропустить</button> : null}
     </div>
   );
 }
