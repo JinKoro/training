@@ -225,6 +225,11 @@ export const kcal100 = (x: { protein: number; fat: number; carbs: number; kcal?:
 /** Kcal of an amount in grams (not rounded). */
 export const kcalAt = (x: { protein: number; fat: number; carbs: number; kcal?: number | null }, grams: number) =>
   ((x.kcal ?? x.protein * 4 + x.fat * 9 + x.carbs * 4) * grams) / 100;
+/** True when the label kcal per 100 g is stored with tenths (274,5): then kcal is shown to one decimal too. */
+export const kcalTenths = (x: { kcal?: number | null }) => x.kcal != null && Math.round(x.kcal * 10) % 10 !== 0;
+/** Kcal as a whole number, or to one decimal for a product whose label kcal has tenths. */
+export const fmtKcal = (n: number, tenths = false) =>
+  tenths ? (Math.round(n * 10) / 10).toLocaleString('ru-RU', { maximumFractionDigits: 1 }) : fmt(n);
 export const entryKcal = (e: { protein: number; fat: number; carbs: number; kcal?: number | null; grams: number }) => kcalAt(e, e.grams);
 export const sumKcal = (list: { protein: number; fat: number; carbs: number; kcal?: number | null; grams: number }[]) =>
   list.reduce((a, e) => a + entryKcal(e), 0);

@@ -5,6 +5,7 @@ import {
   programDonePct, programEnd, programProgress, programSlots, programWeek, setNormFor, setWeights, showKg, slotDone,
   suggestNorms, sumKcal, sumMacros, timesPerWeek, weekRange, weeksText, weekTrainingDays, workoutFromPlan, workoutStats,
   activeProgram,
+  fmtKcal, kcalTenths,
 } from '../../src/lib/calc';
 import type { Entry, PlanRow } from '../../src/lib/types';
 import { ex, me, prog, workout, wset } from './helpers';
@@ -442,5 +443,17 @@ describe('slotDone / plannedOpen / buildDays', () => {
     expect(days[1].workout).not.toBeNull();
     expect(days[0].eaten).toEqual([0, 0, 0]);
     expect(days[0].meals).toBeNull();
+  });
+});
+
+describe('kcal with tenths', () => {
+  it('a label kcal with tenths is shown to one decimal, a whole one as before', () => {
+    expect(kcalTenths({ kcal: 274.5 })).toBe(true);
+    expect(kcalTenths({ kcal: 342 })).toBe(false);
+    expect(kcalTenths({ kcal: null })).toBe(false); // computed from macros: whole kcal as before
+    expect(fmtKcal(274.5, true)).toBe('274,5');
+    expect(fmtKcal(411.75, true)).toBe('411,8');
+    expect(fmtKcal(342, true)).toBe('342');
+    expect(fmtKcal(274.5)).toBe('275');
   });
 });

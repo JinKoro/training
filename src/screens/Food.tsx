@@ -1,7 +1,7 @@
 import { useEffect, useMemo, useRef, useState } from 'react';
 import { useApp } from '../app-context';
 import { api } from '../lib/api';
-import { MEALS, MEAL_IN, MEAL_RU, entryKcal, entryMacros, fmt, fmt1, fmtG, kcal, kcal100, macroLine, sumKcal, sumMacros, weekRange } from '../lib/calc';
+import { MEALS, MEAL_IN, MEAL_RU, entryKcal, entryMacros, fmt, fmt1, fmtG, fmtKcal, kcal, kcal100, kcalTenths, macroLine, sumKcal, sumMacros, weekRange } from '../lib/calc';
 import { addDays, dayMonth, diffDays, fromDay, isDayStr, plural, today, WD_CAP, WD_SHORT, weekDays, weekStart } from '../lib/dates';
 import { useDays } from '../lib/hooks';
 import { go } from '../lib/router';
@@ -289,7 +289,8 @@ function EntrySheet({ entry, onClose }: { entry: Entry | null; onClose: () => vo
   if (!entry) return null;
   const g = Number(grams) || 0;
   const m = entryMacros({ ...entry, grams: g });
-  const per100 = Math.round(kcal100(entry));
+  const tenths = kcalTenths(entry);
+  const per100 = fmtKcal(kcal100(entry), tenths);
   const save = async () => {
     onClose();
     try { await api('PATCH', `/diary/${entry.id}`, { grams: g }); invalidate('/diary'); } catch (e) { toast(errText(e)); }
@@ -308,15 +309,15 @@ function EntrySheet({ entry, onClose }: { entry: Entry | null; onClose: () => vo
         </div>
         <button className="icon-btn" aria-label="Больше" style={{ height: 52, width: 52, borderRadius: 18, border: '1px solid var(--track)' }} onClick={() => setGrams(String(Math.min(5000, g + 50)))}>+</button>
       </div>
-      <Tiles m={m} k={entryKcal({ ...entry, grams: g })} />
+      <Tiles m={m} k={entryKcal({ ...entry, grams: g })} tenths={tenths} />
       <button className="btn" disabled={g < 1 || g > 5000} onClick={save}>Сохранить</button>
       <button className="btn danger" onClick={remove}>Удалить из дневника</button>
     </Sheet>
   );
 }
 
-export function Tiles({ m, k, big }: { m: [number, number, number]; k: number; big?: boolean }) {
-  const vals = [fmt(k), ...m.map(fmt1)];
+export function Tiles({ m, k, big, tenths }: { m: [number, number, number]; k: number; big?: boolean; tenths?: boolean }) {
+  const vals = [fmtKcal(k, tenths), ...m.map(fmt1)];
   return (
     <div style={{ display: 'grid', gridTemplateColumns: 'repeat(4, 1fr)', gap: 8 }}>
       {['ккал', 'белки', 'жиры', 'углев.'].map((l, i) => (
@@ -406,7 +407,7 @@ function QuickAdd({ date, meal }: { date: string; meal: Meal }) {
       {items.slice(0, 6).map((it) => (
         <div key={`${it.type}${it.id}`} className="row">
           <FoodArt kind={it.icon} size={44} />
-          <div className="grow"><b>{it.name}</b><div className="sub">{it.type === 'dish' ? 'своё блюдо' : `${Math.round(kcal100(it))} ккал на 100 г`}</div></div>
+          <div className="grow"><b>{it.name}</b><div className="sub">{it.type === 'dish' ? 'своё блюдо' : `${fmtKcal(kcal100(it), kcalTenths(it))} ккал на 100 г`}</div></div>
           <button aria-label={`Добавить ${it.name}`} onClick={() => void add(it)} style={{ width: 34, height: 34, borderRadius: 17, border: '2px solid var(--acc)', color: 'var(--acc)', fontWeight: 800 }}>+</button>
         </div>
       ))}

@@ -1,7 +1,7 @@
 import { useEffect, useRef, useState } from 'react';
 import { useApp } from '../app-context';
 import { api, ApiError } from '../lib/api';
-import { MEALS, MEAL_IN, MEAL_RU, fmt, fmtG, kcal, kcal100, kcalAt, macroLine, sumKcal } from '../lib/calc';
+import { MEALS, MEAL_IN, MEAL_RU, fmt, fmtG, fmtKcal, kcal, kcal100, kcalAt, kcalTenths, macroLine, sumKcal } from '../lib/calc';
 import { addDays, dayMonth, diffDays, isDayStr, today } from '../lib/dates';
 import { getCamera, parkCamera } from '../lib/camera';
 import { invalidate, useQuery, forget } from '../lib/query';
@@ -17,9 +17,9 @@ const asMeal = (m?: string): Meal => (MEALS.includes(m as Meal) ? (m as Meal) : 
 const asDate = (d?: string) => (isDayStr(d) ? d : today());
 const per100 = (it: FoodItem): [number, number, number] => [it.protein, it.fat, it.carbs];
 const subtitle = (it: FoodItem) => {
-  if (it.type === 'dish') return `своё блюдо · ${Math.round(kcal100(it))} ккал на 100 г`;
-  if (it.portionName === 'шт' && it.portionG) return `${Math.round(kcalAt(it, it.portionG))} ккал за штуку`;
-  return `${Math.round(kcal100(it))} ккал · ${macroLine(per100(it))}`;
+  if (it.type === 'dish') return `своё блюдо · ${fmtKcal(kcal100(it), kcalTenths(it))} ккал на 100 г`;
+  if (it.portionName === 'шт' && it.portionG) return `${fmtKcal(kcalAt(it, it.portionG), kcalTenths(it))} ккал за штуку`;
+  return `${fmtKcal(kcal100(it), kcalTenths(it))} ккал · ${macroLine(per100(it))}`;
 };
 const n = (s: string) => Number(String(s).replace(',', '.').trim());
 const MEAL_GEN: Record<Meal, string> = { breakfast: 'завтрака', lunch: 'обеда', dinner: 'ужина', snack: 'перекуса' };
@@ -404,7 +404,7 @@ export function ItemScreen({ date, type, id, meal }: { date?: string; type: 'pro
           {chips.map(([l, v]) => <button key={l} className="chip" aria-pressed={g === v} onClick={() => setGrams(String(v))}>{l}</button>)}
         </div>
       </div>
-      <Tiles m={m100} k={kcalAt(it, g)} big />
+      <Tiles m={m100} k={kcalAt(it, g)} big tenths={kcalTenths(it)} />
       {it.type === 'dish' ? (
         <div className="col" style={{ gap: 6 }}>
           <span className="label">Приёмы пищи</span>
