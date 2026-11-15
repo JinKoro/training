@@ -93,25 +93,26 @@ export function MeasureScreen() {
       {m.hint[sex] ? <span className="muted" style={{ fontSize: 12 }}>{m.hint[sex]}</span> : null}
     </Field>
   );
-  const chip = (i: 0 | 1 | 2, n: string) => (
-    <button key={i} type="button" aria-pressed={pick === i} onClick={() => setPick(i)}
-      style={{ height: 36, padding: '0 12px', borderRadius: 12, fontWeight: 800, fontSize: 14, background: pick === i ? 'var(--acc)' : 'var(--btn)', color: pick === i ? 'var(--onAcc)' : 'var(--ink)' }}>{n}</button>
-  );
   const body = (
     <div className="col" style={{ gap: 14, maxWidth: wide ? 760 : 'none' }}>
-      <section className="card col a-in" style={{ gap: 10, padding: '8px 16px' }}>
-        <div className="row" style={{ alignItems: 'center', gap: 10, minHeight: 44, flexWrap: 'wrap' }}>
-          <span style={{ flex: 1, fontWeight: 700 }}>Дата</span>
-          <span className="row" style={{ gap: 6 }}>{chip(0, 'Сегодня')}{chip(1, 'Вчера')}{chip(2, 'Другая…')}</span>
+      <section className="card col a-in" style={{ gap: 12, padding: '14px 16px 16px' }}>
+        <span className="label">Дата</span>
+        <div className="seg" role="group" aria-label="Дата" style={{ background: 'var(--bg)', boxShadow: 'none' }}>
+          {(['Сегодня', 'Вчера', 'Другая'] as const).map((n, i) => (
+            <button key={n} type="button" aria-pressed={pick === i} onClick={() => setPick(i as 0 | 1 | 2)} style={{ height: 40, fontSize: 14, minWidth: 0 }}>{n}</button>
+          ))}
         </div>
         {pick === 2 ? (
           <Field id="ms-date" label="Дата замера" error={dateOk ? null : 'Не позже сегодняшнего дня'}>
-            <input id="ms-date" type="date" className="input" value={other} max={t} onChange={(e) => setOther(e.target.value)} style={{ height: 50, borderRadius: 12, background: 'var(--bg)' }} />
+            {/* iOS gives a date input its own min width; reset so it fits the card */}
+            <input id="ms-date" type="date" className="input" value={other} max={t} onChange={(e) => setOther(e.target.value)}
+              style={{ height: 50, borderRadius: 12, background: 'var(--bg)', display: 'block', minWidth: 0, width: '100%', WebkitAppearance: 'none', appearance: 'none', fontWeight: 800, lineHeight: '50px' }} />
           </Field>
         ) : null}
+        {dateOk ? <span className="sub">Замер за {dayMonth(date)}</span> : null}
       </section>
       <section className="card col a-in" style={{ gap: 12, padding: '14px 16px 16px' }}>
-        <span className="label">Вес и жир</span>
+        <span className="label">Вес</span>
         <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 10, alignItems: 'start' }}>{input(METRICS[0])}{input(METRICS[1])}</div>
       </section>
       <section className="card col a-in" style={{ gap: 12, padding: '14px 16px 16px' }}>
