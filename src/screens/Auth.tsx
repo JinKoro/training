@@ -12,7 +12,7 @@ const standalone = () => (navigator as Navigator & { standalone?: boolean }).sta
 function InstallHint({ wide }: { wide?: boolean }) {
   if (!wide && standalone()) return null;
   return (
-    <div className="card row" style={{ gap: 12, alignItems: 'flex-start', borderRadius: 16, padding: '12px 14px' }}>
+    <div className="card row" style={{ gap: 12, alignItems: 'flex-start', borderRadius: 20, padding: '12px 14px' }}>
       <svg width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="var(--acc)" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" aria-hidden="true" style={{ flex: 'none' }}><path d="M12 3v12M8 7l4-4 4 4M6 11H5a1 1 0 0 0-1 1v8a1 1 0 0 0 1 1h14a1 1 0 0 0 1-1v-8a1 1 0 0 0-1-1h-1" /></svg>
       <span style={{ fontSize: 14, lineHeight: 1.4, textAlign: 'left' }}>
         {wide
@@ -29,7 +29,7 @@ export function AuthScreen({ wide, onAuthed }: { wide: boolean; onAuthed: (token
   if (!wide) return <div className="page modal" style={{ minHeight: '100dvh', paddingTop: 'calc(40px + var(--safe-top))' }}>{mode === 'login' ? <Login onAuthed={onAuthed} /> : <Register onAuthed={onAuthed} />}</div>;
   return (
     <div style={{ display: 'flex', flexWrap: 'wrap', minHeight: '100dvh' }}>
-      <section style={{ flex: '1 1 520px', background: '#2438C9', color: '#fff', padding: 56, display: 'flex', flexDirection: 'column', justifyContent: 'space-between', gap: 32 }}>
+      <section style={{ flex: '1 1 520px', background: 'var(--hero)', color: '#fff', padding: 56, display: 'flex', flexDirection: 'column', justifyContent: 'space-between', gap: 32 }}>
         <div className="row" style={{ gap: 12 }}><Logo /><span className="display" style={{ fontSize: 26 }}>Подход</span><Beta color="#fff" /></div>
         <h1 className="display" style={{ fontSize: 46, lineHeight: 1.08, maxWidth: 560 }}>Тренировки и питание в одном месте</h1>
         <div className="row" style={{ gap: 12 }}>
@@ -83,7 +83,7 @@ function Login({ onAuthed, wide }: { onAuthed: (t: string) => void; wide?: boole
         <div className="col" style={{ marginTop: 'auto', paddingTop: 32, gap: 8, textAlign: 'center' }}>
           <div style={{ marginBottom: 6 }}><InstallHint /></div>
           <span className="muted">Нет аккаунта?</span>
-          <a className="btn sec" href="#/register" style={{ height: 48, borderRadius: 14, fontSize: 15 }}>Зарегистрироваться</a>
+          <a className="btn sec" href="#/register" style={{ height: 48, borderRadius: 18, fontSize: 15 }}>Зарегистрироваться</a>
         </div>
       ) : null}
     </form>

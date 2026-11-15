@@ -11,7 +11,7 @@ describe('auth: register', () => {
     expect(me.status).toBe(200);
     expect(me.body.user.email).toBe((body.email as string).trim().toLowerCase());
     expect(me.body.user.goal).toBe('keep');
-    expect(me.body.user.theme).toBe('system');
+    expect(me.body.user.theme).toBe('light'); // the light theme is the default
     expect(me.body.profile).toMatchObject({ name: 'Тест', weight: 80, height: 180, birthDate: '1990-05-01', steps: 8000 });
     const types = me.body.norms.map((n: any) => n.type).sort();
     expect(types).toEqual(['rest', 'training']);

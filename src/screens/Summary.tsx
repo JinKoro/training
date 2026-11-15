@@ -14,7 +14,7 @@ export function SummaryBody({ w, back, cta, onMenu }: { w: Workout; back?: strin
   const dateText = `${WD_CAP[diffDays(w.date, weekStart(w.date))]}, ${dayMonth(w.date)}`;
   return (
     <div className="col" style={{ gap: 14, paddingBottom: cta ? 96 : 24 }}>
-      <div className="col" style={{ background: '#2438C9', color: '#fff', padding: 'calc(18px + var(--safe-top)) 18px 18px', borderRadius: '0 0 26px 26px', gap: 12 }}>
+      <div className="col" style={{ background: 'var(--hero)', color: '#fff', padding: 'calc(18px + var(--safe-top)) 18px 18px', borderRadius: '0 0 26px 26px', gap: 12 }}>
         {back || onMenu ? (
           <div className="between">
             {back ? <a href={back} style={{ fontWeight: 800, minHeight: 44, display: 'inline-flex', alignItems: 'center' }}>‹ Назад</a> : <span />}
@@ -26,15 +26,15 @@ export function SummaryBody({ w, back, cta, onMenu }: { w: Workout; back?: strin
           <h1 className="display" style={{ fontSize: 24 }}>{back ? w.title : 'Тренировка завершена'}</h1>
         </div>
         <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 10 }}>
-          <div className="a-in" style={{ background: '#fff', color: '#12151C', borderRadius: 16, padding: 12 }}>
-            <div style={{ fontSize: 13, fontWeight: 800, color: '#5A6371' }}>Подходы</div>
+          <div className="a-in" style={{ background: '#fff', color: '#1A1A1A', borderRadius: 20, padding: 12 }}>
+            <div style={{ fontSize: 13, fontWeight: 800, color: '#6E6A64' }}>Подходы</div>
             <div className="display num" style={{ fontSize: 24 }}>{s.done}</div>
-            <div style={{ fontSize: 13, color: '#5A6371', fontWeight: 700 }}>из {s.total} по плану</div>
+            <div style={{ fontSize: 13, color: '#6E6A64', fontWeight: 700 }}>из {s.total} по плану</div>
           </div>
-          <div className="a-in" style={{ background: '#fff', color: '#12151C', borderRadius: 16, padding: 12 }}>
-            <div style={{ fontSize: 13, fontWeight: 800, color: '#5A6371' }}>Выполнено</div>
+          <div className="a-in" style={{ background: '#fff', color: '#1A1A1A', borderRadius: 20, padding: 12 }}>
+            <div style={{ fontSize: 13, fontWeight: 800, color: '#6E6A64' }}>Выполнено</div>
             <div className="display num" style={{ fontSize: 24 }}>{s.pct}%</div>
-            <div style={{ fontSize: 13, color: '#5A6371', fontWeight: 700 }}>{s.D} из {s.P} повторов</div>
+            <div style={{ fontSize: 13, color: '#6E6A64', fontWeight: 700 }}>{s.D} из {s.P} повторов</div>
           </div>
         </div>
       </div>
@@ -44,8 +44,8 @@ export function SummaryBody({ w, back, cta, onMenu }: { w: Workout; back?: strin
           const dn = e.sets.reduce((a, x) => a + (x.completedAt !== null && x.reps !== null ? Math.min(x.reps, x.plannedReps) : 0), 0);
           const p = donePct(dn, plan);
           return (
-            <div key={e.position} className="card col a-in" style={{ borderRadius: 16, gap: 10 }}>
-              <div className="between"><b>{e.name}</b><b style={{ color: dn < plan ? 'var(--warnT)' : 'var(--goodT)' }}>{p}%</b></div>
+            <div key={e.position} className="card col a-in" style={{ borderRadius: 20, gap: 10 }}>
+              <div className="between"><b>{e.name}</b><b style={{ color: dn < plan * 0.9 ? 'var(--warnT)' : 'var(--goodT)' }}>{p}%</b></div>
               <div className="row" style={{ flexWrap: 'wrap', gap: 6 }}>
                 {e.sets.map((x) => {
                   const done = x.completedAt !== null && x.reps !== null;
@@ -69,7 +69,7 @@ export function SummaryBody({ w, back, cta, onMenu }: { w: Workout; back?: strin
         })}
       </div>
       {cta ? (
-        <div className="fixed-bottom"><button className="btn big" style={{ height: 62, borderRadius: 20 }} onClick={cta.onClick}>{cta.text}</button></div>
+        <div className="fixed-bottom"><button className="btn big" style={{ height: 62, borderRadius: 22 }} onClick={cta.onClick}>{cta.text}</button></div>
       ) : null}
     </div>
   );

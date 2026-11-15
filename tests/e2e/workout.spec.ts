@@ -214,8 +214,12 @@ test.describe('Workout flow', () => {
     await page.getByRole('button', { name: '+ Подход' }).click();
     await expect(page.getByLabel('Вес')).toHaveCount(2);
     await expect(page.getByLabel('Вес').nth(1)).toHaveValue('40');
-    await page.getByRole('button', { name: 'Удалить тренировку' }).click();
-    await sheet(page, 'Подтверждение').getByRole('button', { name: 'Удалить' }).click();
+    // the editor has no delete button: a workout is deleted only from the summary's «⋯» menu
+    await expect(page.getByRole('button', { name: 'Удалить тренировку' })).toHaveCount(0);
+    await open(page, `summary/${workout.id}`);
+    await page.getByRole('button', { name: 'Меню' }).click();
+    await sheet(page, 'Тренировка').getByRole('button', { name: 'Удалить тренировку' }).click();
+    await sheet(page, 'Тренировка').getByRole('button', { name: 'Да, удалить' }).click();
     await expect(page).toHaveURL(/#\/log$/);
     await expect(page.getByText('Здесь появятся прошедшие тренировки')).toBeVisible();
   });

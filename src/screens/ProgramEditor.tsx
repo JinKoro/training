@@ -155,7 +155,7 @@ function Editor({ mode, program }: { mode: 'new' | 'edit'; program?: Program }) 
           ))}
         </div>
       </div>
-      <div className="card between" style={{ borderRadius: 14, padding: '8px 12px' }}>
+      <div className="card between" style={{ borderRadius: 18, padding: '8px 12px' }}>
         <b>Недель в программе</b>
         <div className="row" style={{ gap: 6 }}>
           <button className="icon-btn" style={{ background: 'var(--bg)' }} aria-label="Меньше недель" onClick={() => { const w = Math.max(1, weeks - 1); setWeeks(w); setSel((s) => Math.min(s, w)); }}>−</button>
@@ -163,7 +163,7 @@ function Editor({ mode, program }: { mode: 'new' | 'edit'; program?: Program }) 
           <button className="icon-btn" style={{ background: 'var(--bg)' }} aria-label="Больше недель" onClick={() => setWeeks((w) => Math.min(52, w + 1))}>+</button>
         </div>
       </div>
-      {wide && mode === 'edit' ? <button className="btn danger" style={{ height: 48, borderRadius: 14, fontSize: 15, alignSelf: 'flex-start' }} onClick={() => setDel(true)}>Удалить программу</button> : null}
+      {wide && mode === 'edit' ? <button className="btn danger" style={{ height: 48, borderRadius: 18, fontSize: 15, alignSelf: 'flex-start' }} onClick={() => setDel(true)}>Удалить программу</button> : null}
     </div>
   );
 
@@ -189,7 +189,7 @@ function Editor({ mode, program }: { mode: 'new' | 'edit'; program?: Program }) 
         <>
           <div className="between"><b style={{ fontSize: 18 }}>Неделя {sel} · {WD_LONG[dayX]}</b><span className="muted" style={{ fontSize: 13 }}>{filled ? `${list.length} упр. · ~ ${planMinutes(list.map((r) => ({ ...r, sets: Number(r.sets) || 0 })), exById)} мин` : 'пусто'}</span></div>
           {!showEditor ? (
-            <div className="card col" style={{ borderRadius: 16, gap: 12 }}>
+            <div className="card col" style={{ borderRadius: 20, gap: 12 }}>
               <b>Скопировать неделю</b>
               {otherFilled.length ? (
                 <div className="row" style={{ flexWrap: 'wrap', gap: 8 }}>
@@ -219,7 +219,7 @@ function Editor({ mode, program }: { mode: 'new' | 'edit'; program?: Program }) 
                 const e = exById.get(r.exerciseId);
                 const set = (patch: Partial<Row>) => setRows((rows) => rows.map((x, i) => (i === k ? { ...x, ...patch } : x)));
                 return (
-                  <div key={`${r.exerciseId}-${k}`} className="a-in col" style={{ gap: 8, background: 'var(--card)', border: '1px solid var(--cardBorder)', borderRadius: 14, padding: '8px 8px 10px 12px' }}>
+                  <div key={`${r.exerciseId}-${k}`} className="a-in col" style={{ gap: 8, background: 'var(--card)', border: '1px solid var(--cardBorder)', borderRadius: 18, padding: '8px 8px 10px 12px' }}>
                     <div className="row" style={{ gap: 8 }}>
                       <span className="grow" style={{ fontWeight: 700, fontSize: 14 }}>{e?.name ?? 'Упражнение'}</span>
                       <button aria-label="Убрать упражнение" className="muted" style={{ width: 32, height: 32 }} onClick={() => setRows((rows) => rows.filter((_, i) => i !== k))}>×</button>

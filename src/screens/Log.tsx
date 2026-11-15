@@ -64,7 +64,7 @@ export function LogScreen() {
                     </div>
                   );
                   if (r.kind === 'missed') {
-                    return <div key={date} style={{ color: '#6B7480' }}>{left}<div className="grow"><b>{r.title}</b><div style={{ fontSize: 13, fontWeight: 700 }}>пропущена</div></div><b>—</b></div>;
+                    return <div key={date} style={{ color: '#8A857E' }}>{left}<div className="grow"><b>{r.title}</b><div style={{ fontSize: 13, fontWeight: 700 }}>пропущена</div></div><b>—</b></div>;
                   }
                   const s = workoutStats(r.w);
                   const exN = r.w.exercises.length;
@@ -72,7 +72,7 @@ export function LogScreen() {
                     <a key={r.w.id} href={`#/summary/${r.w.id}`}>
                       {left}
                       <div className="grow"><b>{r.w.title}</b><div className="sub">{exN} {plural(exN, ['упражнение', 'упражнения', 'упражнений'])}{durationMin(r.w) ? ` · ${durationMin(r.w)} мин` : ''}</div></div>
-                      <b style={{ color: s.pct >= 100 ? 'var(--goodT)' : 'var(--warnT)' }}>{Math.min(100, s.pct)}%</b>
+                      <b style={{ color: s.pct >= 90 ? 'var(--goodT)' : 'var(--warnT)' }}>{Math.min(100, s.pct)}%</b>
                     </a>
                   );
                 })}

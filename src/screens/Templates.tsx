@@ -57,10 +57,10 @@ export function TemplateScreen({ id }: { id: string }) {
       <h1 className="display a-h" style={{ fontSize: wide ? 30 : 26, lineHeight: 1.15, margin: 0 }}>{t.name}</h1>
       <div style={{ display: 'grid', gridTemplateColumns: 'repeat(2, minmax(0, 1fr))', gap: 8 }}>
         {[[String(t.weeks), 'недель'], [String(t.days.length), 'раза в неделю']].map(([v, l]) => (
-          <div key={l} className="card col a-in" style={{ borderRadius: 16, padding: 12, gap: 2 }}><b className="display" style={{ fontSize: 18 }}>{v}</b><span className="muted" style={{ fontSize: 13, fontWeight: 700 }}>{l}</span></div>
+          <div key={l} className="card col a-in" style={{ borderRadius: 20, padding: 12, gap: 2 }}><b className="display" style={{ fontSize: 18 }}>{v}</b><span className="muted" style={{ fontSize: 13, fontWeight: 700 }}>{l}</span></div>
         ))}
       </div>
-      <div className="card col a-in" style={{ borderRadius: 20, gap: 12 }}>
+      <div className="card col a-in" style={{ borderRadius: 22, gap: 12 }}>
         <b>Нагрузка по неделям</b>
         <div aria-hidden="true" style={{ display: 'flex', alignItems: 'flex-end', gap: 4, height: 64 }}>
           {Array.from({ length: t.weeks }, (_, i) => blockOf(t, i + 1)).map((x, i) => (
@@ -94,7 +94,7 @@ export function TemplateScreen({ id }: { id: string }) {
       {t.days.map((_, d) => {
         const rows = templateDay(t, wk, d);
         return (
-          <div key={d} className="card col a-in" style={{ borderRadius: 18, gap: 6 }}>
+          <div key={d} className="card col a-in" style={{ borderRadius: 22, gap: 6 }}>
             <div className="between"><b>{WD_CAP[[0, 2, 4][d] ?? d]}</b><span className="muted">{rows.length} упр. · ~ {dayMinutes(rows)} мин</span></div>
             {rows.map((r, i) => (
               <div key={i} className="col" style={{ fontSize: 14, gap: 2 }}>
@@ -187,7 +187,7 @@ export function TemplateStartScreen({ id }: { id: string }) {
           <span className="muted" style={{ fontSize: 14, fontWeight: 700 }}>Сколько килограммов вы поднимаете на {t.askReps} повторов. Остальное программа посчитает сама.</span>
         </div>
         {lifts.map((l, i) => (
-          <div key={l.n} className="card col a-in" style={{ borderRadius: 18, gap: 8, padding: '12px 14px' }}>
+          <div key={l.n} className="card col a-in" style={{ borderRadius: 22, gap: 8, padding: '12px 14px' }}>
             <label htmlFor={`lift${i}`} style={{ fontWeight: 800 }}>{l.n}</label>
             {!l.unknown ? (
               <>

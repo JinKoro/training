@@ -165,7 +165,7 @@ function AddPanel({ date: d, meal: m }: { date: string; meal: Meal }) {
       <div className="col" style={{ gap: 4 }}>
         {found.map((it) => <ItemRow key={`${it.type}${it.id}`} it={it} href={itemHref(it)} onOpen={remember} sub={`${subtitle(it)}${it.type === 'product' && it.base === false ? ' · добавлен пользователем' : ''}`} />)}
         {!found.length ? <span className="muted" style={{ padding: '12px 0' }}>Ничего не нашлось</span> : null}
-        <a className="btn ghost" href={newProduct} style={{ height: 48, borderRadius: 14, fontSize: 15, marginTop: 8 }}>+ Добавить продукт</a>
+        <a className="btn ghost" href={newProduct} style={{ height: 48, borderRadius: 18, fontSize: 15, marginTop: 8 }}>+ Добавить продукт</a>
       </div>
     );
   } else if (showHistory) {
@@ -227,7 +227,7 @@ function AddPanel({ date: d, meal: m }: { date: string; meal: Meal }) {
         {lib.data.products.map((it) => <ItemRow key={it.id} it={it} href={itemHref(it)} />)}
         <div className="card col" style={{ marginTop: 10, gap: 6, alignItems: 'flex-start' }}>
           <b style={{ fontWeight: 700 }}>Остальные продукты, в том числе добавленные другими, ищите через поиск.</b>
-          <button className="btn sec" style={{ height: 48, borderRadius: 14, fontSize: 15, alignSelf: 'stretch' }} onClick={() => { searchRef.current?.querySelector('input')?.focus(); searchRef.current?.scrollIntoView({ block: 'center' }); }}>Найти в поиске</button>
+          <button className="btn sec" style={{ height: 48, borderRadius: 18, fontSize: 15, alignSelf: 'stretch' }} onClick={() => { searchRef.current?.querySelector('input')?.focus(); searchRef.current?.scrollIntoView({ block: 'center' }); }}>Найти в поиске</button>
         </div>
       </div>
     );
@@ -237,7 +237,7 @@ function AddPanel({ date: d, meal: m }: { date: string; meal: Meal }) {
       <div className="col" style={{ gap: 4 }}>
         {list.map((it) => <ItemRow key={it.id} it={it} href={itemHref(it)} />)}
         {!list.length ? <span className="muted" style={{ padding: '12px 0' }}>Для {MEAL_GEN[m]} блюд пока нет</span> : null}
-        <a className="btn ghost" href={`#/food/${d}/dish/${m}`} style={{ height: 48, borderRadius: 14, fontSize: 15, marginTop: 8 }}>+ Новое блюдо</a>
+        <a className="btn ghost" href={`#/food/${d}/dish/${m}`} style={{ height: 48, borderRadius: 18, fontSize: 15, marginTop: 8 }}>+ Новое блюдо</a>
       </div>
     );
   }
@@ -251,7 +251,7 @@ function AddPanel({ date: d, meal: m }: { date: string; meal: Meal }) {
           {/* Штрихкод left, new product right (desktop has the product form beside the list). Dishes live in the «Блюда» tab. */}
           <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 8 }}>
             {([['Штрихкод', SCAN_ICON, `#/food/${d}/scan/${m}`, true], ...(wide ? [] : [['Продукт', PLUS_ICON, `#/food/${d}/new-product/${m}/-`, false]])] as [string, string, string, boolean][]).map(([l, ic, h, blue]) => (
-              <a key={l} href={h} className="row a-in" style={{ height: 56, padding: '0 14px', gap: 10, borderRadius: 16, background: blue ? '#2438C9' : 'var(--card)', color: blue ? '#fff' : 'var(--ink)', border: blue ? 0 : '1px solid var(--cardBorder)' }}>
+              <a key={l} href={h} className="row a-in" style={{ height: 56, padding: '0 14px', gap: 10, borderRadius: 20, background: blue ? 'var(--hero)' : 'var(--card)', color: blue ? '#fff' : 'var(--ink)', border: blue ? 0 : '1px solid var(--cardBorder)' }}>
                 <span style={{ width: 32, height: 32, borderRadius: 10, background: blue ? 'rgba(255,255,255,.18)' : 'var(--btn)', display: 'inline-flex', alignItems: 'center', justifyContent: 'center', flex: 'none' }}><Icon d={ic} size={20} /></span>
                 <b style={{ fontSize: 16 }}>{l}</b>
               </a>
@@ -548,7 +548,7 @@ function ProductForm({ barcode: initialBarcode, name: initialName, onSaved, comp
       {!edit ? (
         <>
           <button type="button" className="btn" disabled={ocr !== null} onClick={() => fileRef.current?.click()} aria-label="Заполнить по фото упаковки, AI"
-            style={{ height: 56, borderRadius: 16, fontSize: 16, background: 'transparent', color: 'var(--acc)', border: '2px solid var(--acc)', gap: 10 }}>
+            style={{ height: 56, borderRadius: 20, fontSize: 16, background: 'transparent', color: 'var(--acc)', border: '2px solid var(--acc)', gap: 10 }}>
             <Icon d={SPARK_ICON} size={20} />
             <span>{ocr === null ? 'Заполнить по фото' : ocr < 0 ? 'Читаю фото…' : ocr ? `Читаю… ${ocr}%` : 'Загружаю…'}</span>
             <span style={{ height: 20, padding: '0 7px', borderRadius: 6, background: 'var(--acc)', color: 'var(--onAcc)', fontSize: 11, fontWeight: 800, letterSpacing: '.04em', display: 'inline-flex', alignItems: 'center' }}>AI</span>
@@ -561,7 +561,7 @@ function ProductForm({ barcode: initialBarcode, name: initialName, onSaved, comp
         <label htmlFor="pn-code">Штрихкод</label>
         <div className="row" style={{ gap: 8 }}>
           <input id="pn-code" className="input" inputMode="numeric" value={f.barcode} onChange={set('barcode')} aria-invalid={errs.barcode} style={{ height: compact ? 44 : 50, borderRadius: 12 }} />
-          {onScan ? <button aria-label="Сканировать" onClick={onScan} style={{ width: 50, height: 50, borderRadius: 12, background: '#2438C9', color: '#fff', flex: 'none' }}>▥</button> : null}
+          {onScan ? <button aria-label="Сканировать" onClick={onScan} style={{ width: 50, height: 50, borderRadius: 12, background: 'var(--hero)', color: '#fff', flex: 'none' }}>▥</button> : null}
         </div>
         {dup ? (
           <>
@@ -689,7 +689,7 @@ function DishForm({ onSaved, compact, initial, defaultMeals }: { onSaved: (d: Fo
         </div>
       </div>
       <span className="label">Ингредиенты, вес сырыми</span>
-      <div className="card" style={{ borderRadius: 18, padding: '4px 12px', background: compact ? 'var(--bg)' : 'var(--card)' }}>
+      <div className="card" style={{ borderRadius: 22, padding: '4px 12px', background: compact ? 'var(--bg)' : 'var(--card)' }}>
         {ings.map((i, k) => (
           <div key={k} className="row" style={{ minHeight: 60, borderBottom: '1px solid var(--line)' }}>
             <FoodArt kind={i.product.icon} size={40} />
@@ -700,15 +700,15 @@ function DishForm({ onSaved, compact, initial, defaultMeals }: { onSaved: (d: Fo
             <button aria-label="Убрать ингредиент" className="muted" style={{ width: 40, height: 40 }} onClick={() => setIngs((x) => x.filter((_, j) => j !== k))}>✕</button>
           </div>
         ))}
-        <button className="btn ghost" style={{ height: 48, borderRadius: 14, fontSize: 15 }} onClick={() => setPicking(true)}>+ Ингредиент</button>
+        <button className="btn ghost" style={{ height: 48, borderRadius: 18, fontSize: 15 }} onClick={() => setPicking(true)}>+ Ингредиент</button>
       </div>
-      <div className="card between" style={{ borderRadius: 18, padding: '12px 14px', background: compact ? 'var(--bg)' : 'var(--card)' }}>
+      <div className="card between" style={{ borderRadius: 22, padding: '12px 14px', background: compact ? 'var(--bg)' : 'var(--card)' }}>
         <b>Вес готового блюда</b>
         <span className="row" style={{ background: compact ? 'var(--card)' : 'var(--bg)', borderRadius: 10, padding: '8px 10px', gap: 2 }}>
           <input aria-label="Вес готового блюда" inputMode="numeric" value={cooked ?? String(Math.round(sumRaw))} onChange={(e) => setCooked(e.target.value.replace(/\D/g, '').slice(0, 5))} className="display" style={{ width: 64, border: 0, background: 'none', textAlign: 'right', fontWeight: 800, outline: 'none' }} /><b>г</b>
         </span>
       </div>
-      <div style={{ background: '#2438C9', color: '#fff', borderRadius: 18, padding: 14 }}>
+      <div style={{ background: 'var(--hero)', color: '#fff', borderRadius: 22, padding: 14 }}>
         <b>На 100 г готового блюда</b>
         <div style={{ display: 'grid', gridTemplateColumns: 'repeat(4, 1fr)', marginTop: 8 }}>
           {[k100, ...p100.map((x) => Math.round(x))].map((v, i) => (
@@ -845,17 +845,17 @@ export function ScanScreen({ date, meal }: { date?: string; meal?: string }) {
       <video ref={video} playsInline muted style={{ position: 'absolute', inset: 0, width: '100%', height: '100%', objectFit: 'cover' }} />
       <div className="between" style={{ position: 'absolute', left: 16, right: 16, top: 'calc(18px + var(--safe-top))' }}>
         <a aria-label="Закрыть" href={`#/food/${d}/add/${m}`} style={{ width: 44, height: 44, borderRadius: 22, background: 'rgba(0,0,0,.5)', display: 'flex', alignItems: 'center', justifyContent: 'center' }}>✕</a>
-        <span style={{ background: 'rgba(0,0,0,.5)', borderRadius: 14, padding: '8px 12px', fontWeight: 800 }}>{busy ? 'Ищу товар…' : 'Наведите на штрихкод'}</span>
+        <span style={{ background: 'rgba(0,0,0,.5)', borderRadius: 18, padding: '8px 12px', fontWeight: 800 }}>{busy ? 'Ищу товар…' : 'Наведите на штрихкод'}</span>
         <span style={{ width: 44 }} />
       </div>
       {denied ? (
         <div className="col" style={{ position: 'absolute', left: 16, right: 16, top: 160, alignItems: 'center', gap: 14, textAlign: 'center' }}>
-          <span style={{ color: '#B3BCC8', fontWeight: 700 }}>Нет доступа к камере</span>
-          <a className="btn" style={{ background: '#A9CBFA', color: '#10151C' }} href={`#/food/${d}/new-product/${m}`}>Ввести вручную</a>
+          <span style={{ color: '#ABACB2', fontWeight: 700 }}>Нет доступа к камере</span>
+          <a className="btn" style={{ background: 'var(--hero)', color: '#fff' }} href={`#/food/${d}/new-product/${m}`}>Ввести вручную</a>
         </div>
       ) : (
-        <div style={{ position: 'absolute', left: '50%', top: '50%', transform: 'translate(-50%, -50%)', width: '90vw', maxWidth: 420, height: 'min(45vw, 200px)', borderRadius: 26, border: '3px solid #A9CBFA' }}>
-          <i className="a-pulse" style={{ position: 'absolute', left: 12, right: 12, top: '50%', height: 3, background: '#A9CBFA', boxShadow: '0 0 16px #A9CBFA' }} />
+        <div style={{ position: 'absolute', left: '50%', top: '50%', transform: 'translate(-50%, -50%)', width: '90vw', maxWidth: 420, height: 'min(45vw, 200px)', borderRadius: 26, border: '3px solid #FF5A1F' }}>
+          <i className="a-pulse" style={{ position: 'absolute', left: 12, right: 12, top: '50%', height: 3, background: '#FF5A1F', boxShadow: '0 0 16px #FF5A1F' }} />
         </div>
       )}
     </div>

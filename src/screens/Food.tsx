@@ -208,8 +208,8 @@ export function FoodScreen({ date }: { date?: string }) {
           return (
             <a key={x} href={`#/food/${x}`} aria-current={isSel ? 'date' : undefined} style={{
               height: 54, borderRadius: 12, display: 'flex', flexDirection: 'column', alignItems: 'center', justifyContent: 'center',
-              background: isSel ? 'var(--acc)' : 'var(--card)', color: isSel ? 'var(--onAcc)' : future ? '#6B7480' : 'var(--ink)',
-              border: isSel ? 0 : x === t ? '2px solid #6B7480' : '1px solid var(--cardBorder)', fontWeight: 800,
+              background: isSel ? 'var(--acc)' : 'var(--card)', color: isSel ? 'var(--onAcc)' : future ? '#8A857E' : 'var(--ink)',
+              border: isSel ? 0 : x === t ? '2px solid #8A857E' : '1px solid var(--cardBorder)', fontWeight: 800,
             }}>
               <span style={{ fontSize: 13 }}>{WD_SHORT[i]}</span><span style={{ fontSize: 15 }}>{fromDay(x).getDate()}</span>
             </a>
@@ -240,7 +240,7 @@ export function FoodScreen({ date }: { date?: string }) {
         const list = byMeal(m);
         const mk = sumKcal(list);
         return (
-          <div key={m} className="card col a-in" style={{ borderRadius: 18, padding: '10px 12px', gap: 8 }}>
+          <div key={m} className="card col a-in" style={{ borderRadius: 22, padding: '10px 12px', gap: 8 }}>
             <div className="row">
               <b className="grow" style={{ fontSize: 17 }}>{MEAL_RU[m]}</b>
               <span className="muted" style={{ fontWeight: 700 }}>{fmt(mk)} ккал</span>
@@ -257,7 +257,7 @@ export function FoodScreen({ date }: { date?: string }) {
                 </SwipeToDelete>
               );
             })}
-            {list.length ? <a className="btn ghost" href={`#/food/${d}/dish/${m}/from-meal`} style={{ height: 48, borderRadius: 14, fontSize: 15 }}>+ Создать блюдо</a> : null}
+            {list.length ? <a className="btn ghost" href={`#/food/${d}/dish/${m}/from-meal`} style={{ height: 48, borderRadius: 18, fontSize: 15 }}>+ Создать блюдо</a> : null}
           </div>
         );
       })}
@@ -302,11 +302,11 @@ function EntrySheet({ entry, onClose }: { entry: Entry | null; onClose: () => vo
     <Sheet open onClose={onClose} label={entry.name}>
       <div className="row"><FoodArt kind={entry.icon} size={60} /><div className="grow"><b style={{ fontSize: 19 }}>{entry.name}</b><div className="muted" style={{ fontSize: 14 }}>{entry.dishId ? 'своё блюдо · ' : ''}{per100} ккал на 100 г</div></div></div>
       <div style={{ display: 'grid', gridTemplateColumns: '52px 1fr 52px', gap: 10, alignItems: 'center' }}>
-        <button className="icon-btn" aria-label="Меньше" style={{ height: 52, width: 52, borderRadius: 14, border: '1px solid var(--track)' }} onClick={() => setGrams(String(Math.max(0, g - 50)))}>−</button>
-        <div style={{ justifySelf: 'center', display: 'flex', alignItems: 'center', height: 56, padding: '0 18px', borderRadius: 14, background: 'var(--bg)' }}>
+        <button className="icon-btn" aria-label="Меньше" style={{ height: 52, width: 52, borderRadius: 18, border: '1px solid var(--track)' }} onClick={() => setGrams(String(Math.max(0, g - 50)))}>−</button>
+        <div style={{ justifySelf: 'center', display: 'flex', alignItems: 'center', height: 56, padding: '0 18px', borderRadius: 18, background: 'var(--bg)' }}>
           <AmountInput label="Граммы" value={grams} onChange={setGrams} unit="г" size={28} />
         </div>
-        <button className="icon-btn" aria-label="Больше" style={{ height: 52, width: 52, borderRadius: 14, border: '1px solid var(--track)' }} onClick={() => setGrams(String(Math.min(5000, g + 50)))}>+</button>
+        <button className="icon-btn" aria-label="Больше" style={{ height: 52, width: 52, borderRadius: 18, border: '1px solid var(--track)' }} onClick={() => setGrams(String(Math.min(5000, g + 50)))}>+</button>
       </div>
       <Tiles m={m} k={entryKcal({ ...entry, grams: g })} />
       <button className="btn" disabled={g < 1 || g > 5000} onClick={save}>Сохранить</button>
@@ -365,8 +365,8 @@ function CopySheet({ date, meal, entries, onClose }: { date: string; meal: Meal 
           const on = sel.includes(x);
           return (
             <button key={x} disabled={disabled} aria-pressed={on} onClick={() => setSel((s) => (on ? s.filter((y) => y !== x) : [...s, x]))} style={{
-              height: 62, borderRadius: 14, fontWeight: 800, opacity: disabled ? 0.45 : 1, background: on ? 'var(--acc)' : 'var(--bg)', color: on ? 'var(--onAcc)' : 'var(--ink)',
-              border: x === t ? '2px solid #6B7480' : 0, display: 'flex', flexDirection: 'column', alignItems: 'center', justifyContent: 'center',
+              height: 62, borderRadius: 18, fontWeight: 800, opacity: disabled ? 0.45 : 1, background: on ? 'var(--acc)' : 'var(--bg)', color: on ? 'var(--onAcc)' : 'var(--ink)',
+              border: x === t ? '2px solid #8A857E' : 0, display: 'flex', flexDirection: 'column', alignItems: 'center', justifyContent: 'center',
             }}><span style={{ fontSize: 13 }}>{WD_SHORT[i]}</span><span style={{ fontSize: 16 }}>{fromDay(x).getDate()}</span></button>
           );
         })}
@@ -401,7 +401,7 @@ function QuickAdd({ date, meal }: { date: string; meal: Meal }) {
   };
   return (
     <div className="card col" style={{ gap: 10 }}>
-      <a className="btn sec" style={{ height: 48, borderRadius: 14, fontSize: 15, alignSelf: 'flex-start' }} href={`#/food/${date}/add/${meal}`}>Добавить {MEAL_IN[meal]}</a>
+      <a className="btn sec" style={{ height: 48, borderRadius: 18, fontSize: 15, alignSelf: 'flex-start' }} href={`#/food/${date}/add/${meal}`}>Добавить {MEAL_IN[meal]}</a>
       <SearchInput value={q} onChange={setQ} placeholder="Поиск по общей библиотеке" />
       {items.slice(0, 6).map((it) => (
         <div key={`${it.type}${it.id}`} className="row">

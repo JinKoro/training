@@ -106,13 +106,16 @@ test.describe('Profile', () => {
 
   test('theme choice is saved to the account', async ({ authed: page }) => {
     await open(page, 'profile');
-    await page.getByRole('button', { name: 'Светлая' }).click();
-    await expect(page.locator('html')).toHaveAttribute('data-theme', 'light');
+    // the light theme is the default for a new account
     await expect(page.getByRole('button', { name: 'Светлая' })).toHaveAttribute('aria-pressed', 'true');
+    await expect(page.locator('html')).toHaveAttribute('data-theme', 'light');
+    await page.getByRole('button', { name: 'Тёмная' }).click();
+    await expect(page.locator('html')).toHaveAttribute('data-theme', 'dark');
+    await expect(page.getByRole('button', { name: 'Тёмная' })).toHaveAttribute('aria-pressed', 'true');
     await page.evaluate(() => localStorage.removeItem('podhod-theme'));
     await page.reload();
-    await expect(page.getByRole('button', { name: 'Светлая' })).toHaveAttribute('aria-pressed', 'true');
-    await expect(page.locator('html')).toHaveAttribute('data-theme', 'light');
+    await expect(page.getByRole('button', { name: 'Тёмная' })).toHaveAttribute('aria-pressed', 'true');
+    await expect(page.locator('html')).toHaveAttribute('data-theme', 'dark');
   });
 
   test('«Пересчитать по формуле» walks the three steps and saves new norms', async ({ page }) => {

@@ -435,7 +435,7 @@ export async function handleApi(request, env, path) {
       if (exists) fail(409, 'email_taken', 'email');
       const { hash, salt } = await hashPassword(password);
       const user = await env.DB.prepare(
-        'INSERT INTO users (email, password_hash, password_salt, goal, created_at) VALUES (?, ?, ?, ?, ?) RETURNING id',
+        'INSERT INTO users (email, password_hash, password_salt, goal, created_at, theme) VALUES (?, ?, ?, ?, ?, \'light\') RETURNING id',
       ).bind(email, hash, salt, goal, now).first();
       await writeProfile(env, user.id, today, profile);
       await env.DB.batch(normStatements(env, user.id, today, norms));

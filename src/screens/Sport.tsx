@@ -29,7 +29,7 @@ export function SportScreen() {
   const currentCard = current ? (() => {
     const pr = { pct: donePct };
     return wide ? (
-      <a href={progHref(current)} className="col a-in" style={{ background: '#2438C9', color: '#fff', borderRadius: 22, padding: 20, gap: 10 }}>
+      <a href={progHref(current)} className="col a-in" style={{ background: 'var(--hero)', color: '#fff', borderRadius: 22, padding: 20, gap: 10 }}>
         <div className="between"><span style={{ background: 'rgba(255,255,255,.18)', borderRadius: 8, padding: '3px 8px', fontSize: 12, fontWeight: 800 }}>ИДЁТ СЕЙЧАС</span><b className="display" style={{ fontSize: 20 }}>{pr.pct}%</b></div>
         <div className="display" style={{ fontSize: 24 }}>{current.name}</div>
         {current.level != null ? <span style={{ alignSelf: 'flex-start' }}><LevelTag level={current.level as Level} /></span> : null}
@@ -38,7 +38,7 @@ export function SportScreen() {
       </a>
     ) : (
       <a href={progHref(current)} className="card col a-in" style={{ borderRadius: 22, padding: 16, gap: 10 }}>
-        <div className="between"><span style={{ background: '#2438C9', color: '#fff', borderRadius: 8, padding: '3px 8px', fontSize: 12, fontWeight: 800 }}>ИДЁТ СЕЙЧАС</span><b className="display" style={{ fontSize: 18 }}>{pr.pct}%</b></div>
+        <div className="between"><span style={{ background: 'var(--hero)', color: '#fff', borderRadius: 8, padding: '3px 8px', fontSize: 12, fontWeight: 800 }}>ИДЁТ СЕЙЧАС</span><b className="display" style={{ fontSize: 18 }}>{pr.pct}%</b></div>
         <div className="display" style={{ fontSize: 22 }}>{current.name}</div>
         {current.level != null ? <span style={{ alignSelf: 'flex-start' }}><LevelTag level={current.level as Level} /></span> : null}
         <div className="bar"><i className="a-fill" style={{ width: `${pr.pct}%`, background: 'var(--acc)' }} /></div>
@@ -133,7 +133,7 @@ export function ProgramScreen({ id }: { id: number }) {
       {p.weekdays.map((wd) => {
         const rows = week[String(wd)] ?? [];
         return (
-          <div key={wd} className="card col a-in" style={{ borderRadius: 18, gap: 6 }}>
+          <div key={wd} className="card col a-in" style={{ borderRadius: 22, gap: 6 }}>
             <div className="between"><b>{WD_CAP[wd]}</b><span className="muted">{rows.length ? `${rows.length} упр. · ~ ${planMinutes(rows, exById)} мин` : '0 упр.'}</span></div>
             {rows.length ? rows.map((r, i) => {
               const e = exById.get(r.exerciseId);

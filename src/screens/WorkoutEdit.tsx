@@ -3,7 +3,7 @@ import { useApp } from '../app-context';
 import { api } from '../lib/api';
 import { activeProgram, exerciseSubtitle, plannedFor, showKg, workoutStats, dayTitle } from '../lib/calc';
 import { addDays, dayMonth, diffDays, today, WD_CAP, WD_SHORT, weekStart } from '../lib/dates';
-import { invalidate, useQuery, forget } from '../lib/query';
+import { invalidate, useQuery } from '../lib/query';
 import { go } from '../lib/router';
 import type { Workout } from '../lib/types';
 import { ExerciseArt } from '../art';
@@ -25,7 +25,7 @@ const shortDate = (d: string) => `${WD_SHORT[diffDays(d, weekStart(d))]}, ${dayM
 function Editor({ w, onDone, onCancel, wide }: { w: Workout; onDone: () => void; onCancel: () => void; wide?: boolean }) {
   const [ex, setEx] = useState<DraftEx[]>(() => toDraft(w));
   const [pick, setPick] = useState(false);
-  const [confirm, setConfirm] = useState<null | { kind: 'workout' } | { kind: 'ex'; i: number }>(null);
+  const [confirm, setConfirm] = useState<null | { kind: 'ex'; i: number }>(null);
   const [busy, setBusy] = useState(false);
   useEffect(() => { setEx(toDraft(w)); setPick(false); }, [w]);
 
@@ -50,9 +50,6 @@ function Editor({ w, onDone, onCancel, wide }: { w: Workout; onDone: () => void;
       onDone();
     } catch (e) { toast(errText(e)); } finally { setBusy(false); }
   };
-  const del = async () => {
-    try { await api('DELETE', `/workouts/${w.id}`); forget(`/workouts/${w.id}`); invalidate('/workouts'); go('log'); } catch (e) { toast(errText(e)); }
-  };
 
   if (pick) {
     return <ExercisePicker subtitle={shortDate(w.date)} existing={ex.map((e) => e.exerciseId ?? 0)} onBack={() => setPick(false)} onPick={(e) => {
@@ -72,11 +69,11 @@ function Editor({ w, onDone, onCancel, wide }: { w: Workout; onDone: () => void;
         </div>
       ) : null}
       {ex.map((e, i) => (
-        <div key={i} className="card col a-in" style={{ borderRadius: 18, gap: 8 }}>
+        <div key={i} className="card col a-in" style={{ borderRadius: 22, gap: 8 }}>
           <div className="row">
             <ExerciseArt kind={e.kind} name={e.name} size={44} />
             <b className="grow">{e.name}</b>
-            <button aria-label="Удалить упражнение" onClick={() => setConfirm({ kind: 'ex', i })} className="muted" style={{ width: 40, height: 40 }}>✕</button>
+            <button aria-label="Удалить упражнение" onClick={() => setConfirm({ kind: 'ex', i })} className="muted" style={{ width: 32, height: 40, flex: 'none' }}>✕</button>
           </div>
           <div style={{ display: 'grid', gridTemplateColumns: '28px 1fr 1fr 32px', gap: 8, alignItems: 'center' }}>
             <span className="sub" style={{ fontSize: 12, fontWeight: 800 }}>№</span><span className="sub" style={{ fontSize: 12, fontWeight: 800 }}>Вес, кг</span><span className="sub" style={{ fontSize: 12, fontWeight: 800 }}>{e.type === 'time' ? 'Секунды' : 'Повторы'}</span><span />
@@ -96,17 +93,12 @@ function Editor({ w, onDone, onCancel, wide }: { w: Workout; onDone: () => void;
           }))}>+ Подход</button>
         </div>
       ))}
-      <button className="btn ghost" style={{ height: 52, borderRadius: 14 }} onClick={() => setPick(true)}>+ Упражнение</button>
-      <div className="row" style={{ flexWrap: 'wrap' }}>
-        <button className="btn danger" style={{ height: 48, borderRadius: 14, fontSize: 15 }} onClick={() => setConfirm({ kind: 'workout' })}>Удалить тренировку</button>
-        <span className="grow" />
-        {wide ? <button className="btn small" onClick={save} disabled={invalid || busy}>Сохранить</button> : null}
-      </div>
+      <button className="btn ghost" style={{ height: 52, borderRadius: 18 }} onClick={() => setPick(true)}>+ Упражнение</button>
+      {wide ? <div className="row"><span className="grow" /><button className="btn small" onClick={save} disabled={invalid || busy}>Сохранить</button></div> : null}
       <Sheet open={!!confirm} onClose={() => setConfirm(null)} label="Подтверждение">
-        <b className="display" style={{ fontSize: 20 }}>{confirm?.kind === 'workout' ? 'Удалить тренировку?' : `Убрать «${confirm?.kind === 'ex' ? ex[confirm.i]?.name : ''}»?`}</b>
+        <b className="display" style={{ fontSize: 20 }}>{`Убрать «${confirm ? ex[confirm.i]?.name : ''}»?`}</b>
         <button className="btn" style={{ background: 'var(--warn)', color: '#fff' }} onClick={() => {
-          if (confirm?.kind === 'workout') void del();
-          else if (confirm?.kind === 'ex') setEx((p) => p.filter((_, a) => a !== confirm.i));
+          if (confirm) setEx((p) => p.filter((_, a) => a !== confirm.i));
           setConfirm(null);
         }}>Удалить</button>
         <button className="btn outline" onClick={() => setConfirm(null)}>Отмена</button>
@@ -147,14 +139,14 @@ export function WorkoutsScreen({ selected }: { selected: number | null }) {
       <div style={{ display: 'flex', flexWrap: 'wrap', gap: 24, alignItems: 'flex-start' }}>
         <aside className="col" style={{ flex: '1 1 260px', minWidth: 0, gap: 8, maxWidth: 360 }}>
           {planned && !todayW ? (
-            <a href="#/workouts" className="a-in" style={{ borderRadius: 14, padding: '12px 14px', background: sel ? 'var(--card)' : '#2438C9', color: sel ? 'var(--ink)' : '#fff' }}>
+            <a href="#/workouts" className="a-in" style={{ borderRadius: 18, padding: '12px 14px', background: sel ? 'var(--card)' : 'var(--hero)', color: sel ? 'var(--ink)' : '#fff' }}>
               <b>{shortDate(t)}</b><div style={{ fontSize: 14, opacity: 0.85 }}>Сегодня · {todayTitle}</div>
             </a>
           ) : null}
           {list.map((w) => {
             const on = sel?.id === w.id;
             return (
-              <a key={w.id} href={`#/workouts/${w.id}`} className="a-in" style={{ borderRadius: 14, padding: '12px 14px', background: on ? '#2438C9' : 'var(--card)', color: on ? '#fff' : 'var(--ink)' }}>
+              <a key={w.id} href={`#/workouts/${w.id}`} className="a-in" style={{ borderRadius: 18, padding: '12px 14px', background: on ? 'var(--hero)' : 'var(--card)', color: on ? '#fff' : 'var(--ink)' }}>
                 <b>{shortDate(w.date)}</b>
                 <div style={{ fontSize: 14, opacity: 0.85 }}>{w.title} · {w.status === 'finished' ? `${workoutStats(w).pct}%` : 'идёт'}</div>
               </a>
@@ -180,7 +172,7 @@ export function WorkoutsScreen({ selected }: { selected: number | null }) {
               {planned.rows.map((r, i) => {
                 const e = exById.get(r.exerciseId);
                 return (
-                  <div key={i} className="card row a-in" style={{ borderRadius: 18 }}>
+                  <div key={i} className="card row a-in" style={{ borderRadius: 22 }}>
                     <ExerciseArt kind={e?.kind} name={e?.name} size={72} />
                     <div className="grow"><b style={{ fontSize: 17 }}>{e?.name}</b><div className="muted">{r.sets}×{r.reps}{r.kg ? ` · ${r.kg} кг` : ''}</div></div>
                   </div>

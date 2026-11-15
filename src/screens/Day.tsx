@@ -42,7 +42,7 @@ export function DayScreen({ date }: { date?: string }) {
   const othersList = (
     <div className="col" style={{ gap: 8 }}>
       {others.map((o) => (
-        <div key={o.wd} className="card row a-in" style={{ borderRadius: 16, padding: '10px 12px' }}>
+        <div key={o.wd} className="card row a-in" style={{ borderRadius: 20, padding: '10px 12px' }}>
           <div className="grow" style={{ minWidth: 0 }}>
             <b>{o.title}</b>
             <div className="sub">{WD_CAP[o.wd]} · {o.rows.length} {plural(o.rows.length, ['упражнение', 'упражнения', 'упражнений'])}</div>
@@ -81,7 +81,7 @@ export function DayScreen({ date }: { date?: string }) {
           <div className="muted" style={{ fontSize: 14, fontWeight: 700 }}>{wdName}{planned ? ` · неделя ${planned.week} программы` : ''}</div>
           <h1 className="display a-h" style={{ fontSize: 24 }}>{planned ? title : 'Тренировки нет'}</h1>
         </div>
-        {wide && planned && rows.length ? <button className="btn blue" style={{ height: 48, borderRadius: 14 }} onClick={start} disabled={busy}>{existing ? (existing.status === 'finished' ? 'Итог ›' : 'Продолжить') : 'Начать тренировку'}</button> : null}
+        {wide && planned && rows.length ? <button className="btn blue" style={{ height: 48, borderRadius: 18 }} onClick={start} disabled={busy}>{existing ? (existing.status === 'finished' ? 'Итог ›' : 'Продолжить') : 'Начать тренировку'}</button> : null}
       </div>
       {planned && rows.length ? (
         <>
@@ -98,7 +98,7 @@ export function DayScreen({ date }: { date?: string }) {
               const wText = ws.every((w) => w === null) ? '—' : uniq.length === 1 ? `${uniq[0]} × ${r.sets}` : ws.map((w) => showKg(w)).join(' · ');
               const rest = r.rest ?? ex?.rest ?? DEFAULT_REST;
               return (
-                <a key={i} className="card col a-in" style={{ gap: 10, padding: 12, borderRadius: 18 }} href={`#/exercises/all/${r.exerciseId}`}>
+                <a key={i} className="card col a-in" style={{ gap: 10, padding: 12, borderRadius: 22 }} href={`#/exercises/all/${r.exerciseId}`}>
                   <div className="row">
                     <ExerciseArt kind={ex?.kind} name={ex?.name} size={56} />
                     <div className="grow"><b>{i + 1}. {ex?.name ?? 'Упражнение'}</b><div className="sub">{ex ? exerciseSubtitle(ex) : ''}</div></div>
@@ -118,7 +118,7 @@ export function DayScreen({ date }: { date?: string }) {
             })}
           </div>
           {others.length ? (
-            !showOthers ? <button className="btn sec" style={{ height: 48, borderRadius: 14, fontSize: 15, alignSelf: wide ? 'flex-start' : 'stretch' }} onClick={() => setShowOthers(true)}>Провести другую тренировку этой недели</button>
+            !showOthers ? <button className="btn sec" style={{ height: 'auto', minHeight: 48, padding: '12px 16px', borderRadius: 18, fontSize: 15, lineHeight: 1.25, textAlign: 'center', alignSelf: wide ? 'flex-start' : 'stretch' }} onClick={() => setShowOthers(true)}>Другие тренировки недели</button>
               : <><span className="label">Другие тренировки этой недели</span>{othersList}</>
           ) : null}
           {!wide ? (
@@ -132,7 +132,7 @@ export function DayScreen({ date }: { date?: string }) {
       ) : (
         <>
           {existing ? (
-            <button className="card between" style={{ borderRadius: 16, width: '100%' }} onClick={() => go(existing.status === 'finished' ? 'summary' : 'workout', existing.id)}>
+            <button className="card between" style={{ borderRadius: 20, width: '100%' }} onClick={() => go(existing.status === 'finished' ? 'summary' : 'workout', existing.id)}>
               <b>{existing.title}</b><span className="btn sec small" style={{ flex: 'none' }}>{existing.status === 'finished' ? 'Итог' : 'Продолжить'}</span>
             </button>
           ) : (

@@ -101,8 +101,11 @@ test.describe('Desktop layout (1440×900)', () => {
     await expect(toast(page)).toHaveText('Сохранено');
     const { workouts } = await call(user.token, 'GET', '/workouts');
     expect(workouts[0].exercises[0].sets[0].weight).toBe(62.5);
-    await page.getByRole('button', { name: 'Удалить тренировку' }).click();
-    await sheet(page, 'Подтверждение').getByRole('button', { name: 'Удалить' }).click();
+    await expect(page.getByRole('button', { name: 'Удалить тренировку' })).toHaveCount(0);
+    await page.getByRole('link', { name: 'Итог ›' }).click();
+    await page.getByRole('button', { name: 'Меню', exact: true }).click();
+    await sheet(page, 'Тренировка').getByRole('button', { name: 'Удалить тренировку' }).click();
+    await sheet(page, 'Тренировка').getByRole('button', { name: 'Да, удалить' }).click();
     await expect(page).toHaveURL(/#\/log$/);
   });
 

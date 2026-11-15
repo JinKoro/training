@@ -11,7 +11,7 @@ export function readStoredPref(): ThemePref {
     const v = localStorage.getItem(KEY);
     if (v === 'light' || v === 'dark' || v === 'system') return v;
   } catch { /* ignore */ }
-  return 'system';
+  return 'light';
 }
 
 export function storePref(p: ThemePref) {
@@ -30,10 +30,10 @@ export function useResolvedTheme(pref: ThemePref): Theme {
   const theme = pref === 'system' ? system : pref;
   useEffect(() => {
     document.documentElement.dataset.theme = theme;
-    document.querySelector('meta[name="theme-color"]')?.setAttribute('content', theme === 'light' ? '#F3F5F8' : '#171B21');
+    document.querySelector('meta[name="theme-color"]')?.setAttribute('content', theme === 'light' ? '#F6F5F2' : '#26272A');
   }, [theme]);
   return theme;
 }
 
-export const ThemeContext = createContext<Theme>('dark');
+export const ThemeContext = createContext<Theme>('light');
 export const useTheme = () => useContext(ThemeContext);

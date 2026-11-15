@@ -16,18 +16,18 @@ type Pref = 'system' | 'light' | 'dark';
 function ThemePicker({ size = 64 }: { size?: number }) {
   const { me, setThemePref } = useApp();
   const cur = me.user.theme;
-  const opts: [Pref, string, string][] = [['system', 'Как в системе', 'linear-gradient(90deg,#F3F5F8 50%,#171B21 50%)'], ['light', 'Светлая', '#F3F5F8'], ['dark', 'Тёмная', '#10141A']];
+  const opts: [Pref, string, string][] = [['system', 'Как в системе', 'linear-gradient(90deg,#F6F5F2 50%,#26272A 50%)'], ['light', 'Светлая', '#F6F5F2'], ['dark', 'Тёмная', '#212225']];
   return (
     <div style={{ display: 'grid', gridTemplateColumns: 'repeat(3, 1fr)', gap: 10, maxWidth: 640 }}>
       {opts.map(([k, l, bg]) => (
         <button key={k} aria-pressed={cur === k} onClick={() => { setThemePref(k); void api('PATCH', '/me', { theme: k }).then(() => invalidate('/me')).catch(() => {}); }}
-          className="card col" style={{ padding: 8, gap: 6, borderRadius: 16, border: cur === k ? '2px solid var(--acc)' : '1px solid var(--track)' }}>
+          className="card col" style={{ padding: 8, gap: 6, borderRadius: 20, minWidth: 0, border: `1px solid ${cur === k ? 'var(--acc)' : 'var(--track)'}`, boxShadow: cur === k ? '0 0 0 1px var(--acc)' : 'none' }}>
           <div style={{ height: size, borderRadius: 10, background: bg, padding: 8, display: 'flex', flexDirection: 'column', gap: 5, justifyContent: 'center' }}>
-            <i style={{ width: '60%', height: 6, borderRadius: 3, background: k === 'light' ? '#12151C' : k === 'dark' ? '#F3F5F7' : '#8A929E' }} />
-            <i style={{ width: '40%', height: 10, borderRadius: 4, background: '#2438C9' }} />
-            <i style={{ width: '80%', height: 3, borderRadius: 2, background: '#8A929E' }} />
+            <i style={{ width: '60%', height: 6, borderRadius: 3, background: k === 'light' ? '#1A1A1A' : k === 'dark' ? '#F4F4F5' : '#8A857E' }} />
+            <i style={{ width: '40%', height: 10, borderRadius: 4, background: '#FF5A1F' }} />
+            <i style={{ width: '80%', height: 3, borderRadius: 2, background: '#8A857E' }} />
           </div>
-          <b style={{ fontSize: 13 }}>{l}</b>
+          <b style={{ fontSize: 13, whiteSpace: 'nowrap' }}>{l}</b>
         </button>
       ))}
     </div>
@@ -48,7 +48,7 @@ export function ProfileScreen() {
   return (
     <Screen>
       <div className="row" style={{ gap: 14 }}>
-        <span className="display" style={{ width: 60, height: 60, borderRadius: 30, background: '#2438C9', color: '#fff', display: 'inline-flex', alignItems: 'center', justifyContent: 'center', fontSize: 24, flex: 'none' }}>{name.charAt(0).toUpperCase()}</span>
+        <span className="display" style={{ width: 60, height: 60, borderRadius: 30, background: 'var(--hero)', color: '#fff', display: 'inline-flex', alignItems: 'center', justifyContent: 'center', fontSize: 24, flex: 'none' }}>{name.charAt(0).toUpperCase()}</span>
         <div className="grow"><div className="display ell" style={{ fontSize: 22 }}>{name}</div><div className="muted ell" style={{ fontSize: 14 }}>{me.user.email}</div></div>
         <button className="btn sec small" style={{ height: 40 }} onClick={() => void logout()}>Выйти</button>
       </div>
@@ -134,7 +134,7 @@ function RecalcSheet({ offer, busy, onRecalc, onLater }: { offer: Offer | null; 
           </div>
         ))}
       </div>
-      <button className="btn big" style={{ background: '#2438C9', color: '#fff' }} disabled={busy} onClick={onRecalc}>Пересчитать</button>
+      <button className="btn big" style={{ background: 'var(--hero)', color: '#fff' }} disabled={busy} onClick={onRecalc}>Пересчитать</button>
       <button className="btn big sec" onClick={onLater}>Не сейчас</button>
     </Sheet>
   );
@@ -191,9 +191,9 @@ export function ProfileEditScreen() {
     <Screen className="modal">
       <div className="navbar">
         <a className="link" href="#/profile">Отмена</a><b>Данные и замеры</b>
-        <button className="link" disabled={!valid || busy} onClick={save} style={{ color: valid ? 'var(--acc)' : '#5A6371' }}>Сохранить</button>
+        <button className="link" disabled={!valid || busy} onClick={save} style={{ color: valid ? 'var(--acc)' : '#6E6A64' }}>Сохранить</button>
       </div>
-      <span className="display" style={{ alignSelf: 'center', width: 84, height: 84, borderRadius: 42, background: '#2438C9', color: '#fff', display: 'inline-flex', alignItems: 'center', justifyContent: 'center', fontSize: 32 }}>{(f.name || '?').charAt(0).toUpperCase()}</span>
+      <span className="display" style={{ alignSelf: 'center', width: 84, height: 84, borderRadius: 42, background: 'var(--hero)', color: '#fff', display: 'inline-flex', alignItems: 'center', justifyContent: 'center', fontSize: 32 }}>{(f.name || '?').charAt(0).toUpperCase()}</span>
       <Field label="Почта"><div className="input ro" style={{ height: 50, borderRadius: 12 }}>{me.user.email}</div></Field>
       {inp('name', 'Имя', 'text')}
       {inp('weight', 'Вес, кг', 'decimal')}
@@ -264,12 +264,12 @@ export function NormsScreen() {
   const hint = (t: 'training' | 'rest') => (t === 'training' ? (nf.trainingEmpty ? 'если не задано — как обычный день' : 'когда есть тренировка') : nf.startedEmpty ? 'дни без тренировки' : 'все остальные дни');
   return (
     <Screen className="modal">
-      <div className="between"><a className="link" href="#/profile">‹ Профиль</a><button className="link" disabled={!nf.valid || busy} onClick={save} style={{ color: nf.valid ? 'var(--acc)' : '#5A6371' }}>Сохранить</button></div>
+      <div className="between"><a className="link" href="#/profile">‹ Профиль</a><button className="link" disabled={!nf.valid || busy} onClick={save} style={{ color: nf.valid ? 'var(--acc)' : '#6E6A64' }}>Сохранить</button></div>
       <h1 className="h1" style={{ fontSize: 26 }}>Нормы питания</h1>
       {order.map((t) => {
         const m = nf.macros(t);
         return (
-          <div key={t} className="card col" style={{ borderRadius: 18, gap: 10 }}>
+          <div key={t} className="card col" style={{ borderRadius: 22, gap: 10 }}>
             <div className="between" style={{ alignItems: 'baseline' }}>
               <span className="col" style={{ minWidth: 0 }}><b style={{ fontSize: 17 }}>{title(t)}</b><span className="sub" style={{ fontSize: 13 }}>{hint(t)}</span></span>
               {m ? <span><b className="display num" style={{ fontSize: 22 }}>{fmt(kcal(m))}</b> <span className="muted" style={{ fontSize: 14 }}>ккал</span></span> : <b className="display" style={{ fontSize: 16, whiteSpace: 'nowrap', flex: 'none' }}>Не задано</b>}
@@ -286,11 +286,11 @@ export function NormsScreen() {
           </div>
         );
       })}
-      <div className="between" style={{ background: '#2438C9', color: '#fff', borderRadius: 18, padding: 14, gap: 12 }}>
+      <div className="between" style={{ background: 'var(--hero)', color: '#fff', borderRadius: 22, padding: 14, gap: 12 }}>
         <div><b>Бюджет этой недели</b><div style={{ fontSize: 13, opacity: 0.9 }}>{wb.text}</div></div>
         <b className="display" style={{ fontSize: 20, whiteSpace: 'nowrap' }}>{fmt(wb.B)} ккал</b>
       </div>
-      <a className="btn sec" style={{ height: 48, borderRadius: 14, fontSize: 15 }} href="#/profile/recalc">Пересчитать по формуле</a>
+      <a className="btn sec" style={{ height: 48, borderRadius: 18, fontSize: 15 }} href="#/profile/recalc">Пересчитать по формуле</a>
     </Screen>
   );
 }
@@ -418,7 +418,7 @@ function DesktopProfile() {
     <Screen>
       <div className="between">
         <h1 className="h1 a-h" style={{ fontSize: 30 }}>Профиль</h1>
-        <button className="btn small" style={{ height: 48, borderRadius: 14, ...btnStyle }} disabled={!valid || (!dirty && state !== 'saved') || busy} onClick={save}>{label}</button>
+        <button className="btn small" style={{ height: 48, borderRadius: 18, ...btnStyle }} disabled={!valid || (!dirty && state !== 'saved') || busy} onClick={save}>{label}</button>
       </div>
       <div className="col" style={{ maxWidth: 1100, gap: 14 }}>
         {section('Личные данные', (
@@ -444,7 +444,7 @@ function DesktopProfile() {
             </div>
             <div className="between" style={{ flexWrap: 'wrap' }}>
               <span className="muted">Бюджет недели <b style={{ color: 'var(--ink)' }}>{fmt(wb.B)} ккал</b> · {wb.text}</span>
-              <a className="btn sec" style={{ height: 48, borderRadius: 14, fontSize: 15 }} href="#/profile/recalc">Пересчитать по формуле</a>
+              <a className="btn sec" style={{ height: 48, borderRadius: 18, fontSize: 15 }} href="#/profile/recalc">Пересчитать по формуле</a>
             </div>
           </div>
         ))}

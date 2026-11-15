@@ -3,7 +3,7 @@
 
 // Logo «Подход» (dumbbell on rounded tile). Default colours: tile = acc, bars = onAcc.
 // Sizes used: 48 (auth screens), 32 (sidebar). Auth screens use fixed #A9CBFA / #10151C in both themes.
-export const logoSvg = ({ size = 48, tile = '#A9CBFA', ink = '#10151C' } = {}) =>
+export const logoSvg = ({ size = 48, tile = '#FF5A1F', ink = '#FFFFFF' } = {}) =>
   `<svg width="${size}" height="${size}" viewBox="0 0 48 48" aria-hidden="true"><rect width="48" height="48" rx="14" fill="${tile}"></rect><rect x="9" y="20" width="5" height="8" rx="1.5" fill="${ink}"></rect><rect x="34" y="20" width="5" height="8" rx="1.5" fill="${ink}"></rect><rect x="14" y="15" width="4" height="18" rx="1.5" fill="${ink}"></rect><rect x="30" y="15" width="4" height="18" rx="1.5" fill="${ink}"></rect><rect x="18" y="22.5" width="12" height="3" fill="${ink}"></rect></svg>`;
 
 // Mobile tab bar (22x22). Inner markup per tab.

@@ -30,7 +30,7 @@ export function WorkoutFlow({ id }: { id: number }) {
   const q = useQuery<{ workout: Workout }>(`/workouts/${id}`);
   const { wide } = useApp();
   const wrap = (child: React.ReactNode) => (
-    <div style={{ minHeight: '100dvh', background: wide ? '#2438C9' : undefined, display: 'flex', justifyContent: 'center' }}>
+    <div style={{ minHeight: '100dvh', background: wide ? 'var(--hero)' : undefined, display: 'flex', justifyContent: 'center' }}>
       <div style={{ width: '100%', maxWidth: wide ? 480 : 640, position: 'relative' }}>{child}</div>
     </div>
   );
@@ -197,7 +197,7 @@ function Flow({ workout }: { workout: Workout }) {
   }
 
   const dots: string[] = [];
-  EX.forEach((x, i) => x.w.forEach((_, j) => dots.push(j < s.log[i].length ? '#FFFFFF' : i === s.ei && j === s.si && s.screen === 'set' ? '#A9CBFA' : 'rgba(255,255,255,.3)')));
+  EX.forEach((x, i) => x.w.forEach((_, j) => dots.push(j < s.log[i].length ? '#FFFFFF' : i === s.ei && j === s.si && s.screen === 'set' ? 'rgba(255,255,255,.75)' : 'rgba(255,255,255,.3)')));
 
   const head = (
     <>
@@ -209,9 +209,9 @@ function Flow({ workout }: { workout: Workout }) {
     </>
   );
 
-  const blue: React.CSSProperties = { minHeight: '100dvh', background: '#2438C9', color: '#fff', padding: 'calc(12px + var(--safe-top)) 18px calc(22px + var(--safe-bottom))', display: 'flex', flexDirection: 'column', gap: 14 };
-  const outlineBtn: React.CSSProperties = { height: 64, borderRadius: 16, border: '2px solid #fff', color: '#fff', fontSize: 22, fontWeight: 800 };
-  const inputStyle: React.CSSProperties = { height: 72, borderRadius: 16, border: 0, background: 'rgba(0,0,0,.18)', color: '#fff', textAlign: 'center', fontFamily: 'var(--display)', fontWeight: 800, fontSize: 40, width: '100%', outline: 'none' };
+  const blue: React.CSSProperties = { minHeight: '100dvh', background: 'var(--hero)', color: '#fff', padding: 'calc(12px + var(--safe-top)) 18px calc(22px + var(--safe-bottom))', display: 'flex', flexDirection: 'column', gap: 14 };
+  const outlineBtn: React.CSSProperties = { height: 64, borderRadius: 20, border: '2px solid #fff', color: '#fff', fontSize: 22, fontWeight: 800 };
+  const inputStyle: React.CSSProperties = { height: 72, borderRadius: 20, border: 0, background: 'rgba(0,0,0,.18)', color: '#fff', textAlign: 'center', fontFamily: 'var(--display)', fontWeight: 800, fontSize: 40, width: '100%', outline: 'none' };
 
   // Program exercise without a planned weight, before its first done set: this workout calibrates it.
   const calib = !!workout.programId && e.type !== 'time' && e.w.every((x) => x == null) && s.log[s.ei].length === 0;
@@ -220,7 +220,7 @@ function Flow({ workout }: { workout: Workout }) {
     body = (
       <>
         <div style={{ fontWeight: 700 }}>Упражнение {s.ei + 1} из {EX.length} · подход {s.si + 1} из {e.w.length}</div>
-        <div className="row a-in" style={{ background: 'rgba(0,0,0,.16)', borderRadius: 18, padding: 8, gap: 12 }}>
+        <div className="row a-in" style={{ background: 'rgba(0,0,0,.16)', borderRadius: 22, padding: 8, gap: 12 }}>
           <ExerciseArt kind={e.kind} name={e.name} size={64} />
           <div className="grow"><div className="display" style={{ fontSize: 18 }}>{e.name}</div><div style={{ fontSize: 13, fontWeight: 700, opacity: 0.9 }}>{e.muscles ? `${e.muscles} · ` : ''}план {e.w.length} × {e.reps}</div></div>
         </div>
@@ -229,7 +229,7 @@ function Flow({ workout }: { workout: Workout }) {
             <label htmlFor="fw" style={{ fontWeight: 700 }}>{e.type === 'time' ? 'Вес, кг (если есть)' : 'Вес, кг'}</label>
             <div className="row" style={{ gap: 6 }}>
               {[1, 2.5, 5].map((n) => (
-                <button key={n} onClick={() => setS((st) => ({ ...st, step: n }))} style={{ height: 32, padding: '0 10px', borderRadius: 16, fontWeight: 800, fontSize: 13, background: s.step === n ? '#fff' : 'rgba(255,255,255,.16)', color: s.step === n ? '#2438C9' : '#fff' }}>шаг {show(n)}</button>
+                <button key={n} onClick={() => setS((st) => ({ ...st, step: n }))} style={{ height: 32, padding: '0 10px', borderRadius: 16, fontWeight: 800, fontSize: 13, background: s.step === n ? '#fff' : 'rgba(255,255,255,.16)', color: s.step === n ? 'var(--hero)' : '#fff' }}>шаг {show(n)}</button>
               ))}
             </div>
           </div>
@@ -257,8 +257,8 @@ function Flow({ workout }: { workout: Workout }) {
         </div>
         <div style={{ flex: 1 }} />
         <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 10 }}>
-          <button onClick={skipEx} aria-label="Пропустить упражнение" className="display" style={{ height: 64, borderRadius: 20, border: '2px solid #fff', color: '#fff', fontSize: 18 }}>Пропустить</button>
-          <button onClick={done} className="display" style={{ height: 64, borderRadius: 20, background: '#fff', color: '#12151C', fontSize: 18 }}>Сделал</button>
+          <button onClick={skipEx} aria-label="Пропустить упражнение" className="display" style={{ height: 64, borderRadius: 22, border: '2px solid #fff', color: '#fff', fontSize: 18 }}>Пропустить</button>
+          <button onClick={done} className="display" style={{ height: 64, borderRadius: 22, background: '#fff', color: '#1A1A1A', fontSize: 18 }}>Сделал</button>
         </div>
       </>
     );
@@ -271,16 +271,16 @@ function Flow({ workout }: { workout: Workout }) {
       <>
         <div style={{ fontWeight: 700, fontSize: 17 }}>Отдых</div>
         <div className="a-pulse" role="timer" aria-label={`Осталось ${mmss(left)}`} style={{ alignSelf: 'center', width: 264, height: 264, borderRadius: '50%', background: `conic-gradient(#FFFFFF ${deg}deg, rgba(255,255,255,.22) 0)`, display: 'flex', alignItems: 'center', justifyContent: 'center', transition: 'background .3s' }}>
-          <div style={{ width: 228, height: 228, borderRadius: '50%', background: '#2438C9', display: 'flex', flexDirection: 'column', alignItems: 'center', justifyContent: 'center' }}>
+          <div style={{ width: 228, height: 228, borderRadius: '50%', background: 'var(--hero)', display: 'flex', flexDirection: 'column', alignItems: 'center', justifyContent: 'center' }}>
             <span className="display num" style={{ fontSize: 64 }}>{mmss(left)}</span>
             <span style={{ fontWeight: 700, fontSize: 16, opacity: 0.85 }}>из {mmss(s.total)}</span>
           </div>
         </div>
         <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 10 }}>
-          <button onClick={() => adjustRest(-15)} style={{ height: 54, borderRadius: 14, border: '2px solid #fff', color: '#fff', fontWeight: 800 }}>−15 с</button>
-          <button onClick={() => adjustRest(15)} style={{ height: 54, borderRadius: 14, border: '2px solid #fff', color: '#fff', fontWeight: 800 }}>+15 с</button>
+          <button onClick={() => adjustRest(-15)} style={{ height: 54, borderRadius: 18, border: '2px solid #fff', color: '#fff', fontWeight: 800 }}>−15 с</button>
+          <button onClick={() => adjustRest(15)} style={{ height: 54, borderRadius: 18, border: '2px solid #fff', color: '#fff', fontWeight: 800 }}>+15 с</button>
         </div>
-        <div className="row a-in" style={{ background: 'rgba(0,0,0,.18)', borderRadius: 18, padding: 10, gap: 12 }}>
+        <div className="row a-in" style={{ background: 'rgba(0,0,0,.18)', borderRadius: 22, padding: 10, gap: 12 }}>
           <ExerciseArt kind={ne.kind} name={ne.name} size={64} phase="start" />
           <div className="grow">
             <div style={{ fontSize: 13, fontWeight: 700, opacity: 0.85 }}>{startedEx || s.si > 0 ? `Дальше · подход ${s.si + 1} из ${ne.w.length}` : `Дальше · упражнение ${s.ei + 1} из ${EX.length}`}</div>
@@ -289,7 +289,7 @@ function Flow({ workout }: { workout: Workout }) {
           </div>
         </div>
         <div style={{ flex: 1 }} />
-        <button onClick={endRest} className="display" style={{ height: 72, borderRadius: 20, background: '#fff', color: '#12151C', fontSize: 19 }}>{left > 0 ? 'Пропустить отдых' : 'К подходу'}</button>
+        <button onClick={endRest} className="display" style={{ height: 72, borderRadius: 22, background: '#fff', color: '#1A1A1A', fontSize: 19 }}>{left > 0 ? 'Пропустить отдых' : 'К подходу'}</button>
       </>
     );
   } else {
@@ -301,14 +301,14 @@ function Flow({ workout }: { workout: Workout }) {
           <button key={i} className="row a-in" onClick={() => {
             enqueue({ method: 'PATCH', path: path(i), body: { skipped: false } });
             goTo({ screen: 'set', skipped: s.skipped.filter((k) => k !== i), ...at(i, 0) });
-          }} style={{ background: '#fff', color: '#12151C', borderRadius: 18, padding: 10, gap: 12, textAlign: 'left' }}>
+          }} style={{ background: '#fff', color: '#1A1A1A', borderRadius: 22, padding: 10, gap: 12, textAlign: 'left' }}>
             <ExerciseArt kind={x.kind} name={x.name} size={56} />
-            <div className="grow"><b>{x.name}</b><div style={{ color: '#5A6371', fontSize: 13, fontWeight: 700 }}>{x.w.length} × {x.reps}{x.w.some((v) => v != null) ? ` · ${[...new Set(x.w.filter((v) => v != null).map((v) => showKg(v)))].join(' → ')} кг` : ''}</div></div>
-            <b style={{ color: '#2438C9' }}>Вернуться ›</b>
+            <div className="grow"><b>{x.name}</b><div style={{ color: '#6E6A64', fontSize: 13, fontWeight: 700 }}>{x.w.length} × {x.reps}{x.w.some((v) => v != null) ? ` · ${[...new Set(x.w.filter((v) => v != null).map((v) => showKg(v)))].join(' → ')} кг` : ''}</div></div>
+            <b style={{ color: 'var(--hero)' }}>Вернуться ›</b>
           </button>
         ))}
         <div style={{ flex: 1 }} />
-        <button onClick={() => { complete(); goTo({ screen: 'done' }); }} style={{ height: 64, borderRadius: 20, border: '2px solid #fff', color: '#fff', fontWeight: 800, fontSize: 18 }}>Завершить</button>
+        <button onClick={() => { complete(); goTo({ screen: 'done' }); }} style={{ height: 64, borderRadius: 22, border: '2px solid #fff', color: '#fff', fontWeight: 800, fontSize: 18 }}>Завершить</button>
       </>
     );
   }

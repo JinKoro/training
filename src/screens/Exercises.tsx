@@ -39,7 +39,7 @@ function ExerciseCard({ e, wide }: { e: Exercise; wide?: boolean }) {
         {steps.length > 1 ? <ol style={{ margin: 0, paddingLeft: 20, display: 'flex', flexDirection: 'column', gap: 6 }}>{steps.map((s, i) => <li key={i}>{s}</li>)}</ol>
           : steps.length === 1 ? <p style={{ margin: 0 }}>{steps[0]}</p> : null}
       </div>
-      <div className="a-in" style={{ background: 'var(--sub)', borderRadius: 20, padding: 14, display: 'flex', justifyContent: 'center' }}>
+      <div className="a-in" style={{ background: 'var(--sub)', borderRadius: 22, padding: 14, display: 'flex', justifyContent: 'center' }}>
         <Muscles primary={e.primary} secondary={e.secondary} />
       </div>
       {e.own ? (
@@ -96,7 +96,7 @@ export function LibraryScreen({ mine, selected }: { mine: boolean; selected: num
       {chips.length ? <div className="chips" style={wide ? { flexWrap: 'wrap' } : undefined}>{chips.map(([l], i) => <button key={l} className="chip" aria-pressed={g === i} onClick={() => setG(i)}>{l}</button>)}</div> : null}
       {wide ? (
         <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fill, minmax(180px, 1fr))', gap: 12 }}>
-          <a href="#/exercise/new" className="a-in" style={{ minHeight: 160, border: '2px dashed var(--track)', borderRadius: 18, display: 'flex', alignItems: 'center', justifyContent: 'center', textAlign: 'center', padding: 14, color: 'var(--acc)', fontWeight: 800 }}>+ Своё упражнение</a>
+          <a href="#/exercise/new" className="a-in" style={{ minHeight: 160, border: '2px dashed var(--track)', borderRadius: 22, display: 'flex', alignItems: 'center', justifyContent: 'center', textAlign: 'center', padding: 14, color: 'var(--acc)', fontWeight: 800 }}>+ Своё упражнение</a>
           {list.map((e) => (
             <a key={e.id} href={`#/exercises/${scope}/${e.id}`} className="card col a-in" style={{ borderRadius: 18, gap: 8, alignItems: 'flex-start', border: `2px solid ${(sel ?? list[0])?.id === e.id ? 'var(--acc)' : 'var(--cardBorder)'}` }}>
               <ExerciseArt kind={e.kind} name={e.name} size={84} />
@@ -235,7 +235,7 @@ export function ExerciseFormScreen({ id }: { id?: number }) {
           <label htmlFor="ef-desc">Как выполнять <span className="muted" style={{ fontWeight: 500 }}>· необязательно</span></label>
           <textarea id="ef-desc" rows={3} className="input" style={{ height: 'auto', padding: 12, resize: 'vertical' }} placeholder="Например: спина ровная, опускайтесь медленно" value={desc} onChange={(e) => setDesc(e.target.value)} maxLength={2000} />
         </div>
-        <div className="card between" style={{ borderRadius: 14, padding: '8px 12px' }}>
+        <div className="card between" style={{ borderRadius: 18, padding: '8px 12px' }}>
           <b>Отдых по умолчанию</b>
           <div className="row" style={{ gap: 6 }}>
             <button className="icon-btn" style={{ background: 'var(--bg)' }} aria-label="Меньше" onClick={() => setRest((r) => Math.max(0, r - 15))}>−</button>
@@ -243,7 +243,7 @@ export function ExerciseFormScreen({ id }: { id?: number }) {
             <button className="icon-btn" style={{ background: 'var(--bg)' }} aria-label="Больше" onClick={() => setRest((r) => Math.min(600, r + 15))}>+</button>
           </div>
         </div>
-        {ex ? <button className="btn danger" style={{ height: 48, borderRadius: 14, fontSize: 15 }} onClick={() => setDel(true)}>Удалить упражнение</button> : null}
+        {ex ? <button className="btn danger" style={{ height: 48, borderRadius: 18, fontSize: 15 }} onClick={() => setDel(true)}>Удалить упражнение</button> : null}
         {ex ? <DeleteExercise e={ex} open={del} onClose={() => setDel(false)} /> : null}
       </div>
     </Screen>

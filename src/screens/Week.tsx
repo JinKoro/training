@@ -285,9 +285,9 @@ function EmptyWeek({ days }: { days: DayInfo[] }) {
           </div>
         ))}
       </div>
-      <div className="a-in col" style={{ background: '#2438C9', color: '#fff', borderRadius: 22, padding: 16, gap: 12 }}>
+      <div className="a-in col" style={{ background: 'var(--hero)', color: '#fff', borderRadius: 22, padding: 16, gap: 12 }}>
         <span className="display" style={{ fontSize: 20 }}>Плана тренировок пока нет</span>
-        <a className="btn a-in" style={{ background: '#fff', color: '#2438C9', height: 50, borderRadius: 14 }} href="#/program/new">Создать программу</a>
+        <a className="btn a-in" style={{ background: '#fff', color: 'var(--hero)', height: 50, borderRadius: 18 }} href="#/program/new">Создать программу</a>
       </div>
       <a className="card row a-in" href={`#/food/${today()}/add/breakfast`}>
         <FoodArt kind="oat" size={48} />

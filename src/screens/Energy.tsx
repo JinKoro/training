@@ -165,7 +165,7 @@ export function EnergyFlow({ mode, init, wide, busy, error, onBack, onDone }: {
             <div className="col" style={{ gap: 6 }}><span className="sub" style={{ fontSize: 13 }}>Цель</span>{seg(GOALS.map(([k, l]) => [k, l] as [Goal, string]), f.goal, (v) => setF((p) => ({ ...p, goal: v })))}</div>
           </div>
           <div className="col" style={{ flex: '1 1 340px', minWidth: 0, gap: 12 }}>
-            <div className="card col a-in" style={{ gap: 12, borderRadius: 20 }}>
+            <div className="card col a-in" style={{ gap: 12, borderRadius: 22 }}>
               <div className="between"><b style={{ fontSize: 17 }}>Расход в день</b><span className="muted" style={{ fontSize: 13, fontWeight: 700 }}>ккал</span></div>
               <div style={{ display: 'flex', gap: 2, height: 12, borderRadius: 6, overflow: 'hidden' }}>
                 {parts.map((p) => <i key={p.n} className="a-fill" style={{ flex: `${Math.max(p.v, 1)} 1 0`, background: p.c }} />)}
@@ -184,14 +184,14 @@ export function EnergyFlow({ mode, init, wide, busy, error, onBack, onDone }: {
                 ))}
               </div>
             </div>
-            <div className="col a-in" style={{ background: 'var(--blue)', color: '#fff', borderRadius: 20, padding: 16, gap: 12 }}>
+            <div className="col a-in" style={{ background: 'var(--hero)', color: '#fff', borderRadius: 22, padding: 16, gap: 12 }}>
               <div className="between"><b style={{ fontSize: 17 }}>Предлагаемые калории</b><span style={{ fontSize: 13, fontWeight: 700, opacity: 0.85 }}>{GOALS.find((g) => g[0] === f.goal)![2]}</span></div>
               {days.map((d) => (
                 <div key={d.n} className="col" style={{ gap: 6 }}>
                   <div className="between"><span style={{ fontWeight: 700 }}>{d.n}</span><b className="display num" style={{ fontSize: 20 }}>{fmt(kcal(d.m))} ккал</b></div>
                   <div style={{ display: 'grid', gridTemplateColumns: 'repeat(3, 1fr)', gap: 6 }}>
                     {(['Б', 'Ж', 'У'] as const).map((l, i) => (
-                      <span key={l} style={{ background: 'rgba(255,255,255,.12)', borderTop: `3px solid ${['#4F8FE6', '#E2703A', '#2FA57D'][i]}`, borderRadius: 8, padding: '6px 8px', fontWeight: 800, fontSize: 14 }}>{l} {d.m[i]}</span>
+                      <span key={l} style={{ background: 'rgba(255,255,255,.12)', borderTop: `3px solid ${['rgba(255,255,255,.9)', '#1A1A1A', '#15803D'][i]}`, borderRadius: 8, padding: '6px 8px', fontWeight: 800, fontSize: 14 }}>{l} {d.m[i]}</span>
                     ))}
                   </div>
                 </div>
