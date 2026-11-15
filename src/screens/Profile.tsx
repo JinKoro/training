@@ -106,7 +106,8 @@ type Offer = { rows: [string, Macros | null, Macros][]; norms: { training: Macro
 function recalcOffer(me: Me, body: { weight: number; steps: number; bodyFat?: number; sex?: Sex }): Offer | null {
   const p = me.profile;
   const sex = body.sex ?? p.sex, fat = body.bodyFat ?? p.bodyFat;
-  if (body.weight === p.weight && body.steps === p.steps && fat === p.bodyFat) return null;
+  // Any formula input changed: weight, steps, body fat or sex.
+  if (body.weight === p.weight && body.steps === p.steps && fat === p.bodyFat && sex === p.sex) return null;
   if (!sex || fat == null || !body.weight) return null;
   const mode = p.trainingMode ?? 'time';
   const norms = suggestNorms({ sex, weight: body.weight, bodyFat: fat, steps: body.steps, trainingMode: mode, trainingMin: p.trainingMin ?? 60, trainingKcal: p.trainingKcal ?? 0 }, me.user.goal);

@@ -23,6 +23,8 @@ test.describe('Ready-made programs', () => {
     await open(page, 'profile/edit');
     await page.getByRole('button', { name: 'Женщина' }).click();
     await page.getByRole('button', { name: 'Сохранить' }).click();
+    // a sex change changes the formula: the recalculation is offered
+    await page.getByRole('button', { name: 'Не сейчас' }).click();
     await expect(page).toHaveURL(/#\/profile$/);
     await open(page, 'sport');
     await expect(list.locator('a')).toHaveCount(3);

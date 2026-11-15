@@ -220,9 +220,10 @@ test.describe('Food diary', () => {
     const cs = sheet(page, 'Копирование');
     await expect(cs).toContainText('Скопировать обед');
     await expect(cs).toContainText(`Гречка варёная · ${fmt(BUCK.k * 2)} ккал`);
-    if (weekStart(tm) !== weekStart(D)) await cs.getByRole('button', { name: 'Следующая неделя' }).click();
     const dayBtn = (d: string) => cs.getByRole('button', { name: new RegExp(`^${WD_SHORT[weekdayIdx(d)]}\\s?${Number(d.slice(8))}$`) });
+    // check yesterday while its week is shown (on a Sunday tomorrow is in the next week)
     if (weekStart(y) === weekStart(D)) await expect(dayBtn(y)).toBeDisabled();
+    if (weekStart(tm) !== weekStart(D)) await cs.getByRole('button', { name: 'Следующая неделя' }).click();
     await dayBtn(tm).click();
     await expect(dayBtn(tm)).toHaveAttribute('aria-pressed', 'true');
     await cs.getByRole('button', { name: 'Скопировать в 1 день' }).click();

@@ -16,6 +16,9 @@ test.use({ timezoneId: tz });
 // changes, a new program's start week and the «copy to today» check by the UTC day. Outside UTC, around midnight,
 // norms saved "today" either start tomorrow (today still shows the old norm) or overwrite yesterday's.
 test('norms saved today apply from the local today, not from the UTC date', async ({ authed: page, user }) => {
+  // The fixture registers through the API without X-Local-Date, i.e. on the UTC day. Behind UTC that day is the
+  // local tomorrow, so «yesterday» has no norm of its own: only the zone ahead of UTC can check it.
+  test.skip(!ahead, 'only checkable while UTC+14 is already on the next day');
   expect(localDay()).not.toBe(new Date().toISOString().slice(0, 10)); // the setup really differs from UTC
   await open(page, 'profile/norms');
   await page.locator('#nm-rest-0').fill('100');

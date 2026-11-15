@@ -3,6 +3,7 @@ import { useApp } from '../app-context';
 import { api, ApiError } from '../lib/api';
 import { MEALS, MEAL_IN, MEAL_RU, fmt, fmtG, kcal, kcal100, kcalAt, macroLine, sumKcal } from '../lib/calc';
 import { addDays, dayMonth, diffDays, isDayStr, today } from '../lib/dates';
+import { getCamera, parkCamera } from '../lib/camera';
 import { invalidate, useQuery, forget } from '../lib/query';
 import { go, replace } from '../lib/router';
 import type { Entry, FoodItem, Meal } from '../lib/types';
@@ -792,10 +793,10 @@ export function ScanScreen({ date, meal }: { date?: string; meal?: string }) {
     (async () => {
       try {
         // High resolution + continuous focus: small barcodes read without bringing the phone close.
-        const stream = await navigator.mediaDevices.getUserMedia({
+        const stream = await getCamera({
           video: { facingMode: 'environment', width: { ideal: 1920 }, height: { ideal: 1080 } }, audio: false,
         });
-        if (cancelled) { stream.getTracks().forEach((t) => t.stop()); return; }
+        if (cancelled) { parkCamera(); return; }
         const track = stream.getVideoTracks()[0];
         try { await track.applyConstraints({ advanced: [{ focusMode: 'continuous' } as MediaTrackConstraintSet] }); } catch { /* not supported */ }
         const v = video.current!;
@@ -833,7 +834,7 @@ export function ScanScreen({ date, meal }: { date?: string; meal?: string }) {
           timer = window.setTimeout(loop, 80);
         };
         void loop();
-        stop = () => { clearTimeout(timer); stream.getTracks().forEach((t) => t.stop()); };
+        stop = () => { clearTimeout(timer); v.srcObject = null; parkCamera(); };
       } catch { setDenied(true); }
     })();
     return () => { cancelled = true; stop(); };

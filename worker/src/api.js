@@ -366,7 +366,7 @@ const todayOf = (request) => {
 const LABEL_MODEL = '@cf/meta/llama-4-scout-17b-16e-instruct';
 const LABEL_PROMPT = `This is a photo of a food package (front and/or the nutrition facts table). Read everything you can find and return only JSON:
 {"name": string|null, "brand": string|null, "barcode": string|null, "category": string|null, "kcal": number|null, "protein": number|null, "fat": number|null, "carbs": number|null}.
-- name: the product name in Russian as printed, without the brand and without the weight (e.g. "Творог 5%", "Молоко 2,5%"); null if not visible.
+- name: a SHORT Russian name, at most 5 words: what the product is (творог, йогурт, сырок, паста творожная, молоко…) plus what tells it apart (flavour, fat %, variety). Not the brand, not the weight, no quotes, no marketing words. Rephrase a long label name, keeping its meaning. Examples: «Паста творожная "Творожок" с вкусовым наполнителем "Груша-Банан"» → "Творожок груша-банан"; «Йогурт питьевой с наполнителем клубника-земляника 1,5%» → "Йогурт питьевой клубника 1,5%"; «Творог 5%» → "Творог 5%". null if not visible.
 - brand: the brand / trademark (e.g. "Простоквашино"); null if not visible.
 - barcode: the EAN/UPC digits printed under the barcode (8, 12 or 13 digits, digits only); null if not readable.
 - category: the id of the best matching category from this list, or null: ${Object.entries(SUB_NAMES).map(([id, n]) => `${id}=${n}`).join('; ')}.
@@ -398,10 +398,12 @@ async function readLabelAI(env, image) {
   if (!m) return null;
   let j;
   try { j = JSON.parse(m[0]); } catch { return null; }
+  // The model is asked for ≤5 words; enforce it anyway (no quotes, at most 5 words).
+  const shortName = (v) => (v ? v.replace(/[«»"“”„]/g, '').replace(/\s+/g, ' ').trim().split(' ').slice(0, 5).join(' ').replace(/(\s+(с|со|в|во|и|на|без|для|из|по|вкусовым|наполнителем))+$/i, '') || null : null);
   const text = (v, max) => (typeof v === 'string' && v.trim() && v.trim().length <= max ? v.trim() : null);
   const code = typeof j.barcode === 'string' ? j.barcode.replace(/\D/g, '') : '';
   const out = {
-    name: text(j.name, 80), brand: text(j.brand, 40),
+    name: shortName(text(j.name, 120)), brand: text(j.brand, 40),
     barcode: /^(\d{8}|\d{12,14})$/.test(code) ? code : null,
     category: typeof j.category === 'string' && SUB_NAMES[j.category] ? j.category : null,
     kcal: num(j.kcal, 900), protein: num(j.protein, 100), fat: num(j.fat, 100), carbs: num(j.carbs, 100),

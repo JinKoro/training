@@ -68,6 +68,27 @@ document.addEventListener('touchmove', (e) => {
   if (!canScroll(e.target as Element)) e.preventDefault();
 }, { passive: false });
 
+/**
+ * Every text field: a length limit when the field has none of its own (numbers 16 — barcodes are up to 14 —, passwords 128, text 200,
+ * textareas 1000 — the server checks again), and on focus the caret goes to the end, so a long name is edited
+ * from where it ends instead of wherever the tap landed.
+ */
+const TEXTLIKE = new Set(['text', 'search', 'email', 'password', 'tel', 'url', '']);
+document.addEventListener('focusin', (e) => {
+  const el = e.target as HTMLInputElement | HTMLTextAreaElement;
+  const isArea = el instanceof HTMLTextAreaElement;
+  if (!isArea && !(el instanceof HTMLInputElement && TEXTLIKE.has(el.type))) return;
+  if (el.maxLength < 0) {
+    const mode = el.getAttribute('inputmode');
+    el.maxLength = isArea ? 1000 : mode === 'numeric' || mode === 'decimal' ? 16 : el.type === 'password' ? 128 : 200;
+  }
+  if (el.type === 'email' || el.type === 'password') return; // no selection API there
+  // Only a plain caret moves: a selection (select-all to replace, a double tap on a word) stays as it is.
+  const end = () => { try { if (document.activeElement === el && el.selectionStart === el.selectionEnd) el.setSelectionRange(el.value.length, el.value.length); } catch { /* */ } };
+  // iOS places the caret at the tap point after focus: move it on the next ticks.
+  setTimeout(end, 0); setTimeout(end, 60);
+});
+
 // iOS applies :active (the press-scale on buttons) only when a touchstart listener exists.
 document.addEventListener('touchstart', () => {}, { passive: true });
 
