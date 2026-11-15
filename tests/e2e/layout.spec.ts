@@ -38,7 +38,7 @@ const routes = () => [
   'week', 'week-macros/0', 'week/1', 'calendar', 'sport', `program/${ids.program}`, `program/${ids.program}/edit`, 'program/new',
   'template/m2', 'template/m2/start', `day/${today()}`, `workout/${ids.workout}`, `summary/${ids.done}`, `workout-edit/${ids.done}`, 'log',
   `food/${today()}`, `food/${today()}/add/breakfast`, `food/${today()}/item/product/${ids.product}/lunch`, `food/${today()}/new-product/lunch/-`,
-  `food/${today()}/dish/lunch/from-meal`, `food-calendar/${today()}`, 'profile', 'profile/edit', 'profile/norms', 'profile/recalc', 'profile/password',
+  `food/${today()}/dish/lunch/from-meal`, `food-calendar/${today()}`, 'profile', 'profile/body', 'profile/edit', 'profile/norms', 'profile/recalc', 'profile/password',
   'exercises', 'exercises/mine', 'exercise/new',
 ];
 

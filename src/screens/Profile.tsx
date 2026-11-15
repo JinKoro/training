@@ -1,7 +1,7 @@
 import { useMemo, useState } from 'react';
 import { useApp } from '../app-context';
 import { api, ApiError } from '../lib/api';
-import { activeProgram, fmt, kcal, programWeek, setNormFor, suggestNorms, weekRange, weekTrainingDays } from '../lib/calc';
+import { activeProgram, fmt, kcal, programWeek, setNormFor, suggestNorms, timesPerWeek, weekRange, weekTrainingDays } from '../lib/calc';
 import { ageFrom, today, WD_SHORT, weekDays, weekStart } from '../lib/dates';
 import { useDays } from '../lib/hooks';
 import { invalidate } from '../lib/query';
@@ -9,6 +9,7 @@ import { go } from '../lib/router';
 import type { Macros, Me, Sex } from '../lib/types';
 import { birthToInput, maskBirth, numIn, parseBirth, vBirth, vFat, vHeight, vName, vPassword, vSteps, vWeight, years } from '../lib/validate';
 import { EnergyFlow, energyFormFrom, type EnergyResult } from './Energy';
+import { BodyFigure } from '../art/Body';
 import { Field, Screen, Sheet, errText, toast, PasswordInput } from '../ui';
 
 type Pref = 'system' | 'light' | 'dark';
@@ -68,7 +69,7 @@ export function ProfileScreen() {
             <a href="#/profile/norms"><span className="grow">День тренировки</span><span className="muted">Не задано ›</span></a>
           </>
         )}
-        <a href="#/profile/edit"><span className="grow">Данные и замеры</span><span className="muted">›</span></a>
+        <a href="#/profile/body"><span className="grow">Данные и замеры</span><span className="muted">›</span></a>
       </div>
       <span className="label">Безопасность</span>
       <div className="list"><a href="#/profile/password"><span className="grow">Пароль</span><span className="muted">Сменить ›</span></a></div>
@@ -174,35 +175,131 @@ export function ProfileEditScreen() {
     try {
       await api('PUT', '/me/profile', b);
       await invalidate('/me');
-      if (o) { setOffer(o); setBusy(false); } else go('profile');
+      if (o) { setOffer(o); setBusy(false); } else go('profile', 'body');
     } catch (e) { toast(errText(e)); setBusy(false); }
   };
   const recalc = async () => {
     if (!offer || busy) return;
     setBusy(true);
-    try { await api('PUT', '/me/norms', offer.norms); await invalidate('/me'); toast('Калории пересчитаны'); go('profile'); } catch (e) { toast(errText(e)); setBusy(false); }
+    try { await api('PUT', '/me/norms', offer.norms); await invalidate('/me'); toast('Калории пересчитаны'); go('profile', 'body'); } catch (e) { toast(errText(e)); setBusy(false); }
   };
+  const { programs } = useApp();
   const inp = (k: Exclude<keyof typeof f, 'sex'>, label: string, mode: 'text' | 'decimal' | 'numeric', aside?: string | null) => (
     <Field label={label} id={`pe-${k}`} aside={aside} error={errs[k]}>
-      <input id={`pe-${k}`} className="input" inputMode={mode} value={f[k]} onChange={set(k)} aria-invalid={!!errs[k]} style={{ height: 50, borderRadius: 12 }} placeholder={k === 'birth' ? 'ДД.ММ.ГГГГ' : undefined} />
+      <input id={`pe-${k}`} className="input" inputMode={mode} value={f[k]} onChange={set(k)} aria-invalid={!!errs[k]} style={{ height: 50, borderRadius: 12, background: 'var(--bg)' }} placeholder={k === 'birth' ? 'ДД.ММ.ГГГГ' : undefined} />
     </Field>
   );
+  const sex: Sex = f.sex || 'm';
+  const fatN = numIn(f.fat);
+  // the figure nearest to the typed value lights up, as at sign-up
+  const near = f.fat.trim() && Number.isFinite(fatN) ? FAT_LEVELS[sex].reduce((b, x) => (Math.abs(x - fatN) < Math.abs(b - fatN) ? x : b)) : null;
+  const prog = activeProgram(programs);
+  const card: React.CSSProperties = { gap: 12, padding: '14px 14px 16px' };
   return (
     <Screen className="modal">
       <div className="navbar">
-        <a className="link" href="#/profile">Отмена</a><b>Данные и замеры</b>
-        <button className="link" disabled={!valid || busy} onClick={save} style={{ color: valid ? 'var(--acc)' : '#6E6A64' }}>Сохранить</button>
+        <a className="link" href="#/profile/body">Отмена</a><b>Данные и замеры</b>
+        <button className="link" disabled={!valid || busy} onClick={save} style={{ color: valid ? 'var(--acc)' : 'var(--muted)' }}>Сохранить</button>
       </div>
-      <span className="display" style={{ alignSelf: 'center', width: 84, height: 84, borderRadius: 42, background: 'var(--hero)', color: '#fff', display: 'inline-flex', alignItems: 'center', justifyContent: 'center', fontSize: 32 }}>{(f.name || '?').charAt(0).toUpperCase()}</span>
-      <Field label="Почта"><div className="input ro" style={{ height: 50, borderRadius: 12 }}>{me.user.email}</div></Field>
-      {inp('name', 'Имя', 'text')}
-      {inp('weight', 'Вес, кг', 'decimal')}
-      {inp('height', 'Рост, см', 'numeric')}
-      {inp('birth', 'Дата рождения', 'numeric', age)}
-      {inp('steps', 'Шагов в день, в среднем', 'numeric')}
-      {inp('fat', 'Процент жира', 'decimal')}
-      <div className="field"><span className="sub" style={{ fontSize: 13 }}>Пол</span>{sexSeg(f.sex, (v) => setF((p) => ({ ...p, sex: v })))}</div>
-      <RecalcSheet offer={offer} busy={busy} onRecalc={() => void recalc()} onLater={() => go('profile')} />
+      <section className="card col a-in" style={card}>
+        <span className="label">Общая информация</span>
+        <Field label="Почта"><div className="input ro" style={{ height: 50, borderRadius: 12 }}>{me.user.email}</div></Field>
+        {inp('name', 'Имя', 'text')}
+        {inp('birth', 'Дата рождения', 'numeric', age)}
+        <div className="field"><span style={{ fontWeight: 700 }}>Пол</span>{sexSeg(f.sex, (v) => setF((p) => ({ ...p, sex: v })))}</div>
+      </section>
+      <section className="card col a-in" style={card}>
+        <span className="label">Тело</span>
+        <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 8, alignItems: 'start' }}>{inp('weight', 'Вес, кг', 'decimal')}{inp('height', 'Рост, см', 'numeric')}</div>
+        <div className="field">
+          <span style={{ fontWeight: 700 }}>Процент жира</span>
+          <div style={{ display: 'grid', gridTemplateColumns: 'repeat(6, minmax(0, 1fr))', gap: 4 }}>
+            {FAT_LEVELS[sex].map((pct) => {
+              const on = pct === near;
+              return (
+                <button key={pct} type="button" aria-pressed={on} aria-label={`${pct} процентов`} onClick={() => setF((p) => ({ ...p, fat: String(pct) }))}
+                  style={{ borderRadius: 14, padding: '6px 0 4px', display: 'flex', flexDirection: 'column', alignItems: 'center', gap: 2, minWidth: 0,
+                    background: on ? 'var(--pick)' : 'transparent', border: `2px solid ${on ? 'var(--acc)' : 'transparent'}` }}>
+                  <BodyFigure sex={sex} fat={pct} size={64} selected={on} />
+                  <span style={{ fontWeight: 800, fontSize: 12, color: on ? 'var(--acc)' : 'var(--muted)' }}>{pct}%</span>
+                </button>
+              );
+            })}
+          </div>
+          {inp('fat', 'Или свой процент', 'decimal')}
+        </div>
+      </section>
+      <section className="card col a-in" style={card}>
+        <span className="label">Физическая активность</span>
+        {inp('steps', 'Шаги в день', 'numeric')}
+        {/* read-only: what the user trains by now (changed in Спорт, not here) */}
+        <div className="field"><span style={{ fontWeight: 700 }}>Тренировки</span>
+          <div className="input ro" style={{ height: 'auto', minHeight: 50, borderRadius: 12, padding: '8px 14px', flexDirection: 'column', alignItems: 'flex-start', justifyContent: 'center', color: 'var(--ink)' }}>
+            {prog ? <><b className="ell" style={{ maxWidth: '100%' }}>{prog.name}</b><span className="sub">{timesPerWeek(prog.weekdays.length)} · {prog.weekdays.map((d) => WD_SHORT[d]).join(', ')}</span></> : <b>Без программы</b>}
+          </div>
+        </div>
+      </section>
+      <RecalcSheet offer={offer} busy={busy} onRecalc={() => void recalc()} onLater={() => go('profile', 'body')} />
+    </Screen>
+  );
+}
+
+const FAT_LEVELS: Record<Sex, number[]> = { m: [10, 15, 20, 25, 30, 35], f: [15, 20, 25, 30, 35, 40] };
+const fmt1 = (n: number) => String(Math.round(n * 10) / 10).replace('.', ',');
+
+/** «Данные и замеры»: the sign-up figure (sex + body fat) with the numbers on it; «Изменить» opens the form. */
+export function BodyScreen() {
+  const { me, wide } = useApp();
+  const p = me.profile;
+  const sex: Sex = p.sex ?? 'm';
+  const fat = p.bodyFat ?? null;
+  const fig = wide ? 420 : 400;
+  const age = p.birthDate ? years(ageFrom(p.birthDate)) : null;
+  const lean = p.weight != null && fat != null ? p.weight * (1 - fat / 100) : null;
+  const marks: { top: string; v: string; l: string; hot?: boolean }[] = [
+    { top: '24%', v: p.weight == null ? '—' : `${fmt1(p.weight)} кг`, l: lean == null ? 'вес' : `сухая ${fmt1(lean)} кг` },
+    { top: '47%', v: fat == null ? '—' : `${fmt1(fat)} %`, l: 'жира', hot: true },
+    { top: '90%', v: p.steps == null ? '—' : fmt(p.steps), l: 'шагов в день' },
+  ];
+  const card = (
+    <section className="card col a-in" style={{ alignItems: 'center', gap: 16, padding: '22px 16px 20px', borderRadius: 24, alignSelf: wide ? 'flex-start' : 'stretch', width: wide ? 560 : 'auto' }}>
+      <div className="row" style={{ alignItems: 'stretch', justifyContent: 'center', gap: 8, height: fig, maxWidth: '100%' }}>
+        <div className="body-fade" style={{ width: 44, flex: 'none', display: 'flex', flexDirection: 'column', justifyContent: 'space-between', alignItems: 'flex-end', padding: '2px 0' }}>
+          <span style={{ display: 'flex', flexDirection: 'column', alignItems: 'flex-end', lineHeight: 1.05 }}><b className="display" style={{ fontSize: 22 }}>{p.height ?? '—'}</b><span className="sub" style={{ fontSize: 12 }}>см</span></span>
+          {Array.from({ length: 9 }, (_, i) => <span key={i} style={{ width: i % 4 === 0 ? 16 : 9, height: 2, borderRadius: 1, background: 'var(--track)' }} />)}
+        </div>
+        <div style={{ display: 'flex', alignItems: 'flex-end' }}><BodyFigure sex={sex} fat={fat ?? (sex === 'f' ? 25 : 20)} size={fig} /></div>
+        <div style={{ position: 'relative', width: 96, flex: 'none' }}>
+          {marks.map((m) => (
+            <div key={m.l} style={{ position: 'absolute', left: 0, top: m.top, transform: 'translateY(-50%)' }}>
+              <span className="body-slide" style={{ display: 'flex', alignItems: 'center', gap: 6 }}>
+                <span style={{ width: 14, borderTop: '2px dashed var(--track)', marginLeft: -18, flex: 'none' }} />
+                <span style={{ display: 'flex', flexDirection: 'column', lineHeight: 1.1, padding: '5px 9px', borderRadius: 14, background: m.hot ? 'var(--acc)' : 'var(--sub)', color: m.hot ? 'var(--onAcc)' : 'var(--ink)' }}>
+                  <b className="display" style={{ fontSize: 18, whiteSpace: 'nowrap' }}>{m.v}</b><span style={{ fontSize: 11, fontWeight: 700, opacity: 0.8, whiteSpace: 'nowrap' }}>{m.l}</span>
+                </span>
+              </span>
+            </div>
+          ))}
+        </div>
+      </div>
+      <div className="col" style={{ alignItems: 'center', gap: 2, textAlign: 'center' }}>
+        <b className="display" style={{ fontSize: 22 }}>{p.name ?? ''}</b>
+        <span className="muted" style={{ fontWeight: 700 }}>{[p.sex === 'f' ? 'Женщина' : p.sex === 'm' ? 'Мужчина' : null, age].filter(Boolean).join(' · ')}</span>
+      </div>
+    </section>
+  );
+  if (wide) {
+    return (
+      <div className="page">
+        <div className="between"><h1 className="h1">Данные и замеры</h1><a className="btn sec small" href="#/profile">Изменить</a></div>
+        {card}
+      </div>
+    );
+  }
+  return (
+    <Screen className="modal">
+      <div className="navbar"><a className="link" href="#/profile">‹ Профиль</a><b>Данные и замеры</b><a className="link" href="#/profile/edit">Изменить</a></div>
+      {card}
     </Screen>
   );
 }

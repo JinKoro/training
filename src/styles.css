@@ -57,6 +57,9 @@ h1, h2, h3 { margin: 0; text-wrap: balance; }
 a, button { transition: transform .15s ease, filter .15s ease; }
 a:active, button:active { transform: scale(.95); filter: brightness(.88); transition-duration: 0s; }
 @media (hover: hover) { a:hover, button:hover { filter: brightness(1.08); } }
+@keyframes body-slide { from { opacity: 0; transform: translateX(-8px); } }
+.body-slide { animation: body-slide .4s ease-out .3s backwards; }
+.body-fade { animation: a-fade .5s ease-out .15s backwards; }
 @media (prefers-reduced-motion: reduce) { * { animation: none !important; transition: none !important; } }
 html.theme-switch *, html.theme-switch *::before, html.theme-switch *::after { transition: none !important; }
 

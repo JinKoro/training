@@ -25,7 +25,7 @@ test.describe('Ready-made programs', () => {
     await page.getByRole('button', { name: 'Сохранить' }).click();
     // a sex change changes the formula: the recalculation is offered
     await page.getByRole('button', { name: 'Не сейчас' }).click();
-    await expect(page).toHaveURL(/#\/profile$/);
+    await expect(page).toHaveURL(/#\/profile\/body$/);
     await open(page, 'sport');
     await expect(list.locator('a')).toHaveCount(3);
     await expect(list.locator('a').nth(0)).toContainText('Фулбади');

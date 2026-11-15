@@ -6,14 +6,18 @@ test.describe('Profile', () => {
     await open(page, 'profile');
     await expect(page.getByRole('link', { name: /Тренировочный день/ })).toContainText(`${fmt(kcal(user.norms.training!))} ккал`);
     await page.getByRole('link', { name: /Данные и замеры/ }).click();
+    // the figure view first (numbers on the sign-up silhouette), «Изменить» opens the form
+    await expect(page.getByText('80 кг')).toBeVisible();
+    await expect(page.getByText('20 %')).toBeVisible();
+    await page.getByRole('link', { name: 'Изменить' }).click();
     await expect(page.getByLabel('Вес, кг')).toHaveValue('80');
-    await expect(page.getByLabel('Процент жира')).toHaveValue('20');
+    await expect(page.getByLabel('Или свой процент')).toHaveValue('20');
 
     await page.getByLabel('Вес, кг').fill('8o');
     await expect(page.getByText('Только число, например 82,5')).toBeVisible();
     await expect(page.getByRole('button', { name: 'Сохранить' })).toBeDisabled();
     await page.getByLabel('Вес, кг').fill('86,5');
-    await page.getByLabel('Шагов в день, в среднем').fill('12000');
+    await page.getByLabel('Шаги в день').fill('12000');
     await page.getByRole('button', { name: 'Сохранить' }).click();
 
     const want = suggestNorms({ sex: 'm', weight: 86.5, bodyFat: 20, steps: 12000, trainingMode: 'time', trainingMin: 60, trainingKcal: 0 }, 'keep');
@@ -27,32 +31,42 @@ test.describe('Profile', () => {
     await expect(rRow).toContainText(fmt(kcal(want.rest)));
     await s.getByRole('button', { name: 'Пересчитать' }).click();
     await expect(toast(page)).toHaveText('Калории пересчитаны');
-    await expect(page).toHaveURL(/#\/profile$/);
+    await expect(page).toHaveURL(/#\/profile\/body$/);
+    await expect(page.getByText('86,5 кг')).toBeVisible();
+    await page.getByRole('link', { name: '‹ Профиль' }).click();
     await expect(page.getByRole('link', { name: /Тренировочный день/ })).toContainText(`${fmt(kcal(want.training!))} ккал`);
     await expect(page.getByRole('link', { name: /День отдыха/ })).toContainText(`${fmt(kcal(want.rest))} ккал`);
 
     // the new data is kept
     await page.getByRole('link', { name: /Данные и замеры/ }).click();
+    await page.getByRole('link', { name: 'Изменить' }).click();
     await expect(page.getByLabel('Вес, кг')).toHaveValue('86,5');
-    await expect(page.getByLabel('Шагов в день, в среднем')).toHaveValue('12000');
+    await expect(page.getByLabel('Шаги в день')).toHaveValue('12000');
   });
 
   test('«Не сейчас» keeps the norms; a body-fat change also offers; a name change alone does not', async ({ authed: page, user }) => {
     await open(page, 'profile/edit');
-    await page.getByLabel('Процент жира').fill('15');
+    await page.getByLabel('Или свой процент').fill('15');
     await page.getByRole('button', { name: 'Сохранить' }).click();
     await expect(sheet(page, 'Пересчитать калории?')).toBeVisible();
     await sheet(page, 'Пересчитать калории?').getByRole('button', { name: 'Не сейчас' }).click();
-    await expect(page).toHaveURL(/#\/profile$/);
+    await expect(page).toHaveURL(/#\/profile\/body$/);
+    await page.getByRole('link', { name: '‹ Профиль' }).click();
     await expect(page.getByRole('link', { name: /День отдыха/ })).toContainText(`${fmt(kcal(user.norms.rest))} ккал`);
 
     await page.getByRole('link', { name: /Данные и замеры/ }).click();
-    await expect(page.getByLabel('Процент жира')).toHaveValue('15');
+    await page.getByRole('link', { name: 'Изменить' }).click();
+    await expect(page.getByLabel('Или свой процент')).toHaveValue('15');
+    // picking a figure sets its percent and lights it up
+    await page.getByRole('button', { name: '25 процентов' }).click();
+    await expect(page.getByLabel('Или свой процент')).toHaveValue('25');
+    await expect(page.getByRole('button', { name: '25 процентов' })).toHaveAttribute('aria-pressed', 'true');
+    await page.getByLabel('Или свой процент').fill('15');
     await page.getByLabel('Имя').fill('');
     await expect(page.getByText('Как вас зовут?')).toBeVisible();
     await page.getByLabel('Имя').fill('Борис');
     await page.getByRole('button', { name: 'Сохранить' }).click();
-    await expect(page).toHaveURL(/#\/profile$/);
+    await expect(page).toHaveURL(/#\/profile\/body$/);
     await expect(sheet(page)).toHaveCount(0);
     await expect(page.locator('.display', { hasText: 'Борис' })).toBeVisible();
   });
