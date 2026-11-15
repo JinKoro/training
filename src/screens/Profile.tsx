@@ -14,13 +14,13 @@ import { Field, Screen, Sheet, errText, toast, PasswordInput } from '../ui';
 type Pref = 'system' | 'light' | 'dark';
 
 function ThemePicker({ size = 64 }: { size?: number }) {
-  const { me, setThemePref } = useApp();
-  const cur = me.user.theme;
+  // The ring follows the local choice at once, not the account copy (that one arrives after the request).
+  const { themePref: cur, setThemePref } = useApp();
   const opts: [Pref, string, string][] = [['system', 'Как в системе', 'linear-gradient(90deg,#F6F5F2 50%,#26272A 50%)'], ['light', 'Светлая', '#F6F5F2'], ['dark', 'Тёмная', '#212225']];
   return (
     <div style={{ display: 'grid', gridTemplateColumns: 'repeat(3, 1fr)', gap: 10, maxWidth: 640 }}>
       {opts.map(([k, l, bg]) => (
-        <button key={k} aria-pressed={cur === k} onClick={() => { setThemePref(k); void api('PATCH', '/me', { theme: k }).then(() => invalidate('/me')).catch(() => {}); }}
+        <button key={k} aria-pressed={cur === k} onClick={() => setThemePref(k)}
           className="card col" style={{ padding: 8, gap: 6, borderRadius: 20, minWidth: 0, border: `1px solid ${cur === k ? 'var(--acc)' : 'var(--track)'}`, boxShadow: cur === k ? '0 0 0 1px var(--acc)' : 'none' }}>
           <div style={{ height: size, borderRadius: 10, background: bg, padding: 8, display: 'flex', flexDirection: 'column', gap: 5, justifyContent: 'center' }}>
             <i style={{ width: '60%', height: 6, borderRadius: 3, background: k === 'light' ? '#1A1A1A' : k === 'dark' ? '#F4F4F5' : '#8A857E' }} />

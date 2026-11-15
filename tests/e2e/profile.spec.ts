@@ -109,9 +109,15 @@ test.describe('Profile', () => {
     // the light theme is the default for a new account
     await expect(page.getByRole('button', { name: 'Светлая' })).toHaveAttribute('aria-pressed', 'true');
     await expect(page.locator('html')).toHaveAttribute('data-theme', 'light');
+    // fixed (was a bug): the picked tile's ring waited for the account request (≈1 s on a phone) while the theme switched at once
+    await page.route('**/api/me', async (r) => { if (r.request().method() === 'PATCH') await new Promise((x) => setTimeout(x, 2000)); await r.continue(); });
+    const saved = page.waitForResponse((r) => r.url().endsWith('/api/me') && r.request().method() === 'PATCH');
+    const reread = page.waitForResponse((r) => r.url().endsWith('/api/me') && r.request().method() === 'GET');
     await page.getByRole('button', { name: 'Тёмная' }).click();
     await expect(page.locator('html')).toHaveAttribute('data-theme', 'dark');
-    await expect(page.getByRole('button', { name: 'Тёмная' })).toHaveAttribute('aria-pressed', 'true');
+    await expect(page.getByRole('button', { name: 'Тёмная' })).toHaveAttribute('aria-pressed', 'true', { timeout: 300 });
+    await expect(page.getByRole('button', { name: 'Светлая' })).toHaveAttribute('aria-pressed', 'false', { timeout: 300 });
+    await saved; await reread; // the account copy is re-read after saving
     await page.evaluate(() => localStorage.removeItem('podhod-theme'));
     await page.reload();
     await expect(page.getByRole('button', { name: 'Тёмная' })).toHaveAttribute('aria-pressed', 'true');

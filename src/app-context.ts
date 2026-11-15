@@ -9,6 +9,8 @@ export interface AppCtx {
   programs: Program[];
   reloadMe: () => Promise<void>;
   logout: () => Promise<void>;
+  /** The theme choice as picked on this device right now (the account copy follows after the request). */
+  themePref: 'system' | 'light' | 'dark';
   setThemePref: (t: 'system' | 'light' | 'dark') => void;
 }
 

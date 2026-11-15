@@ -47,13 +47,13 @@ export default function App() {
 
   return (
     <ThemeContext.Provider value={theme}>
-      {token ? <Authed wide={wide} setPref={(p) => { setPref(p); storePref(p); }} onLogout={() => { setToken(null); clearCache(); setTok(null); go('login'); }} />
+      {token ? <Authed wide={wide} pref={pref} setPref={(p) => { setPref(p); storePref(p); }} onLogout={() => { setToken(null); clearCache(); setTok(null); go('login'); }} />
         : <AuthScreen wide={wide} onAuthed={onAuthed} />}
     </ThemeContext.Provider>
   );
 }
 
-function Authed({ wide, setPref, onLogout }: { wide: boolean; setPref: (p: ThemePref) => void; onLogout: () => void }) {
+function Authed({ wide, pref, setPref, onLogout }: { wide: boolean; pref: ThemePref; setPref: (p: ThemePref) => void; onLogout: () => void }) {
   const meQ = useQuery<Me>('/me');
   const exQ = useQuery<{ exercises: Exercise[] }>('/exercises');
   const prQ = useQuery<{ programs: Program[] }>('/programs');
@@ -70,13 +70,13 @@ function Authed({ wide, setPref, onLogout }: { wide: boolean; setPref: (p: Theme
     const exercises = exQ.data.exercises;
     return {
       me: meQ.data, wide, exercises, exById: new Map(exercises.map((e) => [e.id, e])), programs: prQ.data.programs,
-      reloadMe: () => meQ.reload(), logout,
+      reloadMe: () => meQ.reload(), logout, themePref: pref,
       setThemePref: (t) => {
         setPref(t);
         void api('PATCH', '/me', { theme: t }).then(() => invalidate('/me')).catch(() => {});
       },
     };
-  }, [meQ.data, exQ.data, prQ.data, wide, logout]); // eslint-disable-line react-hooks/exhaustive-deps
+  }, [meQ.data, exQ.data, prQ.data, wide, logout, pref]); // eslint-disable-line react-hooks/exhaustive-deps
 
   const err = meQ.error ?? exQ.error ?? prQ.error;
   if (!ctx) {
