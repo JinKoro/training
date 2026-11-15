@@ -85,8 +85,9 @@ document.addEventListener('focusin', (e) => {
   if (el.type === 'email' || el.type === 'password') return; // no selection API there
   // Only a plain caret moves: a selection (select-all to replace, a double tap on a word) stays as it is.
   const end = () => { try { if (document.activeElement === el && el.selectionStart === el.selectionEnd) el.setSelectionRange(el.value.length, el.value.length); } catch { /* */ } };
-  // iOS places the caret at the tap point after focus: move it on the next ticks.
-  setTimeout(end, 0); setTimeout(end, 60);
+  // iOS places the caret at the tap point a moment after focus (and again on the click): move it after both.
+  for (const ms of [0, 60, 150, 300]) setTimeout(end, ms);
+  el.addEventListener('click', () => setTimeout(end, 0), { once: true });
 });
 
 // iOS applies :active (the press-scale on buttons) only when a touchstart listener exists.
