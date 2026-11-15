@@ -10,7 +10,7 @@ import type { Entry, FoodItem, Meal } from '../lib/types';
 import { FoodArt, Icon } from '../art';
 import { AmountInput, ErrorBox, Screen, Sheet, Skeleton, errText, toast, NoNormCard } from '../ui';
 import { SearchInput } from './ExercisePicker';
-import { resetAdded } from './FoodAdd';
+import { OwnMacros, ownCheck, ownOf, resetAdded, type OwnVals } from './FoodAdd';
 
 const COLORS = ['var(--chart)', 'var(--warn)', 'var(--good)'];
 const NAMES = ['Белки', 'Жиры', 'Углеводы'];
@@ -288,15 +288,24 @@ function Ring({ eaten, norm, over }: { eaten: number; norm: number; over: boolea
 
 function EntrySheet({ entry, onClose }: { entry: Entry | null; onClose: () => void }) {
   const [grams, setGrams] = useState('');
-  useEffect(() => { if (entry) setGrams(String(Math.round(entry.grams))); }, [entry]);
+  // «Свои ккал и БЖУ» for this entry only (products, not dishes); an entry that already has own values opens filled in.
+  const [ov, setOv] = useState<OwnVals | null>(null);
+  useEffect(() => { if (entry) { setGrams(String(Math.round(entry.grams))); setOv(entry.custom ? ownOf(entry) : null); } }, [entry]);
   if (!entry) return null;
   const g = Number(grams) || 0;
-  const m = entryMacros({ ...entry, grams: g });
-  const tenths = kcalTenths(entry);
-  const per100 = fmtKcal(kcal100(entry), tenths);
+  const canOwn = !entry.dishId && !!entry.productId; // «Как было» needs the product
+  const { ok: ovOk, vals } = ownCheck(ov);
+  const eff = vals ? { ...entry, ...vals } : entry;
+  const m = entryMacros({ ...eff, grams: g });
+  const tenths = kcalTenths(eff);
+  const per100 = fmtKcal(kcal100(eff), tenths);
+  // Send `custom` only when it changes something: own values typed, or back to the product's («Как было»).
+  const same = !!ov && (Object.keys(ov) as (keyof OwnVals)[]).every((k) => ov[k].trim() === ownOf(entry)[k]);
+  const custom = vals ? (entry.custom || !same ? { custom: vals } : {}) : entry.custom ? { custom: null } : {};
   const save = async () => {
+    if (g < 1 || g > 5000 || !ovOk) return;
     onClose();
-    try { await api('PATCH', `/diary/${entry.id}`, { grams: g }); invalidate('/diary'); } catch (e) { toast(errText(e)); }
+    try { await api('PATCH', `/diary/${entry.id}`, { grams: g, ...custom }); invalidate('/diary'); } catch (e) { toast(errText(e)); }
   };
   const remove = async () => {
     onClose();
@@ -304,7 +313,7 @@ function EntrySheet({ entry, onClose }: { entry: Entry | null; onClose: () => vo
   };
   return (
     <Sheet open onClose={onClose} label={entry.name}>
-      <div className="row"><FoodArt kind={entry.icon} size={60} /><div className="grow"><b style={{ fontSize: 19 }}>{entry.name}</b><div className="muted" style={{ fontSize: 14 }}>{entry.dishId ? 'своё блюдо · ' : ''}{per100} ккал на 100 г</div></div></div>
+      <div className="row"><FoodArt kind={entry.icon} size={60} /><div className="grow"><b style={{ fontSize: 19 }}>{entry.name}</b><div className="muted" style={{ fontSize: 14 }}>{entry.dishId ? 'своё блюдо · ' : ''}{per100} ккал на 100 г{vals && (entry.custom || !same) ? ' · свои' : ''}</div></div></div>
       <div style={{ display: 'grid', gridTemplateColumns: '52px 1fr 52px', gap: 10, alignItems: 'center' }}>
         <button className="icon-btn" aria-label="Меньше" style={{ height: 52, width: 52, borderRadius: 18, border: '1px solid var(--track)' }} onClick={() => setGrams(String(Math.max(0, g - 50)))}>−</button>
         <div style={{ justifySelf: 'center', display: 'flex', alignItems: 'center', height: 56, padding: '0 18px', borderRadius: 18, background: 'var(--bg)' }}>
@@ -312,8 +321,9 @@ function EntrySheet({ entry, onClose }: { entry: Entry | null; onClose: () => vo
         </div>
         <button className="icon-btn" aria-label="Больше" style={{ height: 52, width: 52, borderRadius: 18, border: '1px solid var(--track)' }} onClick={() => setGrams(String(Math.min(5000, g + 50)))}>+</button>
       </div>
-      <Tiles m={m} k={entryKcal({ ...entry, grams: g })} tenths={tenths} />
-      <button className="btn" disabled={g < 1 || g > 5000} onClick={save}>Сохранить</button>
+      <Tiles m={m} k={entryKcal({ ...eff, grams: g })} tenths={tenths} />
+      {canOwn ? <OwnMacros value={ov} onChange={setOv} base={entry} /> : null}
+      <button className="btn" disabled={g < 1 || g > 5000 || !ovOk} onClick={save}>Сохранить</button>
       <button className="btn danger" onClick={remove}>Удалить из дневника</button>
     </Sheet>
   );

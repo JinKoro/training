@@ -145,29 +145,67 @@ test.describe('Desktop layout (1440×900)', () => {
     expect(await layoutProblems(page)).toEqual([]);
   });
 
-  test('Профиль: one form for data and norms, «Сохранено ✓», recalculation offer', async ({ authed: page, user }) => {
+  test('Еда: new dish form (capped width, header actions), ingredient via the add search; own kcal on an entry', async ({ authed: page, user }) => {
+    const D = today();
+    await open(page, `food/${D}/add/lunch`);
+    await page.getByRole('tab', { name: 'Блюда' }).click();
+    await page.getByRole('link', { name: '+ Новое блюдо' }).click();
+    await expect(h1(page, 'Новое блюдо')).toBeVisible();
+    await expect(page.getByRole('link', { name: 'Отмена' })).toBeVisible();
+    const done = page.getByRole('button', { name: 'Готово' });
+    await expect(done).toHaveCount(1); // in the header only
+    await expect(done).toBeDisabled();
+    const ings = page.getByRole('region', { name: 'Ингредиенты' });
+    expect((await ings.boundingBox())!.width).toBeLessThanOrEqual(760);
+    await page.getByLabel('Название').fill('Каша');
+    await page.getByRole('button', { name: 'Добавить ингредиент' }).click();
+    await expect(h1(page, 'Добавить в блюдо')).toBeVisible();
+    await expect(page.getByRole('tab', { name: 'Блюда' })).toHaveCount(0);
+    await page.getByLabel('Поиск по всем продуктам').fill('Гречка вар');
+    await page.locator('button.row', { hasText: 'Гречка варёная' }).first().click();
+    await page.getByRole('button', { name: 'Добавить в блюдо' }).click();
+    await expect(ings.locator('button.row', { hasText: 'Гречка варёная' })).toContainText('100 г');
+    await expect(page.getByText('Всё блюдо · 100 г')).toBeVisible();
+    expect(await layoutProblems(page)).toEqual([]);
+    await done.click();
+    await expect(page.getByRole('heading', { name: 'Каша' })).toBeVisible();
+
+    // own kcal for a logged entry, from the entry sheet
+    await addEntry(user.token, D, 'dinner', 'Гречка варёная', 100);
+    await open(page, `food/${D}`);
+    const row = page.locator('table tr', { hasText: 'Гречка варёная' });
+    await expect(row).toContainText('109');
+    await row.click();
+    const s = sheet(page, 'Гречка варёная');
+    await s.getByRole('button', { name: 'Свои ккал и БЖУ' }).click();
+    await s.getByLabel('Калории').fill('200');
+    await s.getByRole('button', { name: 'Сохранить' }).click();
+    await expect(row).toContainText('200');
+    const { entries } = await call(user.token, 'GET', `/diary?from=${D}&to=${D}`);
+    expect(entries[0]).toMatchObject({ kcal: 200, custom: true });
+    expect((await call(user.token, 'GET', `/products/${entries[0].productId}`)).product.kcal).toBeNull();
+  });
+
+  test('Профиль: the same menu as on the phone; «Данные и замеры» → «Изменить» (desktop form), recalculation offer', async ({ authed: page, user }) => {
     await open(page, 'profile');
-    const save = page.getByRole('button', { name: 'Сохранить изменения' });
-    await expect(save).toBeDisabled();
+    await expect(page.getByRole('link', { name: /Тренировочный день/ })).toContainText(`${fmt(kcal(user.norms.training!))} ккал`);
+    await expect(page.getByRole('link', { name: /Удалить аккаунт/ })).toBeVisible();
+    await page.getByRole('link', { name: /Данные и замеры/ }).click();
+    await expect(page.getByText('Замеры тела')).toBeVisible();
+    await page.getByRole('link', { name: 'Изменить' }).click();
+    await expect(page).toHaveURL(/#\/profile\/edit$/);
     await page.getByLabel('Вес, кг').fill('3');
-    await expect(page.getByRole('button', { name: 'Исправьте ошибки в данных' })).toBeDisabled();
+    await expect(page.getByRole('button', { name: 'Сохранить' })).toBeDisabled();
     await page.getByLabel('Вес, кг').fill('90');
-    await save.click();
-    await expect(page.getByRole('button', { name: 'Сохранено ✓' })).toBeVisible();
+    await page.getByRole('button', { name: 'Сохранить' }).click();
     const want = suggestNorms({ sex: 'm', weight: 90, bodyFat: 20, steps: 8000, trainingMode: 'time', trainingMin: 60, trainingKcal: 0 }, 'keep');
     const s = sheet(page, 'Пересчитать калории?');
     await expect(s).toContainText(fmt(kcal(want.rest)));
     await s.getByRole('button', { name: 'Пересчитать' }).click();
     await expect(toast(page)).toHaveText('Калории пересчитаны');
-    await expect(page.getByLabel('День отдыха, Белки, г')).toHaveValue(String(want.rest[0]));
-    // norms typed by hand win: no offer
-    await page.getByLabel('День отдыха, Углеводы, г').fill('200');
-    await page.getByLabel('Шагов в день').fill('9000');
-    await page.getByRole('button', { name: 'Сохранить изменения' }).click();
-    await expect(page.getByRole('button', { name: 'Сохранено ✓' })).toBeVisible();
-    await expect(sheet(page)).toHaveCount(0);
+    await expect(page).toHaveURL(/#\/profile\/body$/);
     const me = await call(user.token, 'GET', '/me');
-    expect(me.profile.steps).toBe(9000);
+    expect(me.profile.weight).toBe(90);
     void WD_SHORT;
   });
 });

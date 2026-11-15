@@ -201,6 +201,61 @@ describe('own kcal / macros for one entry', () => {
     expect(plain).toMatchObject({ protein: 20, fat: 10, carbs: 0, kcal: 200 });
   });
 
+  it('GET tells which entries carry own values', async () => {
+    const c = await newUser({}, TODAY);
+    await c.post('/diary', { date: '2026-04-20', meal: 'lunch', itemType: 'product', itemId: prod.id, grams: 100, custom: { protein: 1, fat: 1, carbs: 1, kcal: 17 } });
+    await c.post('/diary', { date: '2026-04-20', meal: 'lunch', itemType: 'product', itemId: prod.id, grams: 100 });
+    const list = (await c.get('/diary?from=2026-04-20&to=2026-04-20')).body.entries;
+    expect(list.map((e: any) => e.custom)).toEqual([true, false]);
+  });
+
+  it('PATCH custom sets own values on a logged entry, null goes back to the product; the product stays', async () => {
+    const e = (await a.post('/diary', { date: '2026-04-21', meal: 'lunch', itemType: 'product', itemId: prod.id, grams: 200 })).body.entry;
+    expect(e.custom).toBe(false);
+    let r = await a.patch(`/diary/${e.id}`, { grams: 150, custom: { protein: '30,5', fat: 5, carbs: 2, kcal: 175 } });
+    expect(r.status).toBe(200);
+    expect(r.body.entry).toMatchObject({ grams: 150, protein: 30.5, fat: 5, carbs: 2, kcal: 175, custom: true, productId: prod.id });
+    // grams only: the own values stay
+    r = await a.patch(`/diary/${e.id}`, { grams: 100 });
+    expect(r.body.entry).toMatchObject({ grams: 100, protein: 30.5, kcal: 175, custom: true });
+    expect((await a.get(`/products/${prod.id}`)).body.product).toMatchObject({ protein: 20, fat: 10, carbs: 0, kcal: 200 });
+    r = await a.patch(`/diary/${e.id}`, { custom: null });
+    expect(r.body.entry).toMatchObject({ grams: 100, protein: 20, fat: 10, carbs: 0, kcal: 200, custom: false });
+  });
+
+  it('copying a meal keeps the own values and the flag', async () => {
+    const c = await newUser({}, TODAY);
+    await c.post('/diary', { date: TODAY, meal: 'snack', itemType: 'product', itemId: prod.id, grams: 100, custom: { protein: 2, fat: 2, carbs: 2, kcal: 34 } });
+    const to = addDays(TODAY, 1);
+    expect((await c.post('/diary/copy', { fromDate: TODAY, meal: 'snack', toDates: [to] })).status).toBe(200);
+    expect((await c.get(`/diary?from=${to}&to=${to}`)).body.entries[0]).toMatchObject({ protein: 2, kcal: 34, custom: true });
+  });
+
+  it.each([
+    [{ protein: 101, fat: 0, carbs: 0, kcal: 100 }, 'protein'], [{ protein: 60, fat: 30, carbs: 20, kcal: 100 }, 'carbs'],
+    [{ protein: 10, fat: 10, carbs: 10, kcal: 901 }, 'kcal'], [{ protein: 10, fat: 10, carbs: 10 }, 'kcal'], ['x', 'custom'], [[1, 2], 'custom'],
+  ])('PATCH rejects custom %o and changes nothing', async (custom, field) => {
+    const e = (await a.post('/diary', { date: '2026-04-22', meal: 'lunch', itemType: 'product', itemId: prod.id, grams: 100 })).body.entry;
+    const r = await a.patch(`/diary/${e.id}`, { grams: 300, custom });
+    expect(r.status).toBe(400);
+    expect(r.body.field).toBe(field);
+    const now = (await a.get('/diary?from=2026-04-22&to=2026-04-22')).body.entries.find((x: any) => x.id === e.id);
+    expect(now).toMatchObject({ grams: 100, protein: 20, custom: false });
+  });
+
+  it('PATCH custom: not for a dish entry; null needs the product (deleted → 400)', async () => {
+    const dish = (await a.post('/dishes', { name: 'Без своих', cookedWeight: 100, ingredients: [{ productId: prod.id, grams: 100 }] })).body.dish;
+    const de = (await a.post('/diary', { date: '2026-04-23', meal: 'lunch', itemType: 'dish', itemId: dish.id, grams: 100 })).body.entry;
+    expect((await a.patch(`/diary/${de.id}`, { custom: { protein: 1, fat: 1, carbs: 1, kcal: 17 } })).body.field).toBe('custom');
+    expect((await a.patch(`/diary/${de.id}`, { custom: null })).status).toBe(400);
+    const gone = await ownProduct(a, { name: 'Удаляемый тест', protein: 5 });
+    const ge = (await a.post('/diary', { date: '2026-04-23', meal: 'lunch', itemType: 'product', itemId: gone.id, grams: 100, custom: { protein: 6, fat: 0, carbs: 0, kcal: 24 } })).body.entry;
+    expect((await a.del(`/products/${gone.id}`)).status).toBe(200);
+    const r = await a.patch(`/diary/${ge.id}`, { custom: null });
+    expect(r.status).toBe(400);
+    expect(r.body.field).toBe('custom');
+  });
+
   it.each([
     [{ protein: 101, fat: 0, carbs: 0, kcal: 100 }, 'protein'], [{ protein: 60, fat: 30, carbs: 20, kcal: 100 }, 'carbs'],
     [{ protein: 10, fat: 10, carbs: 10, kcal: 901 }, 'kcal'], [{ protein: 10, fat: 10, carbs: 10 }, 'kcal'], ['x', 'custom'],

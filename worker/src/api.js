@@ -323,8 +323,17 @@ const dishOut = (r) => ({
 const entryOut = (r) => ({
   id: r.id, date: r.date, meal: r.meal, position: r.position, productId: r.product_id, dishId: r.dish_id,
   grams: r.grams, portions: r.portions, name: r.name, icon: r.icon, protein: r.protein, fat: r.fat,
-  carbs: r.carbs, kcal: r.kcal ?? null, portionName: r.portion_name, portionG: r.portion_g,
+  carbs: r.carbs, kcal: r.kcal ?? null, portionName: r.portion_name, portionG: r.portion_g, custom: !!r.custom,
 });
+/** Own kcal / macros per 100 g for one diary entry (POST and PATCH /diary). */
+function customIn(v) {
+  if (typeof v !== 'object' || Array.isArray(v)) fail(400, 'invalid_custom', 'custom');
+  const p = num(v.protein, 'protein', { min: 0, max: 100 });
+  const f = num(v.fat, 'fat', { min: 0, max: 100 });
+  const c = num(v.carbs, 'carbs', { min: 0, max: 100 });
+  if (p + f + c > 100.0001) fail(400, 'invalid_macros', 'carbs');
+  return { protein: p, fat: f, carbs: c, kcal: num(v.kcal, 'kcal', { min: 0, max: 900 }) };
+}
 /** Label kcal per 100 g: null/absent = computed from macros. */
 const kcalIn = (v) => num(v, 'kcal', { min: 0, max: 900, optional: true });
 /** Effective kcal per 100 g: the stored label value, else 4·P + 9·F + 4·C. */
@@ -1040,23 +1049,20 @@ export async function handleApi(request, env, path) {
       const portions = num(body.portions, 'portions', { min: 0, max: 100, optional: true });
       // Own kcal / macros per 100 g for this entry only (a product's label can be wrong); the product itself stays as it is.
       let m = { protein: item.protein, fat: item.fat, carbs: item.carbs, kcal: item.kcal };
-      if (body.custom != null) {
-        if (type !== 'product' || typeof body.custom !== 'object') fail(400, 'invalid_custom', 'custom');
-        const p = num(body.custom.protein, 'protein', { min: 0, max: 100 });
-        const f = num(body.custom.fat, 'fat', { min: 0, max: 100 });
-        const c = num(body.custom.carbs, 'carbs', { min: 0, max: 100 });
-        if (p + f + c > 100.0001) fail(400, 'invalid_macros', 'carbs');
-        m = { protein: p, fat: f, carbs: c, kcal: num(body.custom.kcal, 'kcal', { min: 0, max: 900 }) };
+      const custom = body.custom != null;
+      if (custom) {
+        if (type !== 'product') fail(400, 'invalid_custom', 'custom');
+        m = customIn(body.custom);
       }
       const pos = await env.DB.prepare('SELECT COALESCE(MAX(position), -1) + 1 AS p FROM diary_entries WHERE user_id = ? AND date = ? AND meal = ?')
         .bind(uid, date, meal).first();
       const r = await env.DB.prepare(
-        `INSERT INTO diary_entries (user_id, date, meal, position, product_id, dish_id, grams, portions, name, icon, protein, fat, carbs, kcal, portion_name, portion_g, created_at)
-         VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?) RETURNING *`,
+        `INSERT INTO diary_entries (user_id, date, meal, position, product_id, dish_id, grams, portions, name, icon, protein, fat, carbs, kcal, portion_name, portion_g, created_at, custom)
+         VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?) RETURNING *`,
       ).bind(
         uid, date, meal, pos.p, type === 'product' ? item.id : null, type === 'dish' ? item.id : null, grams, portions,
         item.name, FOOD_ICONS.includes(item.icon) ? item.icon : 'dish', m.protein, m.fat, m.carbs, m.kcal,
-        item.portionName, item.portionG, now,
+        item.portionName, item.portionG, now, custom ? 1 : 0,
       ).first();
       return ok({ entry: entryOut(r) }, 201);
     }
@@ -1076,9 +1082,9 @@ export async function handleApi(request, env, path) {
       for (const t of targets) {
         if (mode === 'replace') stmts.push(env.DB.prepare('DELETE FROM diary_entries WHERE user_id = ? AND date = ? AND meal = ?').bind(uid, t, meal));
         src.forEach((e, k) => stmts.push(env.DB.prepare(
-          `INSERT INTO diary_entries (user_id, date, meal, position, product_id, dish_id, grams, portions, name, icon, protein, fat, carbs, kcal, portion_name, portion_g, created_at)
-           VALUES (?, ?, ?, (SELECT COALESCE(MAX(position), -1) + 1 FROM diary_entries WHERE user_id = ? AND date = ? AND meal = ?), ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`,
-        ).bind(uid, t, meal, uid, t, meal, e.product_id, e.dish_id, e.grams, e.portions, e.name, e.icon, e.protein, e.fat, e.carbs, e.kcal, e.portion_name, e.portion_g, now + k)));
+          `INSERT INTO diary_entries (user_id, date, meal, position, product_id, dish_id, grams, portions, name, icon, protein, fat, carbs, kcal, portion_name, portion_g, created_at, custom)
+           VALUES (?, ?, ?, (SELECT COALESCE(MAX(position), -1) + 1 FROM diary_entries WHERE user_id = ? AND date = ? AND meal = ?), ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`,
+        ).bind(uid, t, meal, uid, t, meal, e.product_id, e.dish_id, e.grams, e.portions, e.name, e.icon, e.protein, e.fat, e.carbs, e.kcal, e.portion_name, e.portion_g, now + k, e.custom ?? 0)));
       }
       await env.DB.batch(stmts);
       return ok();
@@ -1092,8 +1098,19 @@ export async function handleApi(request, env, path) {
       const meal = oneOf(body.meal ?? entry.meal, 'meal', MEALS);
       let portions = body.portions === undefined ? entry.portions : num(body.portions, 'portions', { min: 0, max: 100, optional: true });
       if (portions && entry.portion_g && Math.abs(portions * entry.portion_g - grams) > 0.01) portions = null;
-      const r = await env.DB.prepare('UPDATE diary_entries SET grams = ?, meal = ?, portions = ? WHERE id = ? RETURNING *')
-        .bind(grams, meal, portions, id).first();
+      // custom: own kcal / macros per 100 g for this entry only (products, not dishes); null = back to the product's values.
+      // Left out = the entry keeps its numbers. The product itself never changes.
+      let m = { protein: entry.protein, fat: entry.fat, carbs: entry.carbs, kcal: entry.kcal, custom: entry.custom };
+      if (body.custom !== undefined) {
+        if (entry.dish_id !== null) fail(400, 'invalid_custom', 'custom');
+        if (body.custom === null) {
+          if (entry.product_id === null) fail(400, 'invalid_custom', 'custom'); // the product was deleted: nothing to go back to
+          const p = await itemFor(env, uid, 'product', entry.product_id);
+          m = { protein: p.protein, fat: p.fat, carbs: p.carbs, kcal: p.kcal, custom: 0 };
+        } else m = { ...customIn(body.custom), custom: 1 };
+      }
+      const r = await env.DB.prepare('UPDATE diary_entries SET grams = ?, meal = ?, portions = ?, protein = ?, fat = ?, carbs = ?, kcal = ?, custom = ? WHERE id = ? RETURNING *')
+        .bind(grams, meal, portions, m.protein, m.fat, m.carbs, m.kcal, m.custom, id).first();
       return ok({ entry: entryOut(r) });
     }
     if (method === 'DELETE') {

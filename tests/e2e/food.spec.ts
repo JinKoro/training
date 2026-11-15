@@ -172,33 +172,72 @@ test.describe('Food diary', () => {
     expect(product.kcal).not.toBe(274.5); // the library keeps its values
   });
 
-  test('new dish from ingredients; dish from a meal', async ({ authed: page, user }) => {
+  test('new dish: button first, ingredients via the add search, weight sheet, totals; dish from a meal', async ({ authed: page, user }) => {
+    await addEntry(user.token, D, 'dinner', 'Куриная грудка', 120); // a recent dinner food for the quick «+»
     await open(page, `food/${D}/add/dinner`);
     await page.getByRole('tab', { name: 'Блюда' }).click();
-    await expect(page.getByText('Для ужина блюд пока нет')).toBeVisible();
-    await page.getByRole('link', { name: '+ Новое блюдо' }).click();
+    const newDish = page.getByRole('link', { name: '+ Новое блюдо' });
+    const empty = page.getByText('Для ужина блюд пока нет');
+    await expect(empty).toBeVisible();
+    // «+ Новое блюдо» comes first, above the list
+    expect((await newDish.boundingBox())!.y).toBeLessThan((await empty.boundingBox())!.y);
+    await newDish.click();
     const done = page.getByRole('button', { name: 'Готово' });
     await expect(done).toBeDisabled();
+    await expect(page.getByPlaceholder('Например, омлет с сыром')).toBeVisible();
+    await expect(page.getByText('Вес готового блюда')).toHaveCount(0);
     await page.getByLabel('Название').fill('Гречка с курицей');
-    for (const n of ['Гречка варёная', 'Куриная грудка']) {
-      await page.getByRole('button', { name: '+ Ингредиент' }).click();
-      await page.getByLabel('Поиск по общей библиотеке').fill(n);
-      await page.locator('button.row', { hasText: n }).first().click();
-    }
-    await page.getByLabel('Граммы: Гречка варёная').fill('200');
-    await expect(page.getByLabel('Вес готового блюда')).toHaveValue('300');
-    await page.getByLabel('Вес готового блюда').fill('250');
-    // per 100 g of the cooked dish: kcal = (200·109 + 100·(23·4 + 1,5·9)) / 250
-    const k100 = (200 * 1.09 + (23 * 4 + 1.5 * 9)) / 250 * 100;
-    const blue = page.locator('div', { hasText: /^На 100 г готового блюда/ });
-    await expect(blue).toContainText(fmt(k100));
-    await expect(blue).toContainText(String(Math.round((200 * 0.04 + 23) / 250 * 100)));
-    await page.getByLabel('Граммы: Гречка варёная').fill('0');
-    await expect(done).toBeDisabled();
-    await page.getByLabel('Граммы: Гречка варёная').fill('200');
+    const ings = page.getByRole('region', { name: 'Ингредиенты' });
+    const ing = (n: string) => ings.locator('button.row', { hasText: n });
+
+    // «+» → the add search in ingredient mode → weights → «Добавить в блюдо»
+    await page.getByRole('button', { name: 'Добавить ингредиент' }).click();
+    await expect(page.getByText('Ингредиент', { exact: true })).toBeVisible();
+    await expect(page.getByRole('button', { name: '‹ Блюдо' })).toBeVisible();
+    await expect(page.getByRole('tab', { name: 'Недавние' })).toBeVisible();
+    await expect(page.getByRole('tab', { name: 'Блюда' })).toHaveCount(0);
+    await search(page).fill('Гречка вар');
+    await page.locator('button.row', { hasText: 'Гречка варёная' }).first().click();
+    await expect(page.getByRole('button', { name: 'Свои ккал и БЖУ' })).toHaveCount(0);
+    await page.getByLabel('Граммы').fill('200');
+    await page.getByRole('button', { name: 'Добавить в блюдо' }).click();
+    await expect(page.getByLabel('Название')).toHaveValue('Гречка с курицей'); // the draft is kept
+    await expect(ing('Гречка варёная')).toContainText('200 г · Б 8 Ж 2 У 42');
+    await expect(ing('Гречка варёная')).toContainText('218');
+
+    // quick «+» on a recent row adds straight into the dish
+    await page.getByRole('button', { name: 'Добавить ингредиент' }).click();
+    await page.getByRole('button', { name: 'Добавить Куриная грудка' }).click();
+    await expect(ing('Куриная грудка')).toContainText('120 г');
+    const kOf = (gb: number, gc: number) => gb * 1.09 + gc * (23 * 4 + 1.5 * 9) / 100;
+    await expect(ings).toContainText(`${fmt(kOf(200, 120))} ккал`);
+    const total = page.locator('div', { hasText: /^Всё блюдо · / });
+    await expect(total).toContainText('Всё блюдо · 320 г');
+    await expect(total).toContainText(fmt(kOf(200, 120)));
+    await expect(total).toContainText(String(Math.round(200 * 0.04 + 1.2 * 23)));
+
+    // a tap on an ingredient: weight sheet (step 10), «Убрать из блюда»
+    await ing('Гречка варёная').click();
+    const s = sheet(page, 'Гречка варёная');
+    await expect(s.getByText('в блюде, вес сырым')).toBeVisible();
+    await s.getByRole('button', { name: 'Меньше' }).click();
+    await s.getByRole('button', { name: 'Сохранить' }).click();
+    await expect(ing('Гречка варёная')).toContainText('190 г');
+    await ing('Куриная грудка').click();
+    await sheet(page, 'Куриная грудка').getByRole('button', { name: 'Убрать из блюда' }).click();
+    await expect(ing('Куриная грудка')).toHaveCount(0);
+    await expect(total).toContainText('Всё блюдо · 190 г');
+    await page.getByRole('button', { name: 'Добавить ингредиент' }).click();
+    await page.getByRole('button', { name: 'Добавить Куриная грудка' }).click();
+    await expect(total).toContainText('Всё блюдо · 310 г');
+
     await done.click();
     await expect(page.getByRole('heading', { name: 'Гречка с курицей' })).toBeVisible();
     await expect(page.getByText('своё блюдо', { exact: true })).toBeVisible();
+    // stored per 100 g of the whole dish (the sum of the raw weights)
+    const k100 = kOf(190, 120) / 310 * 100;
+    const { dishes } = await call(user.token, 'GET', '/dishes');
+    expect(dishes[0]).toMatchObject({ name: 'Гречка с курицей', cookedWeight: 310 });
     await page.getByRole('button', { name: 'Добавить в ужин' }).click();
     await page.getByRole('button', { name: /Готово, добавлено/ }).click();
     await expect(entryRow(page, 'Гречка с курицей')).toContainText('своё блюдо');
@@ -210,17 +249,53 @@ test.describe('Food diary', () => {
     await page.reload();
     await meal(page, 'Завтрак').getByRole('link', { name: '+ Создать блюдо' }).click();
     await expect(page.getByText('Блюдо из завтрака')).toBeVisible();
-    await expect(page.getByLabel('Граммы: Гречка варёная')).toHaveValue('150');
-    await expect(page.getByLabel('Граммы: Куриная грудка')).toHaveValue('120');
+    await expect(ing('Гречка варёная')).toContainText('150 г');
+    await expect(ing('Куриная грудка')).toContainText('120 г');
+    await expect(total).toContainText('Всё блюдо · 270 г');
     await expect(page.getByRole('button', { name: 'Завтрак' })).toHaveAttribute('aria-pressed', 'true');
     await expect(page.getByRole('button', { name: 'Ужин' })).toHaveAttribute('aria-pressed', 'false');
     await page.getByLabel('Название').fill('Мой завтрак');
     await page.getByRole('button', { name: 'Готово' }).click();
     await expect(toast(page)).toHaveText('Блюдо «Мой завтрак» сохранено');
     await expect(page).toHaveURL(new RegExp(`#/food/${D}$`));
-    const { dishes } = await call(user.token, 'GET', '/dishes');
-    expect(dishes.map((d: { name: string }) => d.name).sort()).toEqual(['Гречка с курицей', 'Мой завтрак']);
-    expect(dishes.find((d: { name: string }) => d.name === 'Мой завтрак').meals).toEqual(['breakfast']);
+    const after = (await call(user.token, 'GET', '/dishes')).dishes;
+    expect(after.map((d: { name: string }) => d.name).sort()).toEqual(['Гречка с курицей', 'Мой завтрак']);
+    expect(after.find((d: { name: string }) => d.name === 'Мой завтрак')).toMatchObject({ meals: ['breakfast'], cookedWeight: 270 });
+  });
+
+  test('own kcal and macros for a logged entry: the day changes, the product does not', async ({ authed: page, user }) => {
+    const { entry } = await addEntry(user.token, D, 'lunch', 'Гречка варёная', 200);
+    await open(page, `food/${D}`);
+    const ring = page.getByRole('img', { name: /^Съедено/ });
+    await expect(ring).toHaveAccessibleName(/Съедено 218 /);
+    await entryRow(page, 'Гречка варёная').click();
+    let s = sheet(page, 'Гречка варёная');
+    await s.getByRole('button', { name: 'Свои ккал и БЖУ' }).click();
+    await expect(s.getByLabel('Калории')).toHaveValue('109');
+    await expect(s.getByText('На 100 г, только для этой записи')).toBeVisible();
+    await s.getByLabel('Калории').fill('150');
+    await s.getByLabel('Белки, г').fill('120');
+    await expect(s.getByRole('button', { name: 'Сохранить' })).toBeDisabled();
+    await s.getByLabel('Белки, г').fill('5');
+    await expect(s).toContainText('300'); // tiles follow the own values
+    await s.getByRole('button', { name: 'Сохранить' }).click();
+    await expect(entryRow(page, 'Гречка варёная')).toContainText('300');
+    await expect(ring).toHaveAccessibleName(/Съедено 300 /);
+    const got = (await call(user.token, 'GET', `/diary?from=${D}&to=${D}`)).entries[0];
+    expect(got).toMatchObject({ id: entry.id, kcal: 150, protein: 5, custom: true });
+    const { product } = await call(user.token, 'GET', `/products/${got.productId}`);
+    expect(product).toMatchObject({ protein: 4, kcal: null });
+
+    // reopened: the block is filled with the own values; «Как было» goes back to the product
+    await entryRow(page, 'Гречка варёная').click();
+    s = sheet(page, 'Гречка варёная');
+    await expect(s.getByLabel('Калории')).toHaveValue('150');
+    await expect(s.getByLabel('Белки, г')).toHaveValue('5');
+    await s.getByRole('button', { name: 'Как было' }).click();
+    await expect(s.getByRole('button', { name: 'Свои ккал и БЖУ' })).toBeVisible();
+    await s.getByRole('button', { name: 'Сохранить' }).click();
+    await expect(ring).toHaveAccessibleName(/Съедено 218 /);
+    expect((await call(user.token, 'GET', `/diary?from=${D}&to=${D}`)).entries[0]).toMatchObject({ kcal: null, protein: 4, custom: false });
   });
 
   test('copy a meal to another day; yesterday tab quick add; food calendar', async ({ authed: page, user }) => {

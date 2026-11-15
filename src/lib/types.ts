@@ -57,4 +57,6 @@ export interface FoodItem {
 export interface Entry {
   id: number; date: string; meal: Meal; position: number; productId: number | null; dishId: number | null; grams: number;
   portions: number | null; name: string; icon: string; protein: number; fat: number; carbs: number; kcal?: number | null; portionName: string | null; portionG: number | null;
+  /** The entry carries the user's own kcal/macros per 100 g instead of the product's. */
+  custom?: boolean;
 }

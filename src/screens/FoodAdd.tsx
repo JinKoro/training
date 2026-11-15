@@ -50,7 +50,11 @@ const CHECK_ICON = 'M5 12.5l4.5 4.5L19 7.5';
  * A food row. Tapping it, or its "+", opens the weight/amount screen. Rows that pass onAdd (Recent, Yesterday)
  * add right away; their "+" turns into an animated check for as long as the toast is shown.
  */
-function ItemRow({ it, href, sub, onAdd, rowKey, onOpen }: { it: FoodItem; href: string; sub?: string; onAdd?: () => Promise<boolean>; rowKey?: string; onOpen?: () => void }) {
+function ItemRow({ it, href, sub, onAdd, rowKey, onOpen, onPick }: {
+  it: FoodItem; href: string; sub?: string; onAdd?: () => Promise<boolean>; rowKey?: string; onOpen?: () => void;
+  /** Instead of following `href` (picking a dish ingredient stays on the dish screen). */
+  onPick?: () => void;
+}) {
   useAddedStore();
   const done = !!rowKey && (checkedUntil.get(rowKey) ?? 0) > Date.now();
   const add = async () => { if (onAdd && !done) await onAdd(); };
@@ -60,18 +64,25 @@ function ItemRow({ it, href, sub, onAdd, rowKey, onOpen }: { it: FoodItem; href:
       <Icon d={d} size={18} />
     </span>
   );
+  const main = (
+    <>
+      <FoodArt kind={it.icon} size={44} />
+      <div className="grow" style={{ minWidth: 0 }}><b>{it.name}</b><div className="sub ell">{sub ?? subtitle(it)}</div></div>
+    </>
+  );
+  const pick = () => { onOpen?.(); onPick!(); };
   return (
     <div className="row a-in" style={{ minHeight: 56, gap: 12 }}>
-      <a href={href} onClick={() => { cameFromAdd = true; onOpen?.(); }} className="row grow" style={{ gap: 12, minWidth: 0 }}>
-        <FoodArt kind={it.icon} size={44} />
-        <div className="grow" style={{ minWidth: 0 }}><b>{it.name}</b><div className="sub ell">{sub ?? subtitle(it)}</div></div>
-      </a>
+      {onPick
+        ? <button onClick={pick} className="row grow" style={{ gap: 12, minWidth: 0, textAlign: 'left' }}>{main}</button>
+        : <a href={href} onClick={() => { cameFromAdd = true; onOpen?.(); }} className="row grow" style={{ gap: 12, minWidth: 0 }}>{main}</a>}
       {onAdd ? (
         <button aria-label={done ? `${it.name} добавлен` : `Добавить ${it.name}`} onClick={() => void add()}
           style={{ ...PLUS, position: 'relative', background: done ? 'var(--good)' : 'transparent', borderColor: done ? 'var(--good)' : 'var(--acc)', color: done ? '#fff' : 'var(--acc)', transition: 'background .5s ease, border-color .5s ease, color .5s ease' }}>
           {glyph('M12 5v14M5 12h14', !done)}{glyph(CHECK_ICON, done)}
         </button>
-      ) : <a href={href} onClick={() => { cameFromAdd = true; onOpen?.(); }} aria-label={`Выбрать вес: ${it.name}`} style={PLUS}>+</a>}
+      ) : onPick ? <button onClick={pick} aria-label={`Выбрать вес: ${it.name}`} style={PLUS}>+</button>
+        : <a href={href} onClick={() => { cameFromAdd = true; onOpen?.(); }} aria-label={`Выбрать вес: ${it.name}`} style={PLUS}>+</a>}
     </div>
   );
 }
@@ -118,10 +129,16 @@ const keepFocus = (e: React.SyntheticEvent) => e.preventDefault();
 type Tab = 'recent' | 'yesterday' | 'library' | 'dishes';
 const TABS: [Tab, string][] = [['recent', 'Недавние'], ['yesterday', 'Вчера'], ['library', 'Библиотека'], ['dishes', 'Блюда']];
 
-/** Search, scan, dish and the four lists for adding food to one meal. Shared by phone and desktop. */
-function AddPanel({ date: d, meal: m }: { date: string; meal: Meal }) {
+/** The add panel picking a dish ingredient: products only, picked into the dish draft. */
+interface IngPick { onPick: (it: FoodItem) => void; onAdd: (it: FoodItem, grams: number) => void }
+
+/**
+ * Search, scan, dish and the four lists for adding food to one meal. Shared by phone and desktop.
+ * With `ing` it picks a dish ingredient: no «Блюда» tab, no dishes, no scan / new-product links (they would leave the dish).
+ */
+function AddPanel({ date: d, meal: m, ing }: { date: string; meal: Meal; ing?: IngPick }) {
   const { wide } = useApp();
-  const key = `${d}/${m}`;
+  const key = ing ? `${d}/${m}/ing` : `${d}/${m}`;
   const [q, setQ] = useState(() => panelState.get(key)?.q ?? '');
   const [tab, setTab] = useState<Tab>(() => panelState.get(key)?.tab ?? 'recent');
   useEffect(() => { panelState.set(key, { q, tab }); }, [key, q, tab]);
@@ -143,11 +160,15 @@ function AddPanel({ date: d, meal: m }: { date: string; meal: Meal }) {
   const hits = useQuery<{ products: FoodItem[] }>(s ? `/products?q=${encodeURIComponent(s)}` : null, { keep: true });
   const lib = useQuery<{ products: FoodItem[] }>(!s && tab === 'library' ? '/products?limit=50' : null);
   const mine = useQuery<{ products: FoodItem[] }>(!s && tab === 'library' ? '/products?mine=1' : null);
-  const dishes = useQuery<{ dishes: FoodItem[] }>('/dishes');
+  const dishes = useQuery<{ dishes: FoodItem[] }>(ing ? null : '/dishes');
+  const curTab: Tab = ing && tab === 'dishes' ? 'recent' : tab;
+  const tabs = ing ? TABS.filter(([k]) => k !== 'dishes') : TABS;
   const itemHref = (it: FoodItem) => `#/food/${d}/item/${it.type}/${it.id}/${m}`;
   const rowKey = (it: FoodItem) => `${key}:${it.type}${it.id}`;
+  const pickOf = (it: FoodItem) => (ing ? () => ing.onPick(it) : undefined);
   // Optimistic: the tick and toast show at once, the request goes in the background (an error still shows a toast).
   const quick = (it: FoodItem, g: number) => async (): Promise<boolean> => {
+    if (ing) { ing.onAdd(it, g); return true; }
     toast(`${it.name} — ${MEAL_IN[m]}`);
     markAdded(key, rowKey(it));
     api('POST', '/diary', { date: d, meal: m, itemType: it.type, itemId: it.id, grams: g, portions: it.portionG && Math.abs(g / it.portionG - Math.round(g / it.portionG)) < 1e-6 && Math.round(g / it.portionG) > 0 ? Math.round(g / it.portionG) : null })
@@ -160,12 +181,13 @@ function AddPanel({ date: d, meal: m }: { date: string; meal: Meal }) {
   let body: React.ReactNode;
   if (s) {
     const low = s.toLowerCase();
-    const found = hits.data && dishes.data ? [...dishes.data.dishes.filter((x) => x.name.toLowerCase().includes(low)), ...hits.data.products] : undefined;
+    const found = ing ? hits.data?.products
+      : hits.data && dishes.data ? [...dishes.data.dishes.filter((x) => x.name.toLowerCase().includes(low)), ...hits.data.products] : undefined;
     body = !found ? <Skeleton n={4} /> : (
       <div className="col" style={{ gap: 4 }}>
-        {found.map((it) => <ItemRow key={`${it.type}${it.id}`} it={it} href={itemHref(it)} onOpen={remember} sub={`${subtitle(it)}${it.type === 'product' && it.base === false ? ' · добавлен пользователем' : ''}`} />)}
+        {found.map((it) => <ItemRow key={`${it.type}${it.id}`} it={it} href={itemHref(it)} onPick={pickOf(it)} onOpen={remember} sub={`${subtitle(it)}${it.type === 'product' && it.base === false ? ' · добавлен пользователем' : ''}`} />)}
         {!found.length ? <span className="muted" style={{ padding: '12px 0' }}>Ничего не нашлось</span> : null}
-        <a className="btn ghost" href={newProduct} style={{ height: 48, borderRadius: 18, fontSize: 15, marginTop: 8 }}>+ Добавить продукт</a>
+        {!ing ? <a className="btn ghost" href={newProduct} style={{ height: 48, borderRadius: 18, fontSize: 15, marginTop: 8 }}>+ Добавить продукт</a> : null}
       </div>
     );
   } else if (showHistory) {
@@ -186,14 +208,15 @@ function AddPanel({ date: d, meal: m }: { date: string; meal: Meal }) {
         ))}
       </div>
     );
-  } else if (tab === 'recent') {
-    body = !recent.data ? <Skeleton n={4} /> : recent.data.items.length ? (
+  } else if (curTab === 'recent') {
+    const items = recent.data?.items.filter((it) => !ing || it.type === 'product');
+    body = !items ? <Skeleton n={4} /> : items.length ? (
       <div className="col" style={{ gap: 4 }}>
-        {recent.data.items.map((it) => <ItemRow key={`${it.type}${it.id}`} it={it} href={itemHref(it)} sub={`${WHEN(it.lastDate!, d)} · ${gramsText(it, it.lastGrams!)} · ${fmt(kcalAt(it, it.lastGrams!))} ккал`} onAdd={quick(it, it.lastGrams!)} rowKey={rowKey(it)} />)}
+        {items.map((it) => <ItemRow key={`${it.type}${it.id}`} it={it} href={itemHref(it)} onPick={pickOf(it)} sub={`${WHEN(it.lastDate!, d)} · ${gramsText(it, it.lastGrams!)} · ${fmt(kcalAt(it, it.lastGrams!))} ккал`} onAdd={quick(it, it.lastGrams!)} rowKey={rowKey(it)} />)}
       </div>
     ) : <div className="empty">За последние 3 дня {MEAL_GEN_PL[m]} не было</div>;
-  } else if (tab === 'yesterday') {
-    const entries = yday.data?.entries;
+  } else if (curTab === 'yesterday') {
+    const entries = yday.data?.entries.filter((e) => !ing || !e.dishId);
     body = !entries ? <Skeleton n={4} /> : entries.length ? (
       <div className="col" style={{ gap: 14 }}>
         {MEALS.map((mm) => {
@@ -207,24 +230,24 @@ function AddPanel({ date: d, meal: m }: { date: string; meal: Meal }) {
               {list.map((e) => {
                 const it = entryItem(e);
                 const sub = `${gramsText({ ...(it ?? { portionName: e.portionName, portionG: e.portionG }) } as FoodItem, e.grams)} · ${fmt(kcalAt(e, e.grams))} ккал`;
-                return it ? <ItemRow key={e.id} it={it} href={itemHref(it)} sub={sub} onAdd={quick(it, e.grams)} rowKey={rowKey(it)} /> : null;
+                return it ? <ItemRow key={e.id} it={it} href={itemHref(it)} onPick={pickOf(it)} sub={sub} onAdd={quick(it, e.grams)} rowKey={rowKey(it)} /> : null;
               })}
             </div>
           );
         })}
       </div>
     ) : <div className="empty">Вчера ничего не записано</div>;
-  } else if (tab === 'library') {
+  } else if (curTab === 'library') {
     body = !lib.data || !mine.data ? <Skeleton n={5} /> : (
       <div className="col" style={{ gap: 4 }}>
         {mine.data.products.length ? (
           <>
             <span className="label" style={{ marginTop: 4 }}>Мои продукты</span>
-            {mine.data.products.map((it) => <ItemRow key={it.id} it={it} href={itemHref(it)} />)}
+            {mine.data.products.map((it) => <ItemRow key={it.id} it={it} href={itemHref(it)} onPick={pickOf(it)} />)}
             <span className="label" style={{ marginTop: 14 }}>Библиотека</span>
           </>
         ) : null}
-        {lib.data.products.map((it) => <ItemRow key={it.id} it={it} href={itemHref(it)} />)}
+        {lib.data.products.map((it) => <ItemRow key={it.id} it={it} href={itemHref(it)} onPick={pickOf(it)} />)}
         <div className="card col" style={{ marginTop: 10, gap: 6, alignItems: 'flex-start' }}>
           <b style={{ fontWeight: 700 }}>Остальные продукты, в том числе добавленные другими, ищите через поиск.</b>
           <button className="btn sec" style={{ height: 48, borderRadius: 18, fontSize: 15, alignSelf: 'stretch' }} onClick={() => { searchRef.current?.querySelector('input')?.focus(); searchRef.current?.scrollIntoView({ block: 'center' }); }}>Найти в поиске</button>
@@ -235,9 +258,9 @@ function AddPanel({ date: d, meal: m }: { date: string; meal: Meal }) {
     const list = dishes.data?.dishes.filter((x) => !x.meals || x.meals.includes(m));
     body = !list ? <Skeleton n={3} /> : (
       <div className="col" style={{ gap: 4 }}>
+        <a className="btn ghost" href={`#/food/${d}/dish/${m}`} style={{ height: 48, borderRadius: 18, fontSize: 15, marginBottom: 6 }}>+ Новое блюдо</a>
         {list.map((it) => <ItemRow key={it.id} it={it} href={itemHref(it)} />)}
         {!list.length ? <span className="muted" style={{ padding: '12px 0' }}>Для {MEAL_GEN[m]} блюд пока нет</span> : null}
-        <a className="btn ghost" href={`#/food/${d}/dish/${m}`} style={{ height: 48, borderRadius: 18, fontSize: 15, marginTop: 8 }}>+ Новое блюдо</a>
       </div>
     );
   }
@@ -247,19 +270,18 @@ function AddPanel({ date: d, meal: m }: { date: string; meal: Meal }) {
       <div ref={searchRef}><SearchInput id="food-search" value={q} onChange={setQ} placeholder="Поиск по всем продуктам" onFocus={() => { clearTimeout(blurTimer.current); setFocused(true); }} onBlur={() => { clearTimeout(blurTimer.current); blurTimer.current = window.setTimeout(() => setFocused(false), 150); }} /></div>
       {!s && !showHistory ? (
         <>
-          {/* Phone: a quick «new product» tile first (desktop has the product form beside the list). */}
           {/* Штрихкод left, new product right (desktop has the product form beside the list). Dishes live in the «Блюда» tab. */}
-          <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 8 }}>
+          {!ing ? <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 8 }}>
             {([['Штрихкод', SCAN_ICON, `#/food/${d}/scan/${m}`, true], ...(wide ? [] : [['Продукт', PLUS_ICON, `#/food/${d}/new-product/${m}/-`, false]])] as [string, string, string, boolean][]).map(([l, ic, h, blue]) => (
               <a key={l} href={h} className="row a-in" style={{ height: 56, padding: '0 14px', gap: 10, borderRadius: 20, background: blue ? 'var(--hero)' : 'var(--card)', color: blue ? '#fff' : 'var(--ink)', border: blue ? 0 : '1px solid var(--cardBorder)' }}>
                 <span style={{ width: 32, height: 32, borderRadius: 10, background: blue ? 'rgba(255,255,255,.18)' : 'var(--btn)', display: 'inline-flex', alignItems: 'center', justifyContent: 'center', flex: 'none' }}><Icon d={ic} size={20} /></span>
                 <b style={{ fontSize: 16 }}>{l}</b>
               </a>
             ))}
-          </div>
+          </div> : null}
           <div role="tablist" className="row" style={{ gap: 16, borderBottom: '1px solid var(--line)', overflowX: 'auto' }}>
-            {TABS.map(([k, l]) => (
-              <button key={k} role="tab" aria-selected={tab === k} onClick={() => setTab(k)} style={{ flex: 'none', padding: '10px 0', fontWeight: 800, color: tab === k ? 'var(--ink)' : 'var(--muted)', borderBottom: `3px solid ${tab === k ? 'var(--acc)' : 'transparent'}` }}>{l}</button>
+            {tabs.map(([k, l]) => (
+              <button key={k} role="tab" aria-selected={curTab === k} onClick={() => setTab(k)} style={{ flex: 'none', padding: '10px 0', fontWeight: 800, color: curTab === k ? 'var(--ink)' : 'var(--muted)', borderBottom: `3px solid ${curTab === k ? 'var(--acc)' : 'transparent'}` }}>{l}</button>
             ))}
           </div>
         </>
@@ -294,14 +316,15 @@ export function AddFoodScreen({ date, meal }: { date?: string; meal?: string }) 
   );
 }
 
-function DesktopAdd({ date, meal }: { date: string; meal: Meal }) {
+/** Desktop add page: the panel and a new-product form beside it. With `ing` it picks a dish ingredient (back goes to the dish). */
+function DesktopAdd({ date, meal, ing, onBack }: { date: string; meal: Meal; ing?: IngPick; onBack?: () => void }) {
   return (
     <Screen>
       <div style={{ display: 'flex', flexWrap: 'wrap', gap: 24, alignItems: 'flex-start' }}>
         <section className="col" style={{ flex: '1 1 420px', minWidth: 0, maxWidth: 640, gap: 12 }}>
-          <a className="link" href={`#/food/${date}`}>‹ Дневник</a>
-          <h1 className="display" style={{ fontSize: 28 }}>Добавить {MEAL_IN[meal]}</h1>
-          <AddPanel date={date} meal={meal} />
+          <div>{ing ? <button className="link" onClick={onBack}>‹ Блюдо</button> : <a className="link" href={`#/food/${date}`}>‹ Дневник</a>}</div>
+          <h1 className="display" style={{ fontSize: 28 }}>{ing ? 'Добавить в блюдо' : `Добавить ${MEAL_IN[meal]}`}</h1>
+          <AddPanel date={date} meal={meal} ing={ing} />
         </section>
         <section className="card" style={{ flex: '1 1 320px', minWidth: 0, borderRadius: 22, padding: 18 }}>
           <h2 className="display" style={{ fontSize: 20, marginBottom: 12 }}>Новый продукт</h2>
@@ -312,7 +335,51 @@ function DesktopAdd({ date, meal }: { date: string; meal: Meal }) {
   );
 }
 
-export function ItemScreen({ date, type, id, meal }: { date?: string; type: 'product' | 'dish'; id: number; meal?: string }) {
+/** «Свои ккал и БЖУ»: four fields per 100 g, typed as text (comma or dot). */
+export type OwnVals = { k: string; p: string; fat: string; c: string };
+type Per100 = { protein: number; fat: number; carbs: number; kcal?: number | null };
+export const ownOf = (x: Per100): OwnVals => ({ k: fmt1(kcal100(x)), p: fmt1(x.protein), fat: fmt1(x.fat), c: fmt1(x.carbs) });
+/** Which own fields are wrong, and the numbers once all four are fine (macros 0–100 and ≤ 100 together, kcal 0–900). */
+export function ownCheck(ov: OwnVals | null) {
+  if (!ov) return { bad: null, ok: true, vals: null };
+  const okM = (s: string) => /^\d{1,3}([.,]\d)?$/.test(s.trim()) && n(s) <= 100;
+  const bad = {
+    k: !(/^\d{1,3}([.,]\d)?$/.test(ov.k.trim()) && n(ov.k) <= 900), p: !okM(ov.p), fat: !okM(ov.fat),
+    c: !okM(ov.c) || n(ov.p) + n(ov.fat) + n(ov.c) > 100,
+  };
+  const ok = !Object.values(bad).some(Boolean);
+  return { bad, ok, vals: ok ? { protein: n(ov.p), fat: n(ov.fat), carbs: n(ov.c), kcal: n(ov.k) } : null };
+}
+/**
+ * The «Свои ккал и БЖУ» button, or (once opened) its four fields with «Как было». Used on the weight screen
+ * (for the entry being added) and in the sheet of a logged entry. Opening fills the fields from `base`.
+ */
+export function OwnMacros({ value, onChange, base }: { value: OwnVals | null; onChange: (v: OwnVals | null) => void; base: Per100 }) {
+  if (!value) return <button className="btn sec" style={{ height: 48, borderRadius: 18, fontSize: 15 }} onClick={() => onChange(ownOf(base))}>Свои ккал и БЖУ</button>;
+  const { bad } = ownCheck(value);
+  const box = (key: keyof OwnVals, label: string, color: string) => (
+    <div className="field">
+      <label htmlFor={`ov-${key}`} className="sub" style={{ fontSize: 13 }}><span>{label}</span></label>
+      <input id={`ov-${key}`} inputMode="decimal" className="input" value={value[key]} aria-invalid={bad![key]}
+        onChange={(e) => onChange({ ...value, [key]: e.target.value })}
+        style={{ height: 48, borderRadius: 10, borderLeft: `4px solid ${color}`, fontWeight: 800 }} />
+    </div>
+  );
+  return (
+    <div className="col" style={{ gap: 8 }}>
+      <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 8 }}>
+        {box('k', 'Калории', 'var(--acc)')}{box('p', 'Белки, г', 'var(--chart)')}{box('fat', 'Жиры, г', 'var(--warn)')}{box('c', 'Углеводы, г', 'var(--good)')}
+      </div>
+      <div className="between" style={{ gap: 10 }}><span className="muted" style={{ fontSize: 14, fontWeight: 700 }}>На 100 г, только для этой записи</span>
+        <button className="btn sec small" style={{ height: 40, flex: 'none' }} onClick={() => onChange(null)}>Как было</button></div>
+    </div>
+  );
+}
+
+/** Picking a dish ingredient: the weight screen adds into the dish draft instead of the diary. */
+interface IngMode { onAdd: (it: FoodItem, grams: number) => void; onBack: () => void }
+
+export function ItemScreen({ date, type, id, meal, ing }: { date?: string; type: 'product' | 'dish'; id: number; meal?: string; ing?: IngMode }) {
   const d = asDate(date);
   // The flag is for this visit only: leaving with ‹ Назад must not send a later «Добавить» back in history.
   useEffect(() => () => { cameFromAdd = false; }, []);
@@ -324,7 +391,7 @@ export function ItemScreen({ date, type, id, meal }: { date?: string; type: 'pro
   const [tags, setTags] = useState<Meal[] | null>(null);
   const [menu, setMenu] = useState(false);
   const [confirmDel, setConfirmDel] = useState(false);
-  const [ov, setOv] = useState<null | { k: string; p: string; fat: string; c: string }>(null);
+  const [ov, setOv] = useState<OwnVals | null>(null);
   const { me } = useApp();
   const it = q.data?.product ?? q.data?.dish;
   const removeProduct = async () => {
@@ -347,26 +414,14 @@ export function ItemScreen({ date, type, id, meal }: { date?: string; type: 'pro
   const piece = it.portionName === 'шт' && it.portionG ? it.portionG : null;
   const step = piece ?? 50;
   // «Свои ккал и БЖУ»: per 100 g, only for this entry (a label in the library can be wrong); the product stays as it is.
-  const okM = (s: string) => /^\d{1,3}([.,]\d)?$/.test(s.trim()) && n(s) <= 100;
-  const ovBad = ov ? {
-    k: !(/^\d{1,3}([.,]\d)?$/.test(ov.k.trim()) && n(ov.k) <= 900), p: !okM(ov.p), fat: !okM(ov.fat),
-    c: !okM(ov.c) || n(ov.p) + n(ov.fat) + n(ov.c) > 100,
-  } : null;
-  const ovOk = !ovBad || !Object.values(ovBad).some(Boolean);
-  const eff: FoodItem = ov && ovOk ? { ...it, protein: n(ov.p), fat: n(ov.fat), carbs: n(ov.c), kcal: n(ov.k) } : it;
+  const { ok: ovOk, vals: ovVals } = ownCheck(ov);
+  const eff: FoodItem = ovVals ? { ...it, ...ovVals } : it;
   const ovChanged = !!ov && ovOk && (eff.protein !== it.protein || eff.fat !== it.fat || eff.carbs !== it.carbs || kcal100(eff) !== kcal100(it));
   const m100 = per100(eff).map((x) => (x * g) / 100) as [number, number, number];
-  const own = it.type === 'product' && it.createdBy === me.user.id;
-  const ovBox = (key: 'k' | 'p' | 'fat' | 'c', label: string, color: string) => (
-    <div className="field">
-      <label htmlFor={`ov-${key}`} className="sub" style={{ fontSize: 13 }}><span>{label}</span></label>
-      <input id={`ov-${key}`} inputMode="decimal" className="input" value={ov![key]} aria-invalid={ovBad![key]}
-        onChange={(e) => { const v = e.target.value; setOv((o) => (o ? { ...o, [key]: v } : o)); }}
-        style={{ height: 48, borderRadius: 10, borderLeft: `4px solid ${color}`, fontWeight: 800 }} />
-    </div>
-  );
+  const own = !ing && it.type === 'product' && it.createdBy === me.user.id;
   const add = async () => {
     if (g < 1 || g > 5000 || busy || !ovOk) return;
+    if (ing) { ing.onAdd(it, g); return; }
     setBusy(true);
     // Optimistic: go back at once, the request finishes in the background (an error still shows a toast).
     api('POST', '/diary', {
@@ -403,7 +458,7 @@ export function ItemScreen({ date, type, id, meal }: { date?: string; type: 'pro
         )}
       </Sheet>
       <div className="between">
-        <button className="link" onClick={() => history.back()}>‹ Назад</button>
+        <button className="link" onClick={() => (ing ? ing.onBack() : history.back())}>‹ Назад</button>
         {/* only the user's own product can be changed or deleted; a shared one is fixed («Свои ккал и БЖУ» below is per entry) */}
         {own ? <MoreButton onClick={() => { setConfirmDel(false); setMenu(true); }} /> : null}
       </div>
@@ -428,25 +483,15 @@ export function ItemScreen({ date, type, id, meal }: { date?: string; type: 'pro
         </div>
       </div>
       <Tiles m={m100} k={kcalAt(eff, g)} big tenths={kcalTenths(eff)} />
-      {it.type === 'product' ? (
-        !ov ? <button className="btn sec" style={{ height: 48, borderRadius: 18, fontSize: 15 }}
-          onClick={() => setOv({ k: fmt1(kcal100(it)), p: fmt1(it.protein), fat: fmt1(it.fat), c: fmt1(it.carbs) })}>Свои ккал и БЖУ</button> : (
-          <div className="col" style={{ gap: 8 }}>
-            <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 8 }}>
-              {ovBox('k', 'Калории', 'var(--acc)')}{ovBox('p', 'Белки, г', 'var(--chart)')}{ovBox('fat', 'Жиры, г', 'var(--warn)')}{ovBox('c', 'Углеводы, г', 'var(--good)')}
-            </div>
-            <div className="between"><span className="muted" style={{ fontSize: 14, fontWeight: 700 }}>На 100 г, только для этой записи</span>
-              <button className="btn sec small" style={{ height: 40, flex: 'none' }} onClick={() => setOv(null)}>Как было</button></div>
-          </div>
-        )
-      ) : null}
-      {it.type === 'dish' ? (
+      {/* own values belong to a diary entry; an ingredient always takes the product's */}
+      {it.type === 'product' && !ing ? <OwnMacros value={ov} onChange={setOv} base={it} /> : null}
+      {it.type === 'dish' && !ing ? (
         <div className="col" style={{ gap: 6 }}>
           <span className="label">Приёмы пищи</span>
           <MealChips value={tags ?? it.meals ?? MEALS} onChange={(v) => void saveTags(v)} />
         </div>
       ) : null}
-      <div className="fixed-bottom"><button className="btn big" disabled={busy || g < 1 || g > 5000 || !ovOk} onClick={add}>Добавить {MEAL_IN[m]}</button></div>
+      <div className="fixed-bottom"><button className="btn big" disabled={busy || g < 1 || g > 5000 || !ovOk} onClick={add}>{ing ? 'Добавить в блюдо' : `Добавить ${MEAL_IN[m]}`}</button></div>
     </Screen>
   );
 }
@@ -689,109 +734,148 @@ export function ProductNewScreen({ date, meal, barcode }: { date?: string; meal?
 }
 
 interface Ing { product: FoodItem; grams: string }
+interface DishDraft { name: string; ings: Ing[]; meals: Meal[] }
+type DishView = { at: 'form' } | { at: 'search' } | { at: 'item'; id: number };
 
-function DishForm({ onSaved, compact, initial, defaultMeals }: { onSaved: (d: FoodItem) => void; compact?: boolean; initial?: Ing[]; defaultMeals?: Meal[] }) {
-  const [name, setName] = useState('');
-  const [ings, setIngs] = useState<Ing[]>(initial ?? []);
-  const [meals, setMeals] = useState<Meal[]>(defaultMeals ?? MEALS);
-  const [cooked, setCooked] = useState<string | null>(null);
-  const [picking, setPicking] = useState(false);
-  const [busy, setBusy] = useState(false);
-  const sumRaw = ings.reduce((a, i) => a + (n(i.grams) || 0), 0);
-  const cw = cooked === null ? sumRaw : n(cooked) || 0;
-  const tot = ings.reduce<[number, number, number]>((a, i) => { const g = n(i.grams) || 0; return [a[0] + (i.product.protein * g) / 100, a[1] + (i.product.fat * g) / 100, a[2] + (i.product.carbs * g) / 100]; }, [0, 0, 0]);
-  const p100 = cw > 0 ? (tot.map((x) => (x / cw) * 100) as [number, number, number]) : [0, 0, 0] as [number, number, number];
-  const k100 = cw > 0 ? (ings.reduce((a, i) => a + kcalAt(i.product, n(i.grams) || 0), 0) / cw) * 100 : 0;
-  const valid = name.trim().length >= 2 && ings.length > 0 && ings.every((i) => n(i.grams) >= 1 && n(i.grams) <= 5000) && cw >= 1 && cw <= 20000;
-  const save = async () => {
-    if (!valid || busy) return;
-    setBusy(true);
-    try {
-      const { dish } = await api<{ dish: FoodItem }>('POST', '/dishes', { name: name.trim(), cookedWeight: cw, meals, ingredients: ings.map((i) => (i.product.type === 'dish' ? { dishId: i.product.id, grams: n(i.grams) } : { productId: i.product.id, grams: n(i.grams) })) });
-      invalidate('/dishes', '/food/recent');
-      onSaved(dish);
-      if (compact) { setName(''); setIngs([]); setCooked(null); }
-    } catch (e) { toast(errText(e)); } finally { setBusy(false); }
-  };
-  if (picking) return <ProductPicker onBack={() => setPicking(false)} onPick={(p) => { setIngs((x) => [...x, { product: p, grams: '100' }]); setPicking(false); }} />;
-  return (
-    <div className="col" style={{ gap: 12 }}>
-      <div className="row" style={{ gap: 12 }}>
-        <FoodArt kind="dish" size={compact ? 56 : 84} />
-        <div className="field grow">
-          <label htmlFor="dish-name" className="sub" style={{ fontSize: 13 }}><span>Название</span></label>
-          <input id="dish-name" className="input" value={name} onChange={(e) => setName(e.target.value)} maxLength={80} style={{ height: 46, borderRadius: 12, fontWeight: 800 }} />
-        </div>
-      </div>
-      <span className="label">Ингредиенты, вес сырыми</span>
-      <div className="card" style={{ borderRadius: 22, padding: '4px 12px', background: compact ? 'var(--bg)' : 'var(--card)' }}>
-        {ings.map((i, k) => (
-          <div key={k} className="row" style={{ minHeight: 60, borderBottom: '1px solid var(--line)' }}>
-            <FoodArt kind={i.product.icon} size={40} />
-            <span className="grow ell" style={{ fontWeight: 700 }}>{i.product.name}</span>
-            <span className="row" style={{ background: 'var(--bg)', borderRadius: 10, padding: '8px 10px', gap: 2 }}>
-              <input aria-label={`Граммы: ${i.product.name}`} inputMode="numeric" value={i.grams} onChange={(e) => setIngs((x) => x.map((y, j) => (j === k ? { ...y, grams: e.target.value.replace(/\D/g, '').slice(0, 4) } : y)))} style={{ width: 44, border: 0, background: 'none', textAlign: 'right', fontWeight: 800, outline: 'none' }} /><b>г</b>
-            </span>
-            <button aria-label="Убрать ингредиент" className="muted" style={{ width: 40, height: 40 }} onClick={() => setIngs((x) => x.filter((_, j) => j !== k))}>✕</button>
-          </div>
-        ))}
-        <button className="btn ghost" style={{ height: 48, borderRadius: 18, fontSize: 15 }} onClick={() => setPicking(true)}>+ Ингредиент</button>
-      </div>
-      <div className="card between" style={{ borderRadius: 22, padding: '12px 14px', background: compact ? 'var(--bg)' : 'var(--card)' }}>
-        <b>Вес готового блюда</b>
-        <span className="row" style={{ background: compact ? 'var(--card)' : 'var(--bg)', borderRadius: 10, padding: '8px 10px', gap: 2 }}>
-          <input aria-label="Вес готового блюда" inputMode="numeric" value={cooked ?? String(Math.round(sumRaw))} onChange={(e) => setCooked(e.target.value.replace(/\D/g, '').slice(0, 5))} className="display" style={{ width: 64, border: 0, background: 'none', textAlign: 'right', fontWeight: 800, outline: 'none' }} /><b>г</b>
-        </span>
-      </div>
-      <div style={{ background: 'var(--hero)', color: '#fff', borderRadius: 22, padding: 14 }}>
-        <b>На 100 г готового блюда</b>
-        <div style={{ display: 'grid', gridTemplateColumns: 'repeat(4, 1fr)', marginTop: 8 }}>
-          {[k100, ...p100.map((x) => Math.round(x))].map((v, i) => (
-            <div key={i}><div className="display num" style={{ fontSize: 20 }}>{fmt(v)}</div><div style={{ fontSize: 13, fontWeight: 700 }}>{['ккал', 'белки', 'жиры', 'углев.'][i]}</div></div>
-          ))}
-        </div>
-      </div>
-      <div className="col" style={{ gap: 6 }}><span className="label">Приёмы пищи</span><MealChips value={meals} onChange={setMeals} /></div>
-      {compact ? <button className="btn small" disabled={!valid || busy} onClick={save}>Сохранить в мои блюда</button> : (
-        <button className="btn big" disabled={!valid || busy} onClick={save}>Готово</button>
-      )}
-    </div>
-  );
-}
-
-function ProductPicker({ onBack, onPick }: { onBack: () => void; onPick: (p: FoodItem) => void }) {
-  const [q, setQ] = useState('');
-  const s = q.trim();
-  const lib = useQuery<{ products: FoodItem[] }>(s ? `/products?q=${encodeURIComponent(s)}` : '/products?limit=50', { keep: true });
-  return (
-    <div className="col" style={{ gap: 12 }}>
-      <div><button className="link" onClick={onBack}>‹ Назад</button></div>
-      <SearchInput value={q} onChange={setQ} placeholder="Поиск по общей библиотеке" />
-      {!lib.data ? <Skeleton n={4} /> : lib.data.products.length ? lib.data.products.map((p) => (
-        <button key={p.id} className="row a-in" style={{ minHeight: 56, gap: 12, width: '100%', textAlign: 'left' }} onClick={() => onPick(p)}>
-          <FoodArt kind={p.icon} size={44} /><div className="grow" style={{ minWidth: 0 }}><b>{p.name}</b><div className="sub ell">{subtitle(p)}</div></div><span style={PLUS}>+</span>
-        </button>
-      )) : <div className="empty">Ничего не найдено</div>}
-    </div>
-  );
-}
-
-/** New dish from scratch (all meals by default), or from a meal of the day ("from-meal": its food, tagged for that meal). */
+/**
+ * New dish from scratch (all meals by default), or from a meal of the day ("from-meal": its food, tagged for that meal).
+ * The «+» of the ingredients opens the add-food search in ingredient mode, then its weight screen; the draft stays here.
+ */
 export function DishNewScreen({ date, meal, from }: { date?: string; meal?: string; from?: string }) {
   const d = asDate(date), m = asMeal(meal);
   const fromMeal = from === 'from-meal';
   const day = useQuery<{ entries: Entry[] }>(fromMeal ? `/diary?from=${d}&to=${d}` : null);
-  const initial = fromMeal && day.data
-    ? day.data.entries.filter((e) => e.meal === m).map((e) => ({ item: entryItem(e), grams: String(Math.round(e.grams)) })).filter((x) => x.item).map((x) => ({ product: x.item!, grams: x.grams }))
-    : undefined;
+  const [draft, setDraft] = useState<DishDraft | null>(fromMeal ? null : { name: '', ings: [], meals: MEALS });
+  useEffect(() => {
+    if (draft || !day.data) return;
+    const ings = day.data.entries.filter((e) => e.meal === m).map((e) => ({ item: entryItem(e), grams: String(Math.round(e.grams)) }))
+      .filter((x) => x.item).map((x) => ({ product: x.item!, grams: x.grams }));
+    setDraft({ name: '', ings, meals: [m] });
+  }, [draft, day.data, m]);
+  // Each «+» starts a fresh search (no old text, «Недавние»); back from the weight screen keeps it.
+  const [view, setView] = useState<DishView>({ at: 'form' });
+  useEffect(() => { window.scrollTo(0, 0); }, [view.at]);
   const back = fromMeal ? `#/food/${d}` : `#/food/${d}/add/${m}`;
+  const addIng = (it: FoodItem, g: number) => {
+    setDraft((x) => x && { ...x, ings: [...x.ings, { product: it, grams: String(Math.round(g)) }] });
+    setView({ at: 'form' });
+  };
+  if (!draft) return <Screen className="modal">{day.error ? <ErrorBox error={day.error} retry={day.reload} /> : <Skeleton n={3} />}</Screen>;
+  if (view.at === 'item') {
+    return <ItemScreen key={view.id} date={d} type="product" id={view.id} meal={m} ing={{ onAdd: addIng, onBack: () => setView({ at: 'search' }) }} />;
+  }
+  if (view.at === 'search') {
+    return <IngredientSearch date={d} meal={m} onBack={() => setView({ at: 'form' })} ing={{ onPick: (it) => setView({ at: 'item', id: it.id }), onAdd: addIng }} />;
+  }
+  return (
+    <DishForm title={fromMeal ? `Блюдо из ${MEAL_GEN[m]}` : 'Новое блюдо'} cancel={back} draft={draft} setDraft={setDraft} onAddIngredient={() => { panelState.delete(`${d}/${m}/ing`); setView({ at: 'search' }); }}
+      onSaved={(dish) => { if (fromMeal) { toast(`Блюдо «${dish.name}» сохранено`); go('food', d); } else go('food', d, 'item', 'dish', dish.id, m); }} />
+  );
+}
+
+/** The add-food search, picking one ingredient for the dish being made. */
+function IngredientSearch({ date, meal, ing, onBack }: { date: string; meal: Meal; ing: IngPick; onBack: () => void }) {
+  const { wide } = useApp();
+  if (wide) return <DesktopAdd date={date} meal={meal} ing={ing} onBack={onBack} />;
   return (
     <Screen className="modal">
-      <div className="navbar"><a className="link" href={back}>Отмена</a><b>{fromMeal ? `Блюдо из ${MEAL_GEN[m]}` : 'Новое блюдо'}</b><span style={{ width: 60 }} /></div>
-      {fromMeal && !day.data ? <Skeleton n={3} /> : (
-        <DishForm initial={initial} defaultMeals={fromMeal ? [m] : undefined}
-          onSaved={(dish) => { if (fromMeal) { toast(`Блюдо «${dish.name}» сохранено`); go('food', d); } else go('food', d, 'item', 'dish', dish.id, m); }} />
-      )}
+      <div className="between"><button className="link" onClick={onBack}>‹ Блюдо</button><b>Ингредиент</b><span style={{ width: 44 }} /></div>
+      <AddPanel date={date} meal={meal} ing={ing} />
+    </Screen>
+  );
+}
+
+const X3 = (it: FoodItem, g: number): [number, number, number] => [(it.protein * g) / 100, (it.fat * g) / 100, (it.carbs * g) / 100];
+
+/**
+ * The dish form: name, ingredients (raw weight; a tap opens the weight sheet), totals of the whole dish, meal tags.
+ * The dish is stored per 100 g of the sum of the raw weights.
+ */
+function DishForm({ title, cancel, draft, setDraft, onAddIngredient, onSaved }: {
+  title: string; cancel: string; draft: DishDraft; setDraft: (f: (d: DishDraft | null) => DishDraft | null) => void; onAddIngredient: () => void; onSaved: (d: FoodItem) => void;
+}) {
+  const { wide } = useApp();
+  const [busy, setBusy] = useState(false);
+  const [edit, setEdit] = useState<number | null>(null);
+  const [ig, setIg] = useState('');
+  const { name, ings, meals } = draft;
+  const patch = (p: Partial<DishDraft>) => setDraft((x) => x && { ...x, ...p });
+  const gOf = (i: Ing) => n(i.grams) || 0;
+  const totalW = ings.reduce((a, i) => a + gOf(i), 0);
+  const tot = ings.reduce<[number, number, number]>((a, i) => { const x = X3(i.product, gOf(i)); return [a[0] + x[0], a[1] + x[1], a[2] + x[2]]; }, [0, 0, 0]);
+  const totK = ings.reduce((a, i) => a + kcalAt(i.product, gOf(i)), 0);
+  const valid = name.trim().length >= 2 && ings.length > 0 && ings.every((i) => gOf(i) >= 1 && gOf(i) <= 5000) && totalW <= 20000;
+  const save = async () => {
+    if (!valid || busy) return;
+    setBusy(true);
+    try {
+      // No cooked weight to type any more: the dish weighs what its raw ingredients weigh.
+      const { dish } = await api<{ dish: FoodItem }>('POST', '/dishes', {
+        name: name.trim(), cookedWeight: totalW, meals,
+        ingredients: ings.map((i) => (i.product.type === 'dish' ? { dishId: i.product.id, grams: gOf(i) } : { productId: i.product.id, grams: gOf(i) })),
+      });
+      invalidate('/dishes', '/food/recent');
+      onSaved(dish);
+    } catch (e) { toast(errText(e)); setBusy(false); }
+  };
+  const cur = edit !== null ? ings[edit] : null;
+  const g = Number(ig) || 0;
+  const igOk = g >= 1 && g <= 5000;
+  const closeIng = () => setEdit(null);
+  const saveIng = () => { if (!igOk || edit === null) return; patch({ ings: ings.map((x, j) => (j === edit ? { ...x, grams: String(g) } : x)) }); closeIng(); };
+  const removeIng = () => { if (edit === null) return; patch({ ings: ings.filter((_, j) => j !== edit) }); closeIng(); };
+  const done = <button className={wide ? 'btn small' : 'btn big'} disabled={!valid || busy} onClick={() => void save()}>Готово</button>;
+  return (
+    <Screen className="modal" title={title} actions={<div className="row" style={{ gap: 10 }}><a className="btn sec small" href={cancel}>Отмена</a>{done}</div>}>
+      {!wide ? <div className="navbar"><a className="link" href={cancel}>Отмена</a><b>{title}</b><span style={{ width: 60 }} /></div> : null}
+      <div className="col" style={{ gap: 12, width: '100%', maxWidth: wide ? 760 : 'none' }}>
+        <section className="card col a-in" style={{ gap: 12, padding: '14px 16px 16px' }}>
+          <label htmlFor="dish-name" className="label">Название</label>
+          <input id="dish-name" className="input" value={name} onChange={(e) => patch({ name: e.target.value })} maxLength={80} placeholder="Например, омлет с сыром"
+            style={{ height: 50, borderRadius: 12, fontWeight: 800, background: 'var(--bg)', borderColor: 'transparent' }} />
+        </section>
+        <section className="card col a-in" aria-label="Ингредиенты" style={{ borderRadius: 22, padding: '10px 12px', gap: 8 }}>
+          <div className="row">
+            <b className="grow" style={{ fontSize: 17 }}>Ингредиенты</b>
+            <span className="muted" style={{ fontWeight: 700 }}>{fmt(totK)} ккал</span>
+            <button aria-label="Добавить ингредиент" onClick={onAddIngredient} style={{ width: 40, height: 40, borderRadius: 20, flex: 'none', background: 'var(--acc)', color: 'var(--onAcc)', display: 'inline-flex', alignItems: 'center', justifyContent: 'center', fontSize: 22, fontWeight: 800 }}>+</button>
+          </div>
+          {ings.map((i, k) => (
+            <button key={k} className="row" onClick={() => { setIg(String(Math.round(gOf(i)))); setEdit(k); }}
+              style={{ width: '100%', minHeight: 48, textAlign: 'left', background: 'var(--card)', borderRadius: 12 }}>
+              <FoodArt kind={i.product.icon} size={40} />
+              <div className="grow" style={{ minWidth: 0 }}><div className="ell" style={{ fontWeight: 700, fontSize: 15 }}>{i.product.name}</div><div className="sub">{fmtG(gOf(i))} г · {macroLine(X3(i.product, gOf(i)))}</div></div>
+              <b style={{ fontSize: 15 }}>{fmt(kcalAt(i.product, gOf(i)))}</b>
+            </button>
+          ))}
+        </section>
+        <div className="a-in" style={{ background: 'var(--hero)', color: 'var(--onHero)', borderRadius: 22, padding: 14 }}>
+          <b>Всё блюдо · {fmt(totalW)} г</b>
+          <div style={{ display: 'grid', gridTemplateColumns: 'repeat(4, minmax(0, 1fr))', marginTop: 8 }}>
+            {[totK, ...tot].map((v, i) => (
+              <div key={i}><div className="display num" style={{ fontSize: 20 }}>{fmt(v)}</div><div style={{ fontSize: 13, fontWeight: 700 }}>{['ккал', 'белки', 'жиры', 'углев.'][i]}</div></div>
+            ))}
+          </div>
+        </div>
+        <div className="col" style={{ gap: 6 }}><span className="label">Приёмы пищи</span><MealChips value={meals} onChange={(v) => patch({ meals: v })} /></div>
+        {!wide ? done : null}
+      </div>
+      <Sheet open={!!cur} onClose={closeIng} label={cur?.product.name ?? 'Ингредиент'}>
+        {cur ? (
+          <>
+            <div className="col" style={{ gap: 0 }}><b style={{ fontSize: 20 }}>{cur.product.name}</b><span className="sub">в блюде, вес сырым</span></div>
+            <div style={{ display: 'grid', gridTemplateColumns: '52px 1fr 52px', gap: 10, alignItems: 'center' }}>
+              <button className="icon-btn" aria-label="Меньше" style={{ height: 52, width: 52, borderRadius: 18, border: '1px solid var(--track)' }} onClick={() => setIg(String(Math.max(0, g - 10)))}>−</button>
+              <div style={{ justifySelf: 'center', display: 'flex', alignItems: 'center', height: 56, padding: '0 18px', borderRadius: 18, background: 'var(--bg)' }}>
+                <AmountInput label="Граммы" value={ig} onChange={setIg} unit="г" size={28} />
+              </div>
+              <button className="icon-btn" aria-label="Больше" style={{ height: 52, width: 52, borderRadius: 18, border: '1px solid var(--track)' }} onClick={() => setIg(String(Math.min(5000, g + 10)))}>+</button>
+            </div>
+            <button className="btn" disabled={!igOk} onClick={saveIng}>Сохранить</button>
+            <button className="btn danger" onClick={removeIng}>Убрать из блюда</button>
+          </>
+        ) : null}
+      </Sheet>
     </Screen>
   );
 }

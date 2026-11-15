@@ -44,43 +44,49 @@ const currentNorms = (me: Me) => ({ training: setNormFor(me, today(), 'training'
 
 export function ProfileScreen() {
   const { me, logout, wide, programs } = useApp();
-  if (wide) return <DesktopProfile />;
   const n = currentNorms(me);
   const name = me.profile.name ?? '';
-  return (
-    <Screen>
-      <div className="row" style={{ gap: 14 }}>
-        <span className="display" style={{ width: 60, height: 60, borderRadius: 30, background: 'var(--hero)', color: '#fff', display: 'inline-flex', alignItems: 'center', justifyContent: 'center', fontSize: 24, flex: 'none' }}>{name.charAt(0).toUpperCase()}</span>
-        <div className="grow"><div className="display ell" style={{ fontSize: 22 }}>{name}</div><div className="muted ell" style={{ fontSize: 14 }}>{me.user.email}</div></div>
-        <button className="btn sec small" style={{ height: 40 }} onClick={() => void logout()}>Выйти</button>
-      </div>
-      <span className="label">Тема</span>
-      <ThemePicker />
-      <ThisWeek hasProgram={!!activeProgram(programs)} />
+  // Rows like the rest of the app: bold label, muted bold value (they used to be regular weight and stood out)
+  const row = (href: string, label: string, value: string, warn?: boolean) => (
+    <a href={href} style={{ fontWeight: 700 }}><span className="grow" style={warn ? { color: 'var(--warnT)' } : undefined}>{label}</span><span className="muted">{value}</span></a>
+  );
+  const head = (
+    <div className="row" style={{ gap: 14 }}>
+      <span className="display" style={{ width: 60, height: 60, borderRadius: 30, background: 'var(--hero)', color: '#fff', display: 'inline-flex', alignItems: 'center', justifyContent: 'center', fontSize: 24, flex: 'none' }}>{name.charAt(0).toUpperCase()}</span>
+      <div className="grow"><div className="display ell" style={{ fontSize: 22 }}>{name}</div><div className="muted ell" style={{ fontSize: 14 }}>{me.user.email}</div></div>
+      <button className="btn sec small" style={{ height: wide ? 44 : 40 }} onClick={() => void logout()}>Выйти</button>
+    </div>
+  );
+  const theme = <><span className="label">Тема</span><ThemePicker size={wide ? 72 : 64} /><ThisWeek hasProgram={!!activeProgram(programs)} /></>;
+  const menu = (
+    <>
       <span className="label">Питание</span>
       <div className="list">
-        {!hasNorm(me) ? (
-          <a href="#/profile/recalc"><span className="grow">Норма калорий</span><span className="muted">Рассчитать ›</span></a>
-        ) : n.training ? (
-          <>
-            <a href="#/profile/norms"><span className="grow">Тренировочный день</span><span className="muted">{fmt(kcal(n.training))} ккал ›</span></a>
-            <a href="#/profile/norms"><span className="grow">День отдыха</span><span className="muted">{fmt(kcal(n.rest))} ккал ›</span></a>
-          </>
-        ) : (
-          <>
-            <a href="#/profile/norms"><span className="grow">Обычный день</span><span className="muted">{fmt(kcal(n.rest))} ккал ›</span></a>
-            <a href="#/profile/norms"><span className="grow">День тренировки</span><span className="muted">Не задано ›</span></a>
-          </>
-        )}
-        <a href="#/profile/body"><span className="grow">Данные и замеры</span><span className="muted">›</span></a>
+        {!hasNorm(me) ? row('#/profile/recalc', 'Норма калорий', 'Рассчитать ›')
+          : n.training ? <>{row('#/profile/norms', 'Тренировочный день', `${fmt(kcal(n.training))} ккал ›`)}{row('#/profile/norms', 'День отдыха', `${fmt(kcal(n.rest))} ккал ›`)}</>
+          : <>{row('#/profile/norms', 'Обычный день', `${fmt(kcal(n.rest))} ккал ›`)}{row('#/profile/norms', 'День тренировки', 'Не задано ›')}</>}
+        {row('#/profile/body', 'Данные и замеры', '›')}
       </div>
       <span className="label">Безопасность</span>
       <div className="list">
-        <a href="#/profile/password"><span className="grow">Пароль</span><span className="muted">Сменить ›</span></a>
-        <a href="#/profile/delete"><span className="grow" style={{ color: 'var(--warnT)' }}>Удалить аккаунт</span><span className="muted">›</span></a>
+        {row('#/profile/password', 'Пароль', 'Сменить ›')}
+        {row('#/profile/delete', 'Удалить аккаунт', '›', true)}
       </div>
-    </Screen>
+    </>
   );
+  if (wide) {
+    return (
+      <div className="page">
+        <h1 className="h1">Профиль</h1>
+        <div style={{ maxWidth: 1000 }}>{head}</div>
+        <div style={{ display: 'grid', gridTemplateColumns: 'repeat(2, minmax(0, 1fr))', gap: 24, maxWidth: 1000, alignItems: 'start' }}>
+          <div className="col" style={{ gap: 14 }}>{theme}</div>
+          <div className="col" style={{ gap: 14 }}>{menu}</div>
+        </div>
+      </div>
+    );
+  }
+  return <Screen>{head}{theme}{menu}</Screen>;
 }
 
 function ThisWeek({ hasProgram }: { hasProgram: boolean }) {
@@ -173,7 +179,7 @@ function useProfileForm() {
 }
 
 export function ProfileEditScreen() {
-  const { me } = useApp();
+  const { me, wide } = useApp();
   const { f, set, errs, valid, body, age, setF } = useProfileForm();
   const [busy, setBusy] = useState(false);
   const [offer, setOffer] = useState<Offer | null>(null);
@@ -205,12 +211,8 @@ export function ProfileEditScreen() {
   const near = f.fat.trim() && Number.isFinite(fatN) ? FAT_LEVELS[sex].reduce((b, x) => (Math.abs(x - fatN) < Math.abs(b - fatN) ? x : b)) : null;
   const prog = activeProgram(programs);
   const card: React.CSSProperties = { gap: 12, padding: '14px 14px 16px' };
-  return (
-    <Screen className="modal">
-      <div className="navbar">
-        <a className="link" href="#/profile/body">Отмена</a><b>Данные и замеры</b>
-        <button className="link" disabled={!valid || busy} onClick={save} style={{ color: valid ? 'var(--acc)' : 'var(--muted)' }}>Сохранить</button>
-      </div>
+  const cards = (
+    <>
       <section className="card col a-in" style={card}>
         <span className="label">Общая информация</span>
         <Field label="Почта"><div className="input ro" style={{ height: 50, borderRadius: 12 }}>{me.user.email}</div></Field>
@@ -249,6 +251,31 @@ export function ProfileEditScreen() {
           </div>
         </div>
       </section>
+    </>
+  );
+  if (wide) {
+    return (
+      <div className="page">
+        <a className="link" href="#/profile/body" style={{ fontWeight: 800 }}>‹ Данные и замеры</a>
+        <div className="between" style={{ maxWidth: 1000 }}>
+          <h1 className="h1">Данные и замеры</h1>
+          <div className="row" style={{ gap: 10 }}>
+            <a className="btn sec small" href="#/profile/body">Отмена</a>
+            <button className="btn small" disabled={!valid || busy} onClick={() => void save()}>Сохранить</button>
+          </div>
+        </div>
+        <div className="desk-grid" style={{ display: 'grid', gridTemplateColumns: 'repeat(2, minmax(0, 1fr))', gap: 14, maxWidth: 1000, alignItems: 'start' }}>{cards}</div>
+        <RecalcSheet offer={offer} busy={busy} onRecalc={() => void recalc()} onLater={() => go('profile', 'body')} />
+      </div>
+    );
+  }
+  return (
+    <Screen className="modal">
+      <div className="navbar">
+        <a className="link" href="#/profile/body">Отмена</a><b>Данные и замеры</b>
+        <button className="link" disabled={!valid || busy} onClick={save} style={{ color: valid ? 'var(--acc)' : 'var(--muted)' }}>Сохранить</button>
+      </div>
+      {cards}
       <RecalcSheet offer={offer} busy={busy} onRecalc={() => void recalc()} onLater={() => go('profile', 'body')} />
     </Screen>
   );
@@ -301,7 +328,7 @@ export function BodyScreen() {
   if (wide) {
     return (
       <div className="page">
-        <div className="between"><h1 className="h1">Данные и замеры</h1><a className="btn sec small" href="#/profile">Изменить</a></div>
+        <div className="between"><h1 className="h1">Данные и замеры</h1><a className="btn sec small" href="#/profile/edit">Изменить</a></div>
         <div className="row" style={{ gap: 14, alignItems: 'flex-start' }}><div style={{ flex: 'none' }}>{card}</div><MeasuresCard /></div>
       </div>
     );
@@ -474,104 +501,6 @@ export function PasswordScreen() {
   );
 }
 
-function DesktopProfile() {
-  const { me, programs } = useApp();
-  const pf = useProfileForm();
-  const nf = useNormsForm();
-  const [state, setState] = useState<'idle' | 'saved'>('idle');
-  const [busy, setBusy] = useState(false);
-  const dirty = pf.dirty || nf.dirty;
-  const valid = pf.valid && nf.valid;
-  const wb = weekBudget(nf.macros('training'), nf.macros('rest')!, budgetDays(activeProgram(programs)));
-  const save = async () => {
-    if (!valid || !dirty || busy) return;
-    setBusy(true);
-    try {
-      const b = pf.body();
-      // Norms typed by hand in the same save win: no offer then.
-      const o = nf.dirty ? null : recalcOffer(me, b);
-      await api('PUT', '/me/profile', { ...b, ...(nf.dirty ? { norms: nf.body() } : {}) });
-      await invalidate('/me');
-      setState('saved');
-      setOffer(o);
-    } catch (e) { toast(errText(e)); } finally { setBusy(false); }
-  };
-  const [offer, setOffer] = useState<Offer | null>(null);
-  const recalc = async () => {
-    if (!offer || busy) return;
-    setBusy(true);
-    try {
-      await api('PUT', '/me/norms', offer.norms);
-      await invalidate('/me');
-      setOffer(null);
-      toast('Калории пересчитаны');
-    } catch (e) { toast(errText(e)); } finally { setBusy(false); }
-  };
-  const label = !valid ? 'Исправьте ошибки в данных' : state === 'saved' && !dirty ? 'Сохранено ✓' : 'Сохранить изменения';
-  const btnStyle: React.CSSProperties = state === 'saved' && !dirty && valid ? { background: 'var(--good)', color: '#fff' } : {};
-  const markDirty = <T,>(fn: (e: T) => void) => (e: T) => { fn(e); setState('idle'); };
-  const section = (title: string, body: React.ReactNode) => (
-    <div className="card a-in desk-sec" style={{ display: 'flex', flexWrap: 'wrap', gap: 24, padding: '20px 24px' }}>
-      <b style={{ flex: '0 1 260px', fontSize: 18 }}>{title}</b>
-      <div style={{ flex: '1 1 480px', minWidth: 0 }}>{body}</div>
-    </div>
-  );
-  const pInp = (k: 'name' | 'weight' | 'height' | 'birth' | 'steps' | 'fat', l: string, mode: 'text' | 'decimal' | 'numeric') => (
-    <div className="field">
-      <label htmlFor={`dp-${k}`} className="sub" style={{ fontSize: 13, fontWeight: 800 }}><span>{k === 'birth' && pf.age ? `${l} · ${pf.age}` : l}</span></label>
-      <input id={`dp-${k}`} className="input" inputMode={mode} value={pf.f[k]} onChange={markDirty(pf.set(k))} aria-invalid={!!pf.errs[k]} style={{ height: 46, borderRadius: 10 }} />
-      <span className="err" style={{ fontSize: 13, minHeight: 16 }}>{pf.errs[k] ?? ''}</span>
-    </div>
-  );
-  return (
-    <Screen>
-      <div className="between">
-        <h1 className="h1 a-h" style={{ fontSize: 30 }}>Профиль</h1>
-        <button className="btn small" style={{ height: 48, borderRadius: 18, ...btnStyle }} disabled={!valid || (!dirty && state !== 'saved') || busy} onClick={save}>{label}</button>
-      </div>
-      <div className="col" style={{ maxWidth: 1100, gap: 14 }}>
-        {section('Личные данные', (
-          <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fill, minmax(200px, 1fr))', gap: 12 }}>
-            <div className="field"><span className="sub" style={{ fontSize: 13, fontWeight: 800 }}>Почта</span><div className="input ro" style={{ height: 46, borderRadius: 10 }}>{me.user.email}</div></div>
-            {pInp('name', 'Имя', 'text')}{pInp('weight', 'Вес, кг', 'decimal')}{pInp('height', 'Рост, см', 'numeric')}{pInp('birth', 'Дата рождения', 'numeric')}{pInp('steps', 'Шагов в день', 'numeric')}{pInp('fat', 'Процент жира', 'decimal')}
-            <div className="field"><span className="sub" style={{ fontSize: 13, fontWeight: 800 }}>Пол</span>{sexSeg(pf.f.sex, (v) => { pf.setF((p) => ({ ...p, sex: v })); setState('idle'); })}</div>
-          </div>
-        ))}
-        {section('Нормы питания', (
-          <div className="col" style={{ gap: 10 }}>
-            <div style={{ display: 'grid', gridTemplateColumns: 'minmax(140px,1.2fr) repeat(4, minmax(70px,1fr))', gap: 8, alignItems: 'center' }}>
-              <span />{['Ккал', 'Белки, г', 'Жиры, г', 'Углеводы, г'].map((h) => <span key={h} className="sub" style={{ fontSize: 12, fontWeight: 800 }}>{h}</span>)}
-              {(['training', 'rest'] as const).map((t) => [
-                <b key={`${t}l`}>{t === 'training' ? 'День тренировки' : 'День отдыха'}</b>,
-                <div key={`${t}k`} className="input ro display" style={{ height: 46, borderRadius: 10, fontSize: 15 }}>{(() => { const m = nf.macros(t); return m ? fmt(kcal(m)) : 'Не задано'; })()}</div>,
-                ...[0, 1, 2].map((i) => (
-                  <input key={`${t}${i}`} aria-label={`${t === 'training' ? 'День тренировки' : 'День отдыха'}, ${['Белки, г', 'Жиры, г', 'Углеводы, г'][i]}`} inputMode="numeric" className="input"
-                    placeholder="—" aria-invalid={!(t === 'training' && nf.trainingEmpty) && !okG(nf.v[t][i])} value={nf.v[t][i]} style={{ height: 46, borderRadius: 10, borderLeft: `4px solid ${MC[i]}`, fontWeight: 800 }}
-                    onChange={(e) => { setGrams(nf.setV, t, i, e.target.value); setState('idle'); }} />
-                )),
-              ])}
-            </div>
-            <div className="between" style={{ flexWrap: 'wrap' }}>
-              <span className="muted">Бюджет недели <b style={{ color: 'var(--ink)' }}>{fmt(wb.B)} ккал</b> · {wb.text}</span>
-              <a className="btn sec" style={{ height: 48, borderRadius: 18, fontSize: 15 }} href="#/profile/recalc">Пересчитать по формуле</a>
-            </div>
-          </div>
-        ))}
-        {section('Тема', <ThemePicker size={72} />)}
-        {section('Безопасность', (
-          <div className="row" style={{ gap: 10, flexWrap: 'wrap' }}>
-            <a className="btn small outline" href="#/profile/password">Сменить пароль</a>
-            <a className="btn small outline" href="#/profile/delete" style={{ color: 'var(--warnT)' }}>Удалить аккаунт</a>
-          </div>
-        ))}
-      </div>
-      <RecalcSheet offer={offer} busy={busy} onRecalc={() => void recalc()} onLater={() => setOffer(null)} />
-    </Screen>
-  );
-}
-
-
-/** Delete the account for good: what goes, what stays (own products in the shared library), the password. */
 export function DeleteAccountScreen() {
   const { wide } = useApp();
   const [pass, setPass] = useState('');
