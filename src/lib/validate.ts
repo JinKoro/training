@@ -6,7 +6,9 @@ export const numIn = (s: string) => {
 };
 
 export const vName = (s: string) => (!s.trim() ? 'Как вас зовут?' : s.trim().length > 100 ? 'Хватит и 100 символов' : null);
-export const vEmail = (s: string) => (/^[^\s@]+@[^\s@]+\.[^\s@]{2,}$/.test(s.trim()) ? null : 'Похоже, в почте опечатка');
+/** A real-looking address: one @, Latin letters (a Russian keyboard layout is the usual typo), no dots at the ends or doubled, a domain with a dot and a letter zone (.ru, .com). Format only, nothing is sent. */
+export const EMAIL_RE = /^(?=.{6,254}$)(?=[^@]{1,64}@)[A-Za-z0-9!#$%&'*+\/=?^_`{|}~-]+(?:\.[A-Za-z0-9!#$%&'*+\/=?^_`{|}~-]+)*@(?:[A-Za-z0-9](?:[A-Za-z0-9-]{0,61}[A-Za-z0-9])?\.)+(?:[A-Za-z]{2,24}|xn--[A-Za-z0-9-]{2,59})$/;
+export const vEmail = (s: string) => (EMAIL_RE.test(s.trim()) ? null : 'Похоже, в почте опечатка');
 export const vPassword = (s: string) => (s.length < 8 ? 'Не меньше 8 символов' : s.length > 128 ? 'Не длиннее 128 символов' : null);
 export const vWeight = (s: string) => {
   const n = numIn(s);

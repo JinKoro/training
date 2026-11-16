@@ -5,19 +5,18 @@ const kg = (n: number) => String(n).replace('.', ',');
 const dayBtns = (page: Page) => page.locator('.col', { has: page.getByText('Дни тренировок', { exact: true }) }).last();
 
 test.describe('Ready-made programs', () => {
-  test('a man sees «Сила и масса» at three levels; a woman sees «Фулбади»', async ({ page }) => {
+  test('a man sees «Fullbody» (13 weeks) at three levels; a woman sees «Fullbody» (12 weeks)', async ({ page }) => {
     const m = await registerUser({ sex: 'm' });
     await login(page, m.token);
     await open(page, 'sport');
     await expect(page.getByText('Готовые программы')).toBeVisible();
     const list = page.locator('.list', { has: page.locator('a[href^="#/template/"]') });
     await expect(list.locator('a')).toHaveCount(3);
-    await expect(list.locator('a').nth(0)).toContainText('Сила и масса');
+    await expect(list.locator('a').nth(0)).toContainText('Fullbody');
     await expect(list.locator('a').nth(0)).toContainText('новичок');
     await expect(list.locator('a').nth(1)).toContainText('любитель');
     await expect(list.locator('a').nth(2)).toContainText('продвинутый');
     await expect(list.locator('a').nth(0)).toContainText('13 недель · 3 раза в неделю');
-    await expect(page.getByText('Фулбади')).toHaveCount(0);
 
     // switching the sex in the profile switches the list
     await open(page, 'profile/edit');
@@ -28,14 +27,14 @@ test.describe('Ready-made programs', () => {
     await expect(page).toHaveURL(/#\/profile\/body$/);
     await open(page, 'sport');
     await expect(list.locator('a')).toHaveCount(3);
-    await expect(list.locator('a').nth(0)).toContainText('Фулбади');
+    await expect(list.locator('a').nth(0)).toContainText('Fullbody');
     await expect(list.locator('a').nth(0)).toContainText('12 недель');
   });
 
   test('template screen shows the blocks and the weeks', async ({ authed: page }) => {
     await open(page, 'sport');
     await page.locator('a[href="#/template/m1"]').click();
-    await expect(page.getByRole('heading', { name: 'Сила и масса' })).toBeVisible();
+    await expect(page.getByRole('heading', { name: 'Fullbody' })).toBeVisible();
     await expect(page.getByText('любитель').first()).toBeVisible();
     await expect(page.locator('.card', { hasText: 'Нагрузка по неделям' })).toContainText('Адаптациянедели 1–2');
     await expect(page.locator('.card', { hasText: 'Нагрузка по неделям' })).toContainText('Разгрузканеделя 11');
@@ -92,25 +91,25 @@ test.describe('Ready-made programs', () => {
     await start.click();
 
     const confirm = sheet(page, 'Начать программу');
-    await expect(confirm).toContainText('Начать «Сила и масса»?');
+    await expect(confirm).toContainText('Начать «Fullbody»?');
     await expect(confirm).toContainText('«Моя старая» перестанет быть текущей');
     await confirm.getByRole('button', { name: 'Начать' }).click();
-    await expect(toast(page)).toHaveText('Программа «Сила и масса» начата');
+    await expect(toast(page)).toHaveText('Программа «Fullbody» начата');
     await expect(page).toHaveURL(/#\/sport$/);
 
     const current = page.locator('a', { hasText: 'ИДЁТ СЕЙЧАС' });
-    await expect(current).toContainText('Сила и масса');
+    await expect(current).toContainText('Fullbody');
     await expect(current).toContainText('новичок');
     const mine = page.locator('.list', { hasText: '+ Программа' });
-    await expect(mine.locator('a', { hasText: 'Сила и масса' })).toContainText('новичок');
-    await expect(mine.locator('a', { hasText: 'Сила и масса' })).toContainText('13 недель · 3 раза в неделю');
+    await expect(mine.locator('a', { hasText: 'Fullbody' })).toContainText('новичок');
+    await expect(mine.locator('a', { hasText: 'Fullbody' })).toContainText('13 недель · 3 раза в неделю');
     await expect(mine.locator('a', { hasText: 'Моя старая' })).toBeVisible();
     // today is a training day of the new program
     await expect(page.locator('.card', { hasText: 'Начать' }).first()).toBeVisible();
 
     // the copy: level tag on its screen, weights in the editor
-    await mine.locator('a', { hasText: 'Сила и масса' }).click();
-    await expect(page.getByRole('heading', { name: 'Сила и масса' })).toBeVisible();
+    await mine.locator('a', { hasText: 'Fullbody' }).click();
+    await expect(page.getByRole('heading', { name: 'Fullbody' })).toBeVisible();
     await expect(page.getByText('новичок')).toBeVisible();
     await page.getByRole('button', { name: 'Меню' }).click();
     await sheet(page, 'Программа').getByRole('link', { name: 'Изменить' }).click();

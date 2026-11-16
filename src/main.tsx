@@ -16,7 +16,7 @@ function syncAppHeight() {
   void standalone;
   // With the keyboard up iOS shrinks the window AND pans it up to show the field, which left the shell short and
   // shifted (cut off under the focused field, empty below). While a field has focus, pin the shell to the part of
-  // the screen that is actually visible above the keyboard; otherwise (pinch zoom included) keep the window height.
+  // the screen that is actually visible above the keyboard; otherwise keep the window height.
   const vv = window.visualViewport;
   const el = document.activeElement as HTMLElement | null;
   const typing = !!el && (el.tagName === 'INPUT' || el.tagName === 'TEXTAREA' || el.isContentEditable);
@@ -47,6 +47,10 @@ window.visualViewport?.addEventListener('scroll', syncAppHeight);
 document.addEventListener('focusin', syncSoon);
 document.addEventListener('focusout', () => setTimeout(syncSoon, 50));
 screen.orientation?.addEventListener?.('change', syncSoon);
+// No zooming the app: iOS ignores user-scalable=no for pinch, so the pinch gesture itself is cancelled (Safari's
+// gesture events), and two fingers on the screen never scale the page; double-tap zoom is off via touch-action.
+for (const ev of ['gesturestart', 'gesturechange']) document.addEventListener(ev, (e) => e.preventDefault(), { passive: false });
+document.addEventListener('touchmove', (e) => { if (e.touches.length > 1) e.preventDefault(); }, { passive: false });
 document.addEventListener('visibilitychange', () => { if (!document.hidden) syncAppHeight(); });
 
 

@@ -87,8 +87,8 @@ const WOMEN_LIFTS = [
 ];
 
 export const TEMPLATES: Template[] = ([0, 1, 2] as Level[]).flatMap((level) => [
-  { id: `m${level}`, sex: 'm' as Sex, level, name: 'Сила и масса', weeks: 13, blocks: MEN_BLOCKS, days: MEN_DAYS[level], lifts: MEN_LIFTS[level], askReps: 8, load: MEN_LOAD },
-  { id: `f${level}`, sex: 'f' as Sex, level, name: 'Фулбади', weeks: 12, blocks: WOMEN_BLOCKS, days: WOMEN_DAYS[level], lifts: WOMEN_LIFTS[level], askReps: 12, load: WOMEN_LOAD },
+  { id: `m${level}`, sex: 'm' as Sex, level, name: 'Fullbody', weeks: 13, blocks: MEN_BLOCKS, days: MEN_DAYS[level], lifts: MEN_LIFTS[level], askReps: 8, load: MEN_LOAD },
+  { id: `f${level}`, sex: 'f' as Sex, level, name: 'Fullbody', weeks: 12, blocks: WOMEN_BLOCKS, days: WOMEN_DAYS[level], lifts: WOMEN_LIFTS[level], askReps: 12, load: WOMEN_LOAD },
 ]);
 export const templatesFor = (sex: Sex | null) => TEMPLATES.filter((t) => t.sex === (sex === 'f' ? 'f' : 'm')).sort((a, b) => a.level - b.level);
 export const templateById = (id: string) => TEMPLATES.find((t) => t.id === id);

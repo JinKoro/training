@@ -49,4 +49,5 @@ export function macros(value, field) {
   return a.map((x) => num(x, field, { min: 0, max: 1000, int: true }));
 }
 
-export const EMAIL_RE = /^[^\s@]+@[^\s@]+\.[^\s@]{2,}$/;
+// Same rule as src/lib/validate.ts.
+export const EMAIL_RE = /^(?=.{6,254}$)(?=[^@]{1,64}@)[A-Za-z0-9!#$%&'*+\/=?^_`{|}~-]+(?:\.[A-Za-z0-9!#$%&'*+\/=?^_`{|}~-]+)*@(?:[A-Za-z0-9](?:[A-Za-z0-9-]{0,61}[A-Za-z0-9])?\.)+(?:[A-Za-z]{2,24}|xn--[A-Za-z0-9-]{2,59})$/;

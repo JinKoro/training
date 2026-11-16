@@ -132,6 +132,9 @@ test.describe('Workout flow', () => {
     await expect(page.getByText('из 5 по плану')).toBeVisible();
     await expect(page.locator('.a-in', { hasText: 'Подходы' })).toContainText('3');
     await expect(page.getByText('32 из 59 повторов')).toBeVisible();
+    // nothing sticks out sideways (iOS would shrink the page to fit it)
+    await page.waitForTimeout(1200);
+    expect(await page.evaluate(() => [...document.querySelectorAll('body *')].filter((el) => el.getBoundingClientRect().right > innerWidth + 1).map((el) => el.tagName + '.' + el.className).slice(0, 5))).toEqual([]);
     await expect(page.locator('.a-in', { hasText: 'Выполнено' })).toContainText('54%');
     const benchCard = page.locator('.card', { hasText: 'Жим штанги лёжа' });
     await expect(benchCard).toContainText('52,5 кг');

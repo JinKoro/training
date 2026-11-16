@@ -117,6 +117,11 @@ describe('validate', () => {
     expect(vEmail('a@b.r')).not.toBeNull();
     expect(vEmail('a b@c.ru')).not.toBeNull();
     expect(vEmail('ab.ru')).not.toBeNull();
+    expect(vEmail('Ivan.Petrov+gym@mail.example.com')).toBeNull();
+    expect(vEmail('a@почта.рф')).not.toBeNull();
+    expect(vEmail('a@xn--80a1acny.xn--p1ai')).toBeNull();
+    for (const bad of ['ivan@@mail.ru', 'ivan@mail', 'ivan@mail.', 'ivan@.mail.ru', 'ivan@mail..ru', '.ivan@mail.ru', 'iv..an@mail.ru', 'ivan.@mail.ru',
+      'шмфт@mail.ru', 'ivan@mail.r1', 'ivan@-mail.ru', 'ivan@mail-.ru', 'ivan@mail,ru', 'ivan@gmail.com.', 'ivan mail.ru']) expect(vEmail(bad), bad).not.toBeNull();
     expect(vPassword('1234567')).not.toBeNull();
     expect(vPassword('12345678')).toBeNull();
     expect(vPassword('x'.repeat(128))).toBeNull();

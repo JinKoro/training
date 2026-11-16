@@ -23,7 +23,7 @@
 }
 
 * { box-sizing: border-box; -webkit-tap-highlight-color: transparent; }
-a, button, input, select, label { touch-action: manipulation; }
+html, a, button, input, select, label { touch-action: manipulation; }
 html, body { margin: 0; background: var(--bg); color: var(--ink); font-family: var(--font); font-size: 16px; line-height: 1.35; }
 html, body { overscroll-behavior: none; }
 body { min-height: 100dvh; }

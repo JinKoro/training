@@ -50,6 +50,8 @@ describe('auth: register', () => {
   it.each([
     ['bad email', { email: 'no-at-sign' }, 'email'],
     ['email without tld', { email: 'a@b.c' }, 'email'],
+    ['email with a double dot', { email: 'ivan@mail..ru' }, 'email'],
+    ['email in Russian layout', { email: 'шмфт@mail.ru' }, 'email'],
     ['email not a string', { email: 42 }, 'email'],
     ['short password', { password: '1234567' }, 'password'],
     ['long password', { password: 'x'.repeat(129) }, 'password'],

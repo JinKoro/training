@@ -117,7 +117,7 @@ test.describe('Registration wizard', () => {
     await expect(page.getByRole('link', { name: /День отдыха/ })).toContainText(`${fmt(kcal(norms.rest))} ккал`);
     // a woman sees the women's ready-made programs
     await tab(page, 'Спорт').click();
-    await expect(page.getByRole('link', { name: /Фулбади/ })).toHaveCount(3);
+    await expect(page.getByRole('link', { name: /Fullbody/ })).toHaveCount(3);
   });
 
   test('an e-mail that is taken is refused on step 1', async ({ page, allowErrors }) => {
