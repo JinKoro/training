@@ -40,8 +40,8 @@ export function MeasuresCard() {
             const l = last[m.key];
             return (
               <a key={m.key} href={`#/profile/chart/${m.key}`} aria-label={m.name}
-                style={{ minHeight: 50, display: 'flex', alignItems: 'center', gap: 10, color: 'var(--ink)', borderTop: '1px solid var(--line)' }}>
-                <span className="col" style={{ flex: 1, minWidth: 0 }}>
+                style={{ minHeight: 56, padding: '8px 0', boxSizing: 'border-box', display: 'flex', alignItems: 'center', gap: 10, color: 'var(--ink)', borderTop: '1px solid var(--line)' }}>
+                <span className="col" style={{ flex: 1, minWidth: 0, gap: 2 }}>
                   <span style={{ fontWeight: 700 }}>{m.name}</span>
                   {m.hint[sex] ? <span className="muted" style={{ fontSize: 12 }}>{m.hint[sex]}</span> : null}
                 </span>
