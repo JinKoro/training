@@ -418,6 +418,21 @@ describe('slotDone / plannedOpen / buildDays', () => {
     expect(plannedOpen(p, fri, [workout({ weekday: 4, date: fri })])).not.toBeNull();
     expect(plannedOpen(p, '2026-11-03', [])).toBeNull();
   });
+  it('plannedOpen: sessions done out of order move to the free training dates of the week', () => {
+    const q = prog({ weekdays: [0, 2, 4], plan: { '1': { '0': [row(1)], '2': [row(2)], '4': [row(3)] } } });
+    const mon = '2026-11-02', wed = '2026-11-04', fri = '2026-11-06';
+    const ws = [workout({ weekday: 2, date: mon })]; // Wednesday's session done on Monday
+    expect(plannedOpen(q, mon, ws)).toMatchObject({ weekday: 2 }); // Monday shows what was done there
+    expect(plannedOpen(q, wed, ws)).toMatchObject({ weekday: 0 }); // Wednesday is still a training day, with Monday's
+    expect(plannedOpen(q, fri, ws)).toMatchObject({ weekday: 4 });
+    // Friday's on Monday, Wednesday's on Tuesday: only Monday's is left and Wednesday takes it
+    const ws2 = [workout({ weekday: 4, date: mon }), workout({ id: 2, weekday: 2, date: '2026-11-03' })];
+    expect(plannedOpen(q, wed, ws2)).toMatchObject({ weekday: 0 });
+    expect(plannedOpen(q, fri, ws2)).toBeNull();
+    // a workout outside the program on a training date leaves that date's session open for the others
+    const ws3 = [workout({ programId: null, week: null, weekday: null, date: mon }), workout({ id: 2, weekday: 2, date: '2026-11-03' })];
+    expect(plannedOpen(q, wed, ws3)).toMatchObject({ weekday: 0 });
+  });
   it('buildDays', () => {
     vi.useFakeTimers();
     vi.setSystemTime(new Date(2026, 10, 4, 12));

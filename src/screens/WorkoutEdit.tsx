@@ -1,7 +1,7 @@
 import { useEffect, useState } from 'react';
 import { useApp } from '../app-context';
 import { api } from '../lib/api';
-import { activeProgram, exerciseSubtitle, plannedFor, showKg, workoutStats, dayTitle } from '../lib/calc';
+import { activeProgram, exerciseSubtitle, plannedOpen, showKg, workoutStats, dayTitle } from '../lib/calc';
 import { addDays, dayMonth, diffDays, today, WD_CAP, WD_SHORT, weekStart } from '../lib/dates';
 import { invalidate, useQuery } from '../lib/query';
 import { go, backTo as goBack } from '../lib/router';
@@ -127,10 +127,10 @@ export function WorkoutsScreen({ selected }: { selected: number | null }) {
   const t = today();
   const q = useQuery<{ workouts: Workout[] }>(`/workouts?from=${addDays(t, -120)}&to=${t}`);
   const program = activeProgram(programs);
-  const planned = plannedFor(program, t);
   if (q.error) return <Screen title="Тренировки"><ErrorBox error={q.error} retry={q.reload} /></Screen>;
   if (!q.data) return <Screen title="Тренировки"><Skeleton n={4} /></Screen>;
   const list = q.data.workouts;
+  const planned = plannedOpen(program, t, list);
   const todayW = list.find((w) => w.date === t);
   const sel = list.find((w) => w.id === selected) ?? null;
   const todayTitle = planned ? dayTitle(planned.rows, exById, WD_CAP[diffDays(t, weekStart(t))]) : null;

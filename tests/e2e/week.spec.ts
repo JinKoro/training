@@ -115,6 +115,28 @@ test.describe('Week screen', () => {
     await page.getByRole('button', { name: /^Вс/ }).click();
     await expect(page.locator('div.muted', { hasText: /^День отдыха$/ })).toBeVisible();
   });
+
+  test('a later session done today leaves its own day a training day with the session still open', async ({ authed: page, user }) => {
+    const D = today(), wd = weekdayIdx(D);
+    test.skip(wd > 5, 'needs a later training day in this week');
+    await createProgram(user.token, { name: 'Порядок', weeks: 1, days: {
+      [wd]: [{ name: 'Жим штанги лёжа', sets: 1, reps: '5', kg: '40' }],
+      [wd + 1]: [{ name: 'Становая тяга', sets: 1, reps: '5', kg: '60' }],
+    } });
+    await open(page, `day/${D}`);
+    await page.getByRole('button', { name: 'Другие тренировки недели' }).click();
+    await page.locator('.card', { hasText: '1 упражнение' }).getByRole('button', { name: 'Начать' }).click();
+    await expect(page.getByText('Становая тяга').first()).toBeVisible();
+    await page.getByRole('button', { name: 'Сделал' }).click();
+    await expect(page.getByText('✓ выполнено 100%').or(page.getByRole('button', { name: 'Продолжить' })).first()).toBeVisible();
+    // the next day is still a training day and now offers today's session
+    await open(page, 'week/0');
+    await page.getByRole('button', { name: new RegExp(`^${WD_SHORT[wd + 1]}`) }).click();
+    await expect(page.locator('div.muted', { hasText: /^День тренировки$/ })).toBeVisible();
+    await open(page, `day/${addDays(D, 1)}`);
+    await expect(page.getByRole('button', { name: 'Об упражнении: Жим штанги лёжа' })).toBeVisible();
+    await expect(page.getByRole('button', { name: 'Об упражнении: Становая тяга' })).toHaveCount(0);
+  });
 });
 
 test.describe('Calendar', () => {

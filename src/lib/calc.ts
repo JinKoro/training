@@ -280,11 +280,40 @@ export interface DayInfo {
 export const slotDone = (program: Program | undefined, week: number, weekday: number, workouts: Workout[]) =>
   !!program && workouts.some((w) => w.programId === program.id && w.week === week && w.weekday === weekday);
 
-/** Planned session for a date, unless that program day was already trained on another date. */
+/**
+ * Which program day each training date of a program week hosts. The week's training dates stay training dates
+ * whatever order the sessions are done in: a date keeps its own session, a date whose session was already done
+ * elsewhere gets the next session still open (Wednesday's done on Monday → Wednesday hosts Monday's).
+ * A date with a workout of the program hosts that workout's day; null = nothing left for this date.
+ */
+export function weekAssignment(p: Program, week: number, workouts: Workout[]): Map<number, number | null> {
+  const days = [...weekTrainingDays(p, week)].sort((a, b) => a - b);
+  const ws = workouts.filter((w) => w.programId === p.id && w.week === week);
+  const done = new Set(ws.map((w) => w.weekday));
+  const dateOf = (wd: number) => addDays(p.startDate, (week - 1) * 7 + wd);
+  const out = new Map<number, number | null>();
+  const free: number[] = [];
+  for (const wd of days) {
+    const date = dateOf(wd);
+    const here = workouts.find((w) => w.date === date);
+    if (here) out.set(wd, here.programId === p.id && here.week === week ? here.weekday : null);
+    else if (!done.has(wd)) out.set(wd, wd);
+    else free.push(wd);
+  }
+  const taken = new Set(out.values());
+  const open = days.filter((wd) => !done.has(wd) && !taken.has(wd));
+  for (const wd of free) out.set(wd, open.shift() ?? null);
+  return out;
+}
+
+/** Session planned for a date: see weekAssignment (a date with a workout of the program shows that workout's day). */
 export function plannedOpen(program: Program | undefined, date: Day, workouts: Workout[]) {
   const pl = plannedFor(program, date);
   if (!pl) return null;
-  return workouts.some((w) => w.date !== date && w.programId === program!.id && w.week === pl.week && w.weekday === pl.weekday) ? null : pl;
+  const wd = weekAssignment(program!, pl.week, workouts).get(pl.weekday);
+  if (wd === null || wd === undefined) return null;
+  const rows = planRows(program!, pl.week, wd);
+  return rows.length ? { week: pl.week, weekday: wd, rows } : null;
 }
 
 export function buildDays(days: Day[], me: Me, program: Program | undefined, workouts: Workout[], entries: Entry[]): DayInfo[] {
