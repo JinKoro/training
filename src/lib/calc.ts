@@ -81,27 +81,43 @@ export function planRows(p: Program, week: number, weekday: number): PlanRow[] {
   return p.plan[String(week)]?.[String(weekday)] ?? [];
 }
 
-/** Training day if a program covers the date, the weekday is selected, and that week's plan has exercises for it (an empty day is a rest day). */
+/** Weekdays of a program week that have exercises (the week's training days). */
+export const weekTrainingDays = (p: Program, week: number) => p.weekdays.filter((wd) => planRows(p, week, wd).length > 0);
+
+/**
+ * The program day each day (Mon..Sun) of a program week hosts, null = rest: as planned, or as reordered with «Перенести».
+ * A stored order is checked against the current plan: days of sessions that no longer exist rest, and a session missing
+ * from it returns to its own day when that day is free.
+ */
+export function weekSchedule(p: Program, week: number): (number | null)[] {
+  const days = weekTrainingDays(p, week);
+  const own = [0, 1, 2, 3, 4, 5, 6].map((d) => (days.includes(d) ? d : null));
+  const stored = p.moves?.[String(week)];
+  if (!Array.isArray(stored) || stored.length !== 7) return own;
+  const out = stored.map((s) => (s !== null && days.includes(s) ? s : null));
+  for (const d of days) if (!out.includes(d) && out[d] === null) out[d] = d;
+  return out;
+}
+
+/** Training day if a program covers the date and the week's schedule puts a session with exercises on it (an empty day is a rest day). */
 export function plannedFor(p: Program | undefined, date: Day): { week: number; weekday: number; rows: PlanRow[] } | null {
   if (!p) return null;
   if (date < toDay(new Date(p.createdAt))) return null; // days before the program existed are not training days
   const week = programWeek(p, date);
-  const wd = weekdayIdx(date);
-  if (week === null || !p.weekdays.includes(wd)) return null;
+  if (week === null) return null;
+  const wd = weekSchedule(p, week)[weekdayIdx(date)];
+  if (wd === null) return null;
   const rows = planRows(p, week, wd);
   return rows.length ? { week, weekday: wd, rows } : null;
 }
-
-/** Weekdays of a program week that have exercises (the week's training days). */
-export const weekTrainingDays = (p: Program, week: number) => p.weekdays.filter((wd) => planRows(p, week, wd).length > 0);
 
 /** Program training days: each selected weekday of each week that has exercises; empty ones are rest days. */
 export function programSlots(p: Program): { week: number; weekday: number; date: Day }[] {
   const out: { week: number; weekday: number; date: Day }[] = [];
   for (let week = 1; week <= p.weeks; week++) {
-    for (const wd of [...weekTrainingDays(p, week)].sort((a, b) => a - b)) {
-      out.push({ week, weekday: wd, date: addDays(p.startDate, (week - 1) * 7 + wd) });
-    }
+    weekSchedule(p, week).forEach((wd, d) => {
+      if (wd !== null) out.push({ week, weekday: wd, date: addDays(p.startDate, (week - 1) * 7 + d) });
+    });
   }
   return out;
 }
@@ -281,28 +297,27 @@ export const slotDone = (program: Program | undefined, week: number, weekday: nu
   !!program && workouts.some((w) => w.programId === program.id && w.week === week && w.weekday === weekday);
 
 /**
- * Which program day each training date of a program week hosts. The week's training dates stay training dates
- * whatever order the sessions are done in: a date keeps its own session, a date whose session was already done
- * elsewhere gets the next session still open (Wednesday's done on Monday → Wednesday hosts Monday's).
- * A date with a workout of the program hosts that workout's day; null = nothing left for this date.
+ * Which program day each day (Mon..Sun) of a program week hosts, as shown: the week's training days stay training days
+ * whatever order the sessions are done in. A day keeps its scheduled session; a day whose session was already done
+ * elsewhere gets the next session still open (Wednesday's done on Monday → Wednesday hosts Monday's). A day with a
+ * workout of the program hosts that workout's day. null = rest / nothing left.
  */
-export function weekAssignment(p: Program, week: number, workouts: Workout[]): Map<number, number | null> {
-  const days = [...weekTrainingDays(p, week)].sort((a, b) => a - b);
+export function weekAssignment(p: Program, week: number, workouts: Workout[]): (number | null)[] {
+  const sched = weekSchedule(p, week);
   const ws = workouts.filter((w) => w.programId === p.id && w.week === week);
   const done = new Set(ws.map((w) => w.weekday));
-  const dateOf = (wd: number) => addDays(p.startDate, (week - 1) * 7 + wd);
-  const out = new Map<number, number | null>();
+  const dateOf = (d: number) => addDays(p.startDate, (week - 1) * 7 + d);
+  const out: (number | null)[] = [null, null, null, null, null, null, null];
   const free: number[] = [];
-  for (const wd of days) {
-    const date = dateOf(wd);
-    const here = workouts.find((w) => w.date === date);
-    if (here) out.set(wd, here.programId === p.id && here.week === week ? here.weekday : null);
-    else if (!done.has(wd)) out.set(wd, wd);
-    else free.push(wd);
-  }
-  const taken = new Set(out.values());
-  const open = days.filter((wd) => !done.has(wd) && !taken.has(wd));
-  for (const wd of free) out.set(wd, open.shift() ?? null);
+  sched.forEach((wd, d) => {
+    const here = workouts.find((w) => w.date === dateOf(d));
+    if (here) out[d] = here.programId === p.id && here.week === week ? here.weekday : null;
+    else if (wd === null) return;
+    else if (!done.has(wd)) out[d] = wd;
+    else free.push(d);
+  });
+  const open = sched.filter((wd): wd is number => wd !== null && !done.has(wd) && !out.includes(wd)).sort((a, b) => a - b);
+  for (const d of free) out[d] = open.shift() ?? null;
   return out;
 }
 
@@ -310,10 +325,24 @@ export function weekAssignment(p: Program, week: number, workouts: Workout[]): M
 export function plannedOpen(program: Program | undefined, date: Day, workouts: Workout[]) {
   const pl = plannedFor(program, date);
   if (!pl) return null;
-  const wd = weekAssignment(program!, pl.week, workouts).get(pl.weekday);
-  if (wd === null || wd === undefined) return null;
+  const wd = weekAssignment(program!, pl.week, workouts)[weekdayIdx(date)];
+  if (wd === null) return null;
   const rows = planRows(program!, pl.week, wd);
   return rows.length ? { week: pl.week, weekday: wd, rows } : null;
+}
+
+/**
+ * «Перенести»: the week's order after the session shown on day `a` goes to day `b` (b's session, if any, goes to a).
+ * Built from what the week shows now, so done sessions stay on their days and moved ones keep their places.
+ */
+export function moveSession(p: Program, week: number, workouts: Workout[], a: number, b: number): (number | null)[] {
+  const dateOf = (d: number) => addDays(p.startDate, (week - 1) * 7 + d);
+  const shown = weekAssignment(p, week, workouts).map((wd, d) => {
+    const w = workouts.find((x) => x.date === dateOf(d));
+    return w && w.programId === p.id && w.week === week ? w.weekday : wd;
+  });
+  [shown[a], shown[b]] = [shown[b], shown[a]];
+  return shown;
 }
 
 export function buildDays(days: Day[], me: Me, program: Program | undefined, workouts: Workout[], entries: Entry[]): DayInfo[] {

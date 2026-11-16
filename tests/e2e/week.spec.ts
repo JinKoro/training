@@ -1,6 +1,8 @@
 import { test, expect, open, today, addDays, weekdayIdx, weekStart, createProgram, addEntry, fmt, dayMonth, WD_SHORT, login, registerUser } from './fixtures';
 import { kcal } from '../../src/lib/calc';
 
+const FROM = ['с понедельника', 'со вторника', 'со среды', 'с четверга', 'с пятницы', 'с субботы', 'с воскресенья'];
+
 const WD_CAP = ['Понедельник', 'Вторник', 'Среда', 'Четверг', 'Пятница', 'Суббота', 'Воскресенье'];
 const MONTH_NOM = ['Январь', 'Февраль', 'Март', 'Апрель', 'Май', 'Июнь', 'Июль', 'Август', 'Сентябрь', 'Октябрь', 'Ноябрь', 'Декабрь'];
 const RU = ['пн', 'вт', 'ср', 'чт', 'пт', 'сб', 'вс'];
@@ -136,6 +138,34 @@ test.describe('Week screen', () => {
     await open(page, `day/${addDays(D, 1)}`);
     await expect(page.getByRole('button', { name: 'Об упражнении: Жим штанги лёжа' })).toBeVisible();
     await expect(page.getByRole('button', { name: 'Об упражнении: Становая тяга' })).toHaveCount(0);
+  });
+
+  test('«Перенести» moves a session to another day of the week; a rest day can take one with «Перенести сюда тренировку»', async ({ authed: page, user }) => {
+    const D = today(), wd = weekdayIdx(D);
+    test.skip(wd > 4, 'needs two later days in this week');
+    await createProgram(user.token, { name: 'Перенос дня', weeks: 1, days: { [wd]: [{ name: 'Жим штанги лёжа', sets: 1, reps: '5', kg: '40' }] } });
+    await open(page, 'week/0');
+    const card = page.locator('.card', { hasText: 'Начать тренировку' });
+    await card.getByRole('button', { name: 'Перенести' }).click();
+    const group = page.getByRole('group', { name: 'Перенести на' });
+    if (wd > 0) await expect(group.getByRole('button', { name: new RegExp(`^${WD_CAP[wd - 1]} `) })).toBeDisabled();
+    await group.getByRole('button', { name: new RegExp(`^${WD_CAP[wd + 2]} `) }).click();
+    // the selection follows the session; today is a rest day now
+    await expect(page.getByText('перенесена ' + FROM[wd] + ' · ~', { exact: false })).toBeVisible();
+    await expect(page.locator('div.muted', { hasText: /^День тренировки$/ })).toBeVisible();
+    await page.getByRole('button', { name: 'К сегодня' }).click();
+    await expect(page.locator('div.muted', { hasText: /^День отдыха$/ })).toBeVisible();
+    // the next day (a future rest day) takes it back
+    await page.getByRole('button', { name: new RegExp(`^${WD_SHORT[wd + 1]}`) }).click();
+    await page.getByRole('button', { name: 'Перенести сюда тренировку' }).click();
+    await page.getByRole('button', { name: /^Перенести сюда: / }).click();
+    await expect(page.getByText('перенесена ' + FROM[wd] + ' · ~', { exact: false })).toBeVisible();
+    await expect(page.locator('div.muted', { hasText: /^День тренировки$/ })).toBeVisible();
+    await page.reload();
+    await page.getByRole('button', { name: new RegExp(`^${WD_SHORT[wd + 2]}`) }).click();
+    await expect(page.locator('div.muted', { hasText: /^День отдыха$/ })).toBeVisible();
+    await open(page, `day/${addDays(D, 1)}`);
+    await expect(page.getByRole('button', { name: 'Об упражнении: Жим штанги лёжа' })).toBeVisible();
   });
 });
 

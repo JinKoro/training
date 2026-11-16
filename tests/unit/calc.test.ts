@@ -2,7 +2,7 @@ import { afterEach, describe, expect, it, vi } from 'vitest';
 import {
   buildDays, dayTitle, dayTotals, DEFAULT_REST, donePct, durationMin, energy, entryMacros, exerciseSubtitle, fmt1, fmtG,
   kcal, kcal100, kcalAt, macroLine, macrosFor, mmss, normFor, parseReps, planMinutes, plannedFor, plannedOpen, planRows,
-  programDonePct, programEnd, programProgress, programSlots, programWeek, setNormFor, setWeights, showKg, slotDone,
+  programDonePct, programEnd, moveSession, weekSchedule, programProgress, programSlots, programWeek, setNormFor, setWeights, showKg, slotDone,
   suggestNorms, sumKcal, sumMacros, timesPerWeek, weekRange, weeksText, weekTrainingDays, workoutFromPlan, workoutStats,
   activeProgram,
   fmtKcal, kcalTenths,
@@ -432,6 +432,26 @@ describe('slotDone / plannedOpen / buildDays', () => {
     // a workout outside the program on a training date leaves that date's session open for the others
     const ws3 = [workout({ programId: null, week: null, weekday: null, date: mon }), workout({ id: 2, weekday: 2, date: '2026-11-03' })];
     expect(plannedOpen(q, wed, ws3)).toMatchObject({ weekday: 0 });
+  });
+  it('weekSchedule / moveSession: «Перенести» reorders one week only', () => {
+    const q = prog({ weeks: 2, weekdays: [0, 2, 4], plan: { '1': { '0': [row(1)], '2': [row(2)], '4': [row(3)] }, '2': { '0': [row(1)], '2': [row(2)], '4': [row(3)] } } });
+    expect(weekSchedule(q, 1)).toEqual([0, null, 2, null, 4, null, null]);
+    // Wednesday's session to Tuesday
+    const days = moveSession(q, 1, [], 2, 1);
+    expect(days).toEqual([0, 2, null, null, 4, null, null]);
+    const moved = { ...q, moves: { '1': days } };
+    expect(plannedFor(moved, '2026-11-03')).toMatchObject({ weekday: 2 });
+    expect(plannedFor(moved, '2026-11-04')).toBeNull();
+    expect(plannedFor(moved, '2026-11-11')).toMatchObject({ weekday: 2 }); // next week as planned
+    expect(programSlots(moved).filter((x) => x.week === 1).map((x) => x.date)).toEqual(['2026-11-02', '2026-11-03', '2026-11-06']);
+    // onto a training day: the two swap
+    expect(moveSession(q, 1, [], 0, 4)).toEqual([4, null, 2, null, 0, null, null]);
+    // done sessions stay where they were done; the shown (reassigned) session is the one that moves
+    const ws = [workout({ weekday: 2, date: '2026-11-02' })]; // Wednesday's done on Monday → Wednesday shows Monday's
+    expect(moveSession(q, 1, ws, 2, 3)).toEqual([2, null, null, 0, 4, null, null]);
+    // a stored order that no longer fits the plan: removed sessions rest, a missing one returns to its free own day
+    const edited = { ...q, plan: { ...q.plan, '1': { '0': [row(1)], '4': [row(3)] } }, moves: { '1': [null, 2, null, 0, null, null, null] } };
+    expect(weekSchedule(edited, 1)).toEqual([null, null, null, 0, 4, null, null]);
   });
   it('buildDays', () => {
     vi.useFakeTimers();

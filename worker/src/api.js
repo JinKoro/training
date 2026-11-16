@@ -208,7 +208,7 @@ function programFields(body) {
 
 const programOut = (r) => ({
   id: r.id, name: r.name, weekdays: parse(r.weekdays, []), weeks: r.weeks, startDate: r.start_date,
-  active: !!r.is_active, plan: parse(r.plan, {}), level: r.level ?? null, createdAt: r.created_at, updatedAt: r.updated_at,
+  active: !!r.is_active, plan: parse(r.plan, {}), moves: parse(r.moves, {}), level: r.level ?? null, createdAt: r.created_at, updatedAt: r.updated_at,
 });
 
 // ---------- workouts ----------
@@ -669,6 +669,24 @@ export async function handleApi(request, env, path) {
     const prog = await env.DB.prepare('SELECT * FROM programs WHERE id = ? AND user_id = ?').bind(id, uid).first();
     if (!prog) fail(404, 'not_found');
     if (method === 'GET') return ok({ program: programOut(prog) });
+    // One program week's day order after «Перенести»: days = the program day (weekday 0–6) each day of the week hosts, null = rest.
+    if (seg[2] === 'schedule' && method === 'PUT') {
+      const body = await readJson(request);
+      const week = num(body.week, 'week', { min: 1, max: prog.weeks, int: true });
+      const moves = parse(prog.moves, {});
+      if (body.days == null) delete moves[week];
+      else {
+        const days = arr(body.days, 'days', { max: 7 });
+        if (days.length !== 7) fail(400, 'invalid_array', 'days');
+        const vals = days.map((d) => (d == null ? null : num(d, 'days', { min: 0, max: 6, int: true })));
+        const used = vals.filter((v) => v !== null);
+        if (new Set(used).size !== used.length) fail(400, 'invalid_array', 'days');
+        moves[week] = vals;
+      }
+      const r = await env.DB.prepare('UPDATE programs SET moves = ?, updated_at = ? WHERE id = ? RETURNING *')
+        .bind(JSON.stringify(moves), now, id).first();
+      return ok({ program: programOut(r) });
+    }
     if (method === 'PUT') {
       const f = programFields(await readJson(request));
       const r = await env.DB.prepare(

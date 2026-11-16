@@ -27,6 +27,8 @@ export interface Program {
   id: number; name: string; weekdays: number[]; weeks: number; startDate: string; active: boolean; plan: Plan;
   /** Level of the ready-made program it was started from (0–2); null = own program. */
   level?: number | null;
+  /** «Перенести»: per program week, the program day each day Mon..Sun hosts (null = rest); absent = as planned. */
+  moves?: Record<string, (number | null)[]>;
   createdAt: number; updatedAt: number;
 }
 

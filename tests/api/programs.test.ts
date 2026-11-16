@@ -191,3 +191,27 @@ describe('programs: read / update / delete', () => {
     expect((await a.post('/programs', programBody({ plan: { 1: { 0: [row({ reps: '12–10' })] } } }))).status).toBe(201);
   });
 });
+
+describe('programs: week schedule («Перенести»)', () => {
+  it('stores one week order, keeps it on a program edit, clears it with days: null', async () => {
+    const c = await newUser({}, TODAY);
+    const p = (await c.post('/programs', programBody({ weekdays: [0, 2, 4], weeks: 2, plan: { 1: { 0: [row()], 2: [row()], 4: [row()] } } }))).body.program;
+    expect(p.moves).toEqual({});
+    const r = await c.put(`/programs/${p.id}/schedule`, { week: 1, days: [0, 2, null, null, 4, null, null] });
+    expect(r.status).toBe(200);
+    expect(r.body.program.moves).toEqual({ 1: [0, 2, null, null, 4, null, null] });
+    const edited = (await c.put(`/programs/${p.id}`, programBody({ weekdays: [0, 2, 4], weeks: 2, plan: { 1: { 0: [row()], 2: [row()], 4: [row()] } } }))).body.program;
+    expect(edited.moves).toEqual({ 1: [0, 2, null, null, 4, null, null] });
+    expect((await c.put(`/programs/${p.id}/schedule`, { week: 1, days: null })).body.program.moves).toEqual({});
+  });
+
+  it('rejects bad weeks and day lists; another user cannot change it', async () => {
+    const c = await newUser({}, TODAY);
+    const p = (await c.post('/programs', programBody({ weekdays: [0, 2], weeks: 1 }))).body.program;
+    expect((await c.put(`/programs/${p.id}/schedule`, { week: 2, days: [0, null, 2, null, null, null, null] })).status).toBe(400);
+    expect((await c.put(`/programs/${p.id}/schedule`, { week: 1, days: [0, 2] })).status).toBe(400);
+    expect((await c.put(`/programs/${p.id}/schedule`, { week: 1, days: [0, 0, null, null, null, null, null] })).status).toBe(400);
+    expect((await c.put(`/programs/${p.id}/schedule`, { week: 1, days: [7, null, null, null, null, null, null] })).status).toBe(400);
+    expect((await b.put(`/programs/${p.id}/schedule`, { week: 1, days: [null, null, null, null, null, null, null] })).status).toBe(404);
+  });
+});

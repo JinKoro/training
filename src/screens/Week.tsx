@@ -1,16 +1,32 @@
 import { useMemo, useRef, useState } from 'react';
 import { useApp } from '../app-context';
-import { activeProgram, dayTitle, durationMin, fmt, planMinutes, kcal, MEAL_RU, MEALS, weekRange, workoutStats, type DayInfo, programWeek, planRows, slotDone } from '../lib/calc';
+import { activeProgram, dayTitle, durationMin, fmt, planMinutes, kcal, MEAL_RU, MEALS, weekRange, workoutStats, type DayInfo, programWeek, planRows, slotDone, moveSession } from '../lib/calc';
 import { addDays, dayMonth, diffDays, plural, today, WD_CAP, WD_SHORT, weekDays, weekStart } from '../lib/dates';
 import { useDays } from '../lib/hooks';
 import { go } from '../lib/router';
-import type { Macros } from '../lib/types';
+import { api } from '../lib/api';
+import { invalidate } from '../lib/query';
+import type { Program } from '../lib/types';
+import type { Exercise, Macros, Workout } from '../lib/types';
 import { FoodArt, Icon } from '../art';
-import { ErrorBox, MacroBar, NoNormCard, Screen, Skeleton } from '../ui';
+import { errText, ErrorBox, MacroBar, NoNormCard, Screen, Skeleton, toast } from '../ui';
 
 const MACRO_COLORS = ['var(--chart)', 'var(--warn)', 'var(--good)'];
 const MACRO_NAMES = ['Белки', 'Жиры', 'Углеводы'];
 const RU_SHORT_LOWER = ['пн', 'вт', 'ср', 'чт', 'пт', 'сб', 'вс'];
+const FROM_DAY = ['с понедельника', 'со вторника', 'со среды', 'с четверга', 'с пятницы', 'с субботы', 'с воскресенья'];
+
+/** «Перенести» on the week's day panel: where the selected day's session can go, or which sessions can come to it. */
+export interface MoveCtl {
+  /** The week's days (Mon..Sun) as targets: `ok` = can take the session; `training` = has one (they swap). */
+  targets: { date: string; ok: boolean; training: boolean }[];
+  canMove: boolean;
+  /** Sessions of the week that can be moved to the selected rest day. */
+  cands: { k: number; title: string }[];
+  busy: boolean;
+  moveTo: (k: number) => void;
+  bringFrom: (k: number) => void;
+}
 
 export const joinDays = (idx: number[]) => {
   const n = idx.map((i) => RU_SHORT_LOWER[i]);
@@ -18,11 +34,12 @@ export const joinDays = (idx: number[]) => {
 };
 
 export function WeekScreen({ offset }: { offset: number }) {
-  const { programs, wide } = useApp();
+  const { programs, wide, exById } = useApp();
   const start = addDays(weekStart(today()), offset * 7);
   const days = useMemo(() => weekDays(start), [start]);
   const data = useDays(days);
   const [sel, setSel] = useState<number | null>(null);
+  const [busy, setBusy] = useState(false);
   const touch = useRef<number | null>(null);
   const setOffset = (o: number) => { setSel(null); go('week', o); };
 
@@ -50,7 +67,18 @@ export function WeekScreen({ offset }: { offset: number }) {
   const pWeek = program ? programWeek(program, sd.date) : null;
   const canTrain = !sd.isTraining && sd.date <= today() && !!program && pWeek !== null
     && program.weekdays.some((wd) => planRows(program, pWeek, wd).length > 0 && !slotDone(program, pWeek, wd, data.workouts));
-  const right = <DayPanel d={sd} canTrain={canTrain} onToday={() => { if (offset) setOffset(0); else setSel(todayIdx); }} />;
+  const move = program && pWeek !== null
+    ? weekMove(program, pWeek, ds, selected, data.workouts, exById, busy, async (days, to) => {
+      setBusy(true);
+      try {
+        await api('PUT', `/programs/${program.id}/schedule`, { week: pWeek, days });
+        await invalidate('/programs');
+        setSel(to);
+      } catch (e) { toast(errText(e)); }
+      setBusy(false);
+    })
+    : undefined;
+  const right = <DayPanel d={sd} canTrain={canTrain} move={move} onToday={() => { if (offset) setOffset(0); else setSel(todayIdx); }} />;
   return (
     <Screen title="Неделя">
       <div
@@ -67,6 +95,22 @@ export function WeekScreen({ offset }: { offset: number }) {
       </div>
     </Screen>
   );
+}
+
+/**
+ * «Перенести»: a not-started session of this program week goes to today or a later day of the same week (a day with
+ * its own session swaps with it); a future rest day can take one. Past days and days with a workout stay put.
+ */
+function weekMove(program: Program, pWeek: number, ds: DayInfo[], sel: number, workouts: Workout[], exById: Map<number, Exercise>, busy: boolean,
+  save: (days: (number | null)[], to: number) => void): MoveCtl {
+  const t = today();
+  const locked = (k: number) => ds[k].date < t || !!ds[k].workout || programWeek(program, ds[k].date) !== pWeek;
+  const targets = ds.map((d, k) => ({ date: d.date, ok: k !== sel && !locked(k), training: !!d.planned }));
+  const canMove = !!ds[sel].planned && !locked(sel) && targets.some((x) => x.ok);
+  const cands = ds[sel].isTraining || locked(sel) ? [] : ds.flatMap((d, k) => (k !== sel && !locked(k) && d.planned
+    ? [{ k, title: dayTitle(d.planned.rows, exById, WD_CAP[k]) }] : []));
+  const run = (a: number, b: number, to: number) => { if (!busy) save(moveSession(program, pWeek, workouts, a, b), to); };
+  return { targets, canMove, cands, busy, moveTo: (k) => run(sel, k, k), bringFrom: (k) => run(k, sel, sel) };
 }
 
 function WeekHeader({ start, offset, onOffset }: { start: string; offset: number; onOffset: (o: number) => void }) {
@@ -182,8 +226,9 @@ export function FoodCard({ d, title, meals }: { d: DayInfo; title?: string; meal
  * Workout card of a day. `calendar` = the full card (status, then full-width Итог/Изменить, Начать тренировка or
  * Открыть план); the calendar and the week screen use it, `from` says where Итог/Изменить return to.
  */
-export function WorkoutCard({ d, calendar, canTrain, from = 'calendar' }: { d: DayInfo; calendar?: boolean; canTrain?: boolean; from?: 'calendar' | 'week' | 'sport' }) {
+export function WorkoutCard({ d, calendar, canTrain, from = 'calendar', move }: { d: DayInfo; calendar?: boolean; canTrain?: boolean; from?: 'calendar' | 'week' | 'sport'; move?: MoveCtl }) {
   const { programs, exById } = useApp();
+  const [pick, setPick] = useState<null | 'move' | 'here'>(null);
   const program = activeProgram(programs);
   const t = today();
   const w = d.workout;
@@ -198,10 +243,34 @@ export function WorkoutCard({ d, calendar, canTrain, from = 'calendar' }: { d: D
         </a>
       );
     }
-    if (calendar) return <div className="card row a-in">{icon}<div className="grow"><b>День отдыха</b><div className="sub">тренировки нет</div></div></div>;
+    if (calendar) {
+      const here = move && move.cands.length ? move : null;
+      return (
+        <div className="card col a-in" style={{ gap: 12 }}>
+          <div className="row">{icon}<div className="grow"><b>День отдыха</b><div className="sub">тренировки нет</div></div></div>
+          {here ? <button className="btn small sec" aria-expanded={pick === 'here'} onClick={() => setPick(pick === 'here' ? null : 'here')}>Перенести сюда тренировку</button> : null}
+          {here && pick === 'here' ? (
+            <div className="col a-in" style={{ gap: 8, borderTop: '1px solid var(--line)', paddingTop: 12 }}>
+              {here.cands.map((o) => (
+                <button key={o.k} className="row" disabled={here.busy} onClick={() => here.bringFrom(o.k)} aria-label={`Перенести сюда: ${o.title}`}
+                  style={{ background: 'var(--sub)', borderRadius: 16, padding: '10px 12px', textAlign: 'left', width: '100%', color: 'var(--ink)' }}>
+                  <span className="grow col" style={{ gap: 2, minWidth: 0 }}><b>{o.title}</b><span className="sub">{WD_CAP[o.k]} · по плану</span></span>
+                  <span style={{ color: 'var(--acc)', fontWeight: 800 }}>Сюда</span>
+                </button>
+              ))}
+              <button className="btn small sec" onClick={() => setPick(null)}>Отмена</button>
+            </div>
+          ) : null}
+        </div>
+      );
+    }
     return <div className="card row a-in muted" style={{ fontWeight: 700 }}><Icon d="M20 14A8 8 0 1 1 10 4a7 7 0 0 0 10 10z" size={20} />Тренировки нет, день отдыха</div>;
   }
-  const title = w?.title ?? (d.planned ? dayTitle(d.planned.rows, exById, WD_CAP[(diffDays(d.date, weekStart(d.date)))]) : 'Тренировка');
+  const dayIdx = diffDays(d.date, weekStart(d.date));
+  const title = w?.title ?? (d.planned ? dayTitle(d.planned.rows, exById, WD_CAP[d.planned.weekday]) : 'Тренировка');
+  // A session shown on another day than its own (moved, or its own day's was done earlier) says where it came from.
+  const movedFrom = !w && d.planned && d.planned.weekday !== dayIdx ? `перенесена ${FROM_DAY[d.planned.weekday]}` : null;
+  const canMove = !!(calendar && move?.canMove);
   let sub: string, btn: { text: string; href: string; primary?: boolean } | null = null, btn2: { text: string; href: string } | null = null;
   if (w && w.status === 'finished') {
     const s = workoutStats(w);
@@ -215,13 +284,13 @@ export function WorkoutCard({ d, calendar, canTrain, from = 'calendar' }: { d: D
     btn = { text: calendar ? 'Продолжить тренировку' : 'Продолжить', href: `#/workout/${w.id}`, primary: true };
   } else if (d.date === t) {
     const rows = d.planned?.rows ?? [];
-    sub = `${rows.length} ${plural(rows.length, ['упражнение', 'упражнения', 'упражнений'])} · ~ ${planMinutes(rows, exById)} мин`;
+    sub = `${movedFrom ?? `${rows.length} ${plural(rows.length, ['упражнение', 'упражнения', 'упражнений'])}`} · ~ ${planMinutes(rows, exById)} мин`;
     btn = { text: calendar ? 'Начать тренировку' : 'Начать', href: `#/day/${d.date}`, primary: true };
   } else if (d.date < t) {
     sub = 'пропущена';
     if (!calendar) btn = { text: 'Календарь ›', href: `#/calendar/${d.date}` };
   } else {
-    sub = d.planned?.rows.length ? `по плану · ~ ${planMinutes(d.planned.rows, exById)} мин` : 'по плану';
+    sub = d.planned?.rows.length ? `${movedFrom ?? 'по плану'} · ~ ${planMinutes(d.planned.rows, exById)} мин` : 'по плану';
     // the plan of the week this day belongs to, not the current one
     const pw = program ? programWeek(program, d.date) : null;
     btn = { text: calendar ? 'Открыть план' : 'План ›', href: program ? `#/program/${program.id}${pw ? `/week/${pw}` : ''}` : '#/sport' };
@@ -235,8 +304,33 @@ export function WorkoutCard({ d, calendar, canTrain, from = 'calendar' }: { d: D
       </div>
       {calendar && (btn || btn2) ? (
         <div className="row">
-          {btn ? <a className={`btn small grow ${btn.primary ? '' : 'sec'}`} href={btn.href}>{btn.text}</a> : null}
+          {btn ? <a className={`btn small grow ${btn.primary ? '' : 'sec'}`} style={canMove && btn.primary ? { flex: 2 } : undefined} href={btn.href}>{btn.text}</a> : null}
           {btn2 ? <a className="btn small grow outline" href={btn2.href}>{btn2.text}</a> : null}
+          {canMove ? <button className="btn small sec grow" aria-expanded={pick === 'move'} onClick={() => setPick(pick === 'move' ? null : 'move')}>Перенести</button> : null}
+        </div>
+      ) : null}
+      {canMove && move && pick === 'move' ? (
+        <div className="col a-in" style={{ gap: 10, borderTop: '1px solid var(--line)', paddingTop: 12 }}>
+          <b>Перенести на</b>
+          <div role="group" aria-label="Перенести на" style={{ display: 'grid', gridTemplateColumns: 'repeat(7, minmax(0, 1fr))', gap: 6 }}>
+            {move.targets.map((x, k) => {
+              const cur = x.date === d.date;
+              return (
+                <button key={x.date} disabled={!x.ok || move.busy} onClick={() => move.moveTo(k)}
+                  aria-label={`${WD_CAP[k]} ${Number(x.date.slice(8))}${cur ? ', сейчас' : x.training ? ', день тренировки — поменяются местами' : ''}`}
+                  style={{
+                    height: 58, borderRadius: 12, display: 'flex', flexDirection: 'column', alignItems: 'center', justifyContent: 'center', gap: 2,
+                    background: cur ? 'transparent' : 'var(--sub)', border: cur ? '2px solid var(--acc)' : 0, color: 'var(--ink)',
+                    opacity: x.ok || cur ? 1 : 0.35, boxSizing: 'border-box',
+                  }}>
+                  <span style={{ fontWeight: 800, fontSize: 13 }}>{WD_SHORT[k]}</span>
+                  <span className="muted" style={{ fontWeight: 700, fontSize: 13 }}>{Number(x.date.slice(8))}</span>
+                  <i style={{ width: 6, height: 6, borderRadius: 3, background: x.training ? 'var(--acc)' : 'transparent' }} />
+                </button>
+              );
+            })}
+          </div>
+          <button className="btn small sec" onClick={() => setPick(null)}>Отмена</button>
         </div>
       ) : null}
     </div>
@@ -258,7 +352,7 @@ export function TodayWorkout() {
   return <WorkoutCard d={d} canTrain={canTrain} from="sport" />;
 }
 
-function DayPanel({ d, onToday, canTrain }: { d: DayInfo; onToday: () => void; canTrain?: boolean }) {
+function DayPanel({ d, onToday, canTrain, move }: { d: DayInfo; onToday: () => void; canTrain?: boolean; move?: MoveCtl }) {
   return (
     <>
       <div className="between" style={{ gap: 8 }}>
@@ -269,7 +363,7 @@ function DayPanel({ d, onToday, canTrain }: { d: DayInfo; onToday: () => void; c
         {!d.isToday ? <button onClick={onToday} style={{ flex: 'none', border: '1px solid var(--track)', color: 'var(--acc)', borderRadius: 999, padding: '6px 12px', fontWeight: 800, fontSize: 14 }}>К сегодня</button> : null}
       </div>
       <a href={`#/food/${d.date}`} style={{ display: 'block' }}><FoodCard d={d} /></a>
-      <WorkoutCard d={d} canTrain={canTrain} calendar from="week" />
+      <WorkoutCard key={d.date} d={d} canTrain={canTrain} calendar from="week" move={move} />
     </>
   );
 }
