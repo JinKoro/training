@@ -4,7 +4,7 @@ import { api } from '../lib/api';
 import { DEFAULT_REST, mmss, planMinutes, programProgress, weeksText } from '../lib/calc';
 import { WD_LONG, WD_SHORT } from '../lib/dates';
 import { invalidate } from '../lib/query';
-import { go } from '../lib/router';
+import { go, back, onBackClick } from '../lib/router';
 import type { Plan, PlanRow, Program } from '../lib/types';
 import { Screen, errText, toast } from '../ui';
 import { ExercisePicker } from './ExercisePicker';
@@ -124,7 +124,8 @@ function Editor({ mode, program, week }: { mode: 'new' | 'edit'; program?: Progr
         : await api<{ program: Program }>('PUT', `/programs/${program!.id}`, body);
       invalidate('/programs');
       toast(mode === 'new' ? 'Программа создана' : 'Сохранено');
-      if (wide) go('sport'); else go('program', res.program.id);
+      // editing returns to where it was opened (the program, a day of training); a new program opens itself
+      if (mode === 'edit') back(...(wide ? ['sport'] : ['program', res.program.id])); else if (wide) go('sport'); else go('program', res.program.id);
     } catch (e) { toast(errText(e)); setBusy(false); }
   };
 
@@ -247,7 +248,7 @@ function Editor({ mode, program, week }: { mode: 'new' | 'edit'; program?: Progr
   return (
     <Screen className="modal">
       <div className="navbar">
-        <a className="link" href={backHref}>Отмена</a>
+        <a className="link" href={backHref} onClick={onBackClick}>Отмена</a>
         <b>{mode === 'new' ? 'Новая программа' : 'Изменить программу'}</b>
         <button className="link" disabled={!canSave} onClick={save} style={{ color: canSave ? 'var(--acc)' : 'var(--muted)' }}>{mode === 'new' ? 'Создать' : 'Сохранить'}</button>
       </div>

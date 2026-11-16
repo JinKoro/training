@@ -4,7 +4,7 @@ import { api } from '../lib/api';
 import { activeProgram, exerciseSubtitle, plannedFor, showKg, workoutStats, dayTitle } from '../lib/calc';
 import { addDays, dayMonth, diffDays, today, WD_CAP, WD_SHORT, weekStart } from '../lib/dates';
 import { invalidate, useQuery } from '../lib/query';
-import { go } from '../lib/router';
+import { go, backTo as goBack } from '../lib/router';
 import type { Workout } from '../lib/types';
 import { ExerciseArt } from '../art';
 import { ErrorBox, Screen, Sheet, Skeleton, errText, toast } from '../ui';
@@ -116,8 +116,8 @@ export function WorkoutEditScreen({ id, back }: { id: number; back?: string }) {
   if (wide) return null;
   if (q.error) return <Screen className="modal"><ErrorBox error={q.error} retry={q.reload} /></Screen>;
   if (!q.data) return <Screen className="modal"><Skeleton n={3} /></Screen>;
-  // Saving or cancelling returns to the workout's summary (which keeps where it was opened from).
-  const backTo = () => (back ? go('summary', id, back) : go('summary', id));
+  // Saving or cancelling returns to the screen it was opened from (the week, the calendar or the summary).
+  const backTo = () => goBack(back ? `#/summary/${id}/${back}` : `#/summary/${id}`);
   return <Screen className="modal"><Editor w={q.data.workout} onDone={backTo} onCancel={backTo} /></Screen>;
 }
 

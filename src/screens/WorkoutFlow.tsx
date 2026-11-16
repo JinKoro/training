@@ -5,20 +5,29 @@ import { mmss, showKg } from '../lib/calc';
 import { invalidate, useQuery, forget } from '../lib/query';
 import { go, scrollTop } from '../lib/router';
 import { enqueue, drained } from '../lib/sync';
-import { pushStart, pushStop } from '../lib/push';
+import { pushStart, pushStop, remindStart, remindStop } from '../lib/push';
 import type { Workout } from '../lib/types';
 import { ExerciseArt } from '../art';
 import { ErrorBox, Sheet, Skeleton } from '../ui';
 import { SummaryBody } from './Summary';
+import { ExerciseInfo } from './Exercises';
 
-type Screen = 'set' | 'rest' | 'left' | 'done';
+/** 'edit' = a set already done, reopened with «‹ Назад»: only its weight and reps change, it stays done. */
+type Screen = 'set' | 'rest' | 'left' | 'done' | 'edit';
 type LogSet = { w: number; r: number };
 interface Snap { screen: Screen; ei: number; si: number; log: LogSet[][]; w: string; r: string; left: number; total: number; skipped: number[] }
 interface St extends Snap {
   step: number; restEndsAt: number | null; hist: Snap[]; menu: boolean; confirm: boolean; startedAt?: number;
   /** Rest changed with −15/+15 during this workout, per exercise index: used for the rest of that exercise's sets. */
   restFor?: Record<number, number>; restOf?: number;
+  /** Where «Сохранить» of an edited done set returns to. */
+  ret?: { screen: Screen; ei: number; si: number; w: string; r: string } | null;
+  /** Sheet over the workout: the day's plan, or one exercise's info (infoBack = opened from the plan). */
+  sheet?: 'plan' | 'info' | null; infoEi?: number; infoBack?: boolean;
 }
+
+/** No action in the workout for this long → «Не забудьте про тренировку» (rest time is not counted). */
+const REMIND_AFTER = 15 * 60;
 
 const num = (s: string) => Number(String(s).replace(',', '.'));
 const show = (v: number) => String(Math.round(v * 100) / 100).replace('.', ',');
@@ -41,6 +50,7 @@ export function WorkoutFlow({ id }: { id: number }) {
 }
 
 function Flow({ workout }: { workout: Workout }) {
+  const { exById } = useApp();
   const EX: Ex[] = useMemo(() => workout.exercises.map((e) => ({
     name: e.name, kind: e.kind, muscles: e.muscles ?? '', rest: e.rest, type: e.type,
     reps: Math.max(...e.sets.map((s) => s.plannedReps), 0), w: e.sets.map((s) => s.plannedWeight),
@@ -76,7 +86,7 @@ function Flow({ workout }: { workout: Workout }) {
   // persist UI state so a reload in the gym resumes in place
   useEffect(() => {
     if (s.screen === 'done' || completing.current) return;
-    try { localStorage.setItem(KEY(workout.id), JSON.stringify({ ...s, menu: false, confirm: false, startedAt: workout.startedAt })); } catch { /* */ }
+    try { localStorage.setItem(KEY(workout.id), JSON.stringify({ ...s, menu: false, confirm: false, sheet: null, startedAt: workout.startedAt })); } catch { /* */ }
   }, [s, workout.id, workout.startedAt]);
   useEffect(() => { scrollTop(); }, [s.screen, s.ei]);
 
@@ -87,6 +97,27 @@ function Flow({ workout }: { workout: Workout }) {
     const t = setInterval(() => tick((x) => x + 1), 250);
     return () => clearInterval(t);
   }, [s.screen]);
+
+  // Rest over: the next set opens by itself (no «К подходу» step).
+  useEffect(() => {
+    if (s.screen === 'rest' && s.restEndsAt && left === 0) {
+      setS((st) => (st.screen === 'rest' ? { ...st, screen: 'set', restEndsAt: null, left: 0, hist: [...st.hist, snap(st)] } : st));
+    }
+  }, [s.screen, s.restEndsAt, left]); // eslint-disable-line react-hooks/exhaustive-deps
+
+  // Every action moves the idle reminder: 15 minutes after it, plus whatever rest is still running.
+  useEffect(() => {
+    if (s.screen === 'done' || s.screen === 'left') return;
+    const t = setTimeout(() => {
+      const st = sRef.current;
+      const x = EX[st.ei];
+      const restLeft = st.restEndsAt ? Math.max(0, (st.restEndsAt - Date.now()) / 1000) : 0;
+      const pw = x.w[Math.min(st.si, x.w.length - 1)];
+      const text = `Дальше: ${x.name}, подход ${st.si + 1} из ${x.w.length}${pw != null ? ` · ${showKg(pw)} кг × ${x.reps}` : ''}`;
+      void remindStart(restLeft + REMIND_AFTER, text, `./#/workout/${workout.id}`);
+    }, 1500);
+    return () => clearTimeout(t);
+  }, [s.screen, s.ei, s.si, s.log, s.skipped, s.restEndsAt]); // eslint-disable-line react-hooks/exhaustive-deps
 
   const snap = (st: St): Snap => ({ screen: st.screen, ei: st.ei, si: st.si, log: st.log.map((a) => a.slice()), w: st.w, r: st.r,
     left: st.screen === 'rest' && st.restEndsAt ? Math.max(0, Math.ceil((st.restEndsAt - Date.now()) / 1000)) : st.left, total: st.total, skipped: st.skipped.slice() });
@@ -115,6 +146,7 @@ function Flow({ workout }: { workout: Workout }) {
 
   const finish = (log: LogSet[][]) => {
     void pushStop();
+    void remindStop();
     const empty = EX.some((_, i) => log[i].length === 0);
     goTo({ screen: empty ? 'left' : 'done', log, restEndsAt: null });
     if (!empty) complete();
@@ -152,14 +184,44 @@ function Flow({ workout }: { workout: Workout }) {
     goTo({ screen: 'set', skipped: sk, ...at(n, s.log[n].length, s.log) });
   };
 
+  /** The done set right before (ei, si) in program order. */
+  const prevDone = (log: LogSet[][], ei: number, si: number): [number, number] | null => {
+    let best: [number, number] | null = null;
+    log.forEach((a, i) => a.forEach((_, j) => { if (i < ei || (i === ei && j < si)) best = [i, j]; }));
+    return best;
+  };
+
   const back = () => {
     const st = sRef.current;
+    // «‹ Назад» steps through the sets already done (never the rest screens); a done set stays done, only its numbers change.
+    if (st.screen === 'set' || st.screen === 'rest' || st.screen === 'edit') {
+      const p = prevDone(st.log, st.ei, st.si);
+      if (p) {
+        const v = st.log[p[0]][p[1]];
+        const ret = st.screen === 'edit' && st.ret ? st.ret : { screen: st.screen, ei: st.ei, si: st.si, w: st.w, r: st.r };
+        setS({ ...st, screen: 'edit', ei: p[0], si: p[1], w: show(v.w), r: String(v.r), ret, menu: false, confirm: false, sheet: null });
+        return;
+      }
+      if (st.screen === 'edit') return;
+    }
     if (!st.hist.length) { go('day', workout.date); return; }
     const h = st.hist[st.hist.length - 1];
     syncDiff(st, h);
     if (st.screen === 'rest') void pushStop();
     if (h.screen === 'rest' && h.left > 0) void pushStart(h.left);
     setS({ ...st, ...h, restEndsAt: h.screen === 'rest' ? Date.now() + h.left * 1000 : null, hist: st.hist.slice(0, -1), menu: false, confirm: false });
+  };
+
+  const saveEdit = () => {
+    const st = sRef.current;
+    const R = st.ret;
+    const log = st.log.map((a) => a.slice());
+    log[st.ei][st.si] = { w, r };
+    enqueue({ method: 'PUT', path: `${path(st.ei)}/sets/${st.si}`, body: { weight: w, reps: r } });
+    if (!R) { setS({ ...st, log, screen: 'set', ...at(st.ei, Math.min(st.si + 1, EX[st.ei].w.length - 1), log) }); return; }
+    // The rest kept running while the set was edited: if it is over, straight to the next set.
+    const restOver = R.screen === 'rest' && (!st.restEndsAt || st.restEndsAt <= Date.now());
+    setS({ ...st, log, screen: restOver ? 'set' : R.screen, ei: R.ei, si: R.si, w: R.w, r: R.r, ret: null, restEndsAt: restOver ? null : st.restEndsAt });
   };
 
   const endRest = () => { void pushStop(); goTo({ screen: 'set', restEndsAt: null, left: 0 }); };
@@ -176,6 +238,7 @@ function Flow({ workout }: { workout: Workout }) {
 
   const cancel = async () => {
     void pushStop();
+    void remindStop();
     try { localStorage.removeItem(KEY(workout.id)); } catch { /* */ }
     await drained(3000);
     try { await api('DELETE', `/workouts/${workout.id}`); } catch { enqueue({ method: 'DELETE', path: `/workouts/${workout.id}` }); }
@@ -197,13 +260,21 @@ function Flow({ workout }: { workout: Workout }) {
   }
 
   const dots: string[] = [];
-  EX.forEach((x, i) => x.w.forEach((_, j) => dots.push(j < s.log[i].length ? '#FFFFFF' : i === s.ei && j === s.si && s.screen === 'set' ? 'rgba(255,255,255,.75)' : 'rgba(255,255,255,.3)')));
+  EX.forEach((x, i) => x.w.forEach((_, j) => dots.push(j < s.log[i].length ? '#FFFFFF' : i === s.ei && j === s.si && (s.screen === 'set' || s.screen === 'edit') ? 'rgba(255,255,255,.75)' : 'rgba(255,255,255,.3)')));
 
   const head = (
     <>
       <div className="between">
         <button onClick={back} style={{ fontWeight: 800, minHeight: 44, color: '#fff' }}>‹ Назад</button>
-        {s.screen !== 'left' ? <button onClick={() => setS((st) => ({ ...st, menu: true, confirm: false }))} aria-label="Меню тренировки" style={{ width: 44, height: 44, fontSize: 24, color: '#fff' }}>⋯</button> : null}
+        {s.screen !== 'left' ? (
+          <div className="row" style={{ gap: 2 }}>
+            {/* out to the app; the workout keeps going and the bar «Тренировка идёт» brings it back */}
+            <button onClick={() => go('week')} aria-label="Свернуть тренировку" title="Свернуть" style={{ width: 44, height: 44, color: '#fff', display: 'flex', alignItems: 'center', justifyContent: 'center' }}>
+              <svg width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.4" strokeLinecap="round" strokeLinejoin="round" aria-hidden="true"><path d="M6 9l6 6 6-6" /></svg>
+            </button>
+            <button onClick={() => setS((st) => ({ ...st, menu: true, confirm: false, sheet: null }))} aria-label="Меню тренировки" style={{ width: 44, height: 44, fontSize: 24, color: '#fff' }}>⋯</button>
+          </div>
+        ) : null}
       </div>
       {s.screen !== 'left' ? <div style={{ display: 'flex', gap: 3 }}>{dots.map((c, i) => <i key={i} style={{ flex: 1, height: 6, borderRadius: 3, background: c }} />)}</div> : null}
     </>
@@ -216,14 +287,20 @@ function Flow({ workout }: { workout: Workout }) {
   // Program exercise without a planned weight, before its first done set: this workout calibrates it.
   const calib = !!workout.programId && e.type !== 'time' && e.w.every((x) => x == null) && s.log[s.ei].length === 0;
   let body: React.ReactNode;
-  if (s.screen === 'set') {
+  const editing = s.screen === 'edit';
+  const openInfo = (i: number, fromPlan = false) => setS((st) => ({ ...st, sheet: 'info', infoEi: i, infoBack: fromPlan, menu: false }));
+  if (s.screen === 'set' || editing) {
     body = (
       <>
-        <div style={{ fontWeight: 700 }}>Упражнение {s.ei + 1} из {EX.length} · подход {s.si + 1} из {e.w.length}</div>
-        <div className="row a-in" style={{ background: 'rgba(0,0,0,.16)', borderRadius: 22, padding: 8, gap: 12 }}>
+        <div className="row" style={{ gap: 8, minWidth: 0 }}>
+          <span className="grow ell" style={{ fontWeight: 700 }}>Упражнение {s.ei + 1} из {EX.length} · подход {s.si + 1} из {e.w.length}</span>
+          {editing ? <span style={{ flex: 'none', background: '#fff', color: '#C2410C', borderRadius: 10, padding: '3px 8px', fontSize: 13, fontWeight: 800, whiteSpace: 'nowrap' }}>✓ сделан</span> : null}
+        </div>
+        <button className="row a-in" onClick={() => openInfo(s.ei)} aria-label={`Об упражнении: ${e.name}`} style={{ width: '100%', background: 'rgba(0,0,0,.16)', borderRadius: 22, padding: '8px 14px 8px 8px', gap: 12, color: '#fff', textAlign: 'left' }}>
           <ExerciseArt kind={e.kind} name={e.name} size={64} />
           <div className="grow"><div className="display" style={{ fontSize: 18 }}>{e.name}</div><div style={{ fontSize: 13, fontWeight: 700, opacity: 0.9 }}>{e.muscles ? `${e.muscles} · ` : ''}план {e.w.length} × {e.reps}</div></div>
-        </div>
+          <span aria-hidden="true" style={{ fontWeight: 800, fontSize: 22 }}>›</span>
+        </button>
         <div className="col" style={{ gap: 8 }}>
           <div className="between">
             <label htmlFor="fw" style={{ fontWeight: 700 }}>{e.type === 'time' ? 'Вес, кг (если есть)' : 'Вес, кг'}</label>
@@ -251,15 +328,17 @@ function Flow({ workout }: { workout: Workout }) {
         <div style={{ borderTop: '1px solid rgba(255,255,255,.35)' }}>
           {e.w.map((pw, j) => {
             const l = s.log[s.ei][j];
-            const v = l ? `${show(l.w)} × ${l.r} ✓` : j === s.si ? `${show(w)} × ${r} · сейчас` : `${pw == null ? '—' : show(pw)} × ${e.reps}`;
+            const v = editing && j === s.si ? `${show(w)} × ${r} · правка` : l ? `${show(l.w)} × ${l.r} ✓` : j === s.si ? `${show(w)} × ${r} · сейчас` : `${pw == null ? '—' : show(pw)} × ${e.reps}`;
             return <div key={j} className="between" style={{ padding: '7px 0', borderBottom: '1px solid rgba(255,255,255,.2)', fontWeight: 700, opacity: l || j === s.si ? 1 : 0.55 }}><span>Подход {j + 1}</span><span>{v}</span></div>;
           })}
         </div>
         <div style={{ flex: 1 }} />
-        <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 10 }}>
+        {editing ? (
+          <button onClick={saveEdit} className="display" style={{ height: 64, borderRadius: 22, background: '#fff', color: '#1A1A1A', fontSize: 19 }}>Сохранить</button>
+        ) : <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 10 }}>
           <button onClick={skipEx} aria-label="Пропустить упражнение" className="display" style={{ height: 64, borderRadius: 22, border: '2px solid #fff', color: '#fff', fontSize: 18 }}>Пропустить</button>
           <button onClick={done} className="display" style={{ height: 64, borderRadius: 22, background: '#fff', color: '#1A1A1A', fontSize: 18 }}>Сделал</button>
-        </div>
+        </div>}
       </>
     );
   } else if (s.screen === 'rest') {
@@ -280,16 +359,17 @@ function Flow({ workout }: { workout: Workout }) {
           <button onClick={() => adjustRest(-15)} style={{ height: 54, borderRadius: 18, border: '2px solid #fff', color: '#fff', fontWeight: 800 }}>−15 с</button>
           <button onClick={() => adjustRest(15)} style={{ height: 54, borderRadius: 18, border: '2px solid #fff', color: '#fff', fontWeight: 800 }}>+15 с</button>
         </div>
-        <div className="row a-in" style={{ background: 'rgba(0,0,0,.18)', borderRadius: 22, padding: 10, gap: 12 }}>
+        <button className="row a-in" onClick={() => openInfo(s.ei)} aria-label={`Об упражнении: ${ne.name}`} style={{ width: '100%', background: 'rgba(0,0,0,.18)', borderRadius: 22, padding: '10px 14px 10px 10px', gap: 12, color: '#fff', textAlign: 'left' }}>
           <ExerciseArt kind={ne.kind} name={ne.name} size={64} phase="start" />
           <div className="grow">
             <div style={{ fontSize: 13, fontWeight: 700, opacity: 0.85 }}>{startedEx || s.si > 0 ? `Дальше · подход ${s.si + 1} из ${ne.w.length}` : `Дальше · упражнение ${s.ei + 1} из ${EX.length}`}</div>
             <div style={{ fontWeight: 800, fontSize: 17 }}>{ne.name}</div>
             <div style={{ fontSize: 13, fontWeight: 700 }}>{pw == null ? '' : `${showKg(pw)} кг × `}{ne.reps}</div>
           </div>
-        </div>
+          <span aria-hidden="true" style={{ fontWeight: 800, fontSize: 22 }}>›</span>
+        </button>
         <div style={{ flex: 1 }} />
-        <button onClick={endRest} className="display" style={{ height: 72, borderRadius: 22, background: '#fff', color: '#1A1A1A', fontSize: 19 }}>{left > 0 ? 'Пропустить отдых' : 'К подходу'}</button>
+        <button onClick={endRest} className="display" style={{ height: 72, borderRadius: 22, background: '#fff', color: '#1A1A1A', fontSize: 19 }}>Пропустить отдых</button>
       </>
     );
   } else {
@@ -322,6 +402,7 @@ function Flow({ workout }: { workout: Workout }) {
           <>
             <b style={{ fontSize: 18 }}>Тренировка</b>
             <div className="col" style={{ gap: 0 }}>
+              <button onClick={() => setS((st) => ({ ...st, menu: false, sheet: 'plan' }))} style={{ minHeight: 52, textAlign: 'left', fontWeight: 700, borderBottom: '1px solid var(--line)' }}>План тренировки</button>
               <button onClick={() => finish(s.log)} style={{ minHeight: 52, textAlign: 'left', fontWeight: 700, borderBottom: '1px solid var(--line)' }}>Завершить тренировку</button>
               <button onClick={() => setS((st) => ({ ...st, confirm: true }))} style={{ minHeight: 52, textAlign: 'left', fontWeight: 700, color: 'var(--warn)' }}>Отменить тренировку</button>
             </div>
@@ -335,6 +416,33 @@ function Flow({ workout }: { workout: Workout }) {
             </div>
           </>
         )}
+      </Sheet>
+      {/* The day's plan: view only, the workout keeps its program order. */}
+      <Sheet open={s.sheet === 'plan'} onClose={() => setS((st) => ({ ...st, sheet: null }))} label="План тренировки">
+        <b style={{ fontSize: 18 }}>План тренировки</b>
+        <div className="col" style={{ gap: 0 }}>
+          {EX.map((x, i) => {
+            const d = s.log[i].length, cur = i === s.ei && (s.screen === 'set' || s.screen === 'rest'), sk = s.skipped.includes(i);
+            const st = d >= x.w.length ? `✓ ${d} из ${x.w.length}` : cur ? 'сейчас' : sk ? 'пропущено' : `${d} из ${x.w.length}`;
+            const col = d >= x.w.length ? 'var(--goodT)' : cur ? 'var(--acc)' : 'var(--muted)';
+            const kg = [...new Set(x.w.filter((v) => v != null).map((v) => showKg(v)))];
+            return (
+              <button key={i} className="row" onClick={() => openInfo(i, true)} style={{ minHeight: 68, padding: '8px 0', gap: 12, textAlign: 'left', borderTop: i ? '1px solid var(--line)' : 0 }}>
+                <ExerciseArt kind={x.kind} name={x.name} size={48} />
+                <span className="grow col" style={{ gap: 2, minWidth: 0 }}><b style={{ lineHeight: 1.25 }}>{i + 1}. {x.name}</b><span className="sub" style={{ fontSize: 13 }}>{x.w.length} × {x.reps}{kg.length ? ` · ${kg.join(' → ')} кг` : ''}</span></span>
+                <b style={{ flex: 'none', fontSize: 14, color: col }}>{st}</b>
+                <span className="muted" aria-hidden="true" style={{ fontWeight: 800 }}>›</span>
+              </button>
+            );
+          })}
+        </div>
+      </Sheet>
+      <Sheet open={s.sheet === 'info'} onClose={() => setS((st) => ({ ...st, sheet: null }))} label={EX[s.infoEi ?? 0]?.name ?? 'Упражнение'}>
+        {s.infoBack ? <button className="link" onClick={() => setS((st) => ({ ...st, sheet: 'plan' }))} style={{ alignSelf: 'flex-start', minHeight: 44 }}>‹ План</button> : null}
+        {(() => {
+          const i = s.infoEi ?? 0, we = workout.exercises[i];
+          return we ? <ExerciseInfo e={we.exerciseId != null ? exById.get(we.exerciseId) : undefined} name={we.name} kind={we.kind} /> : null;
+        })()}
       </Sheet>
     </div>
   );

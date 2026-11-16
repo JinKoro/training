@@ -26,14 +26,48 @@ async function call(path: string, body: Record<string, unknown>) {
   } catch { /* fire and forget */ }
 }
 
+/**
+ * Pushes arrive without a payload, so the service worker reads what is due from this small record
+ * (Cache Storage, which both the page and the worker can reach): the rest end, and the idle reminder's time and text.
+ */
+interface PushState { restAt?: number | null; remindAt?: number | null; remindText?: string; url?: string }
+const STATE_URL = './push-state';
+async function patchState(p: PushState) {
+  try {
+    const c = await caches.open('podhod-push');
+    const old = (await (await c.match(STATE_URL))?.json().catch(() => ({}))) ?? {};
+    await c.put(STATE_URL, new Response(JSON.stringify({ ...old, ...p })));
+  } catch { /* no Cache Storage: the generic text is shown */ }
+}
+
 export async function pushStart(seconds: number, ask = false) {
   const ep = await endpoint(ask);
   if (!ep) return;
   if (seconds <= 0) return pushStop();
-  await call('/start', { endpoint: ep, seconds: Math.min(1800, Math.max(1, Math.round(seconds))) });
+  const s = Math.min(1800, Math.max(1, Math.round(seconds)));
+  await patchState({ restAt: Date.now() + s * 1000 });
+  await call('/start', { endpoint: ep, seconds: s });
 }
 
 export async function pushStop() {
   const ep = await endpoint(false);
-  if (ep) await call('/stop', { endpoint: ep });
+  if (!ep) return;
+  await patchState({ restAt: null });
+  await call('/stop', { endpoint: ep });
+}
+
+/** «Не забудьте про тренировку» after `seconds` without any action in the workout; every action moves it. */
+export async function remindStart(seconds: number, text: string, url: string) {
+  const ep = await endpoint(false);
+  if (!ep) return;
+  const s = Math.min(1800, Math.max(1, Math.round(seconds)));
+  await patchState({ remindAt: Date.now() + s * 1000, remindText: text, url });
+  await call('/start', { endpoint: ep, seconds: s, kind: 'remind' });
+}
+
+export async function remindStop() {
+  const ep = await endpoint(false);
+  if (!ep) return;
+  await patchState({ remindAt: null });
+  await call('/stop', { endpoint: ep, kind: 'remind' });
 }

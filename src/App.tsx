@@ -19,6 +19,7 @@ import { TemplateScreen, TemplateStartScreen } from './screens/Templates';
 import { ProgramEditorScreen } from './screens/ProgramEditor';
 import { ExerciseFormScreen, LibraryScreen } from './screens/Exercises';
 import { LogScreen } from './screens/Log';
+import { LiveBar } from './screens/LiveBar';
 import { FoodScreen } from './screens/Food';
 import { AddFoodScreen, DishNewScreen, ItemScreen, ProductEditScreen, ProductNewScreen, ScanScreen } from './screens/FoodAdd';
 import { MeasureScreen, MetricChartScreen } from './screens/Measures';
@@ -126,14 +127,14 @@ function Shell() {
     return (
       <div className="shell-d">
         <Sidebar active={nav.side} />
-        <main>{content}</main>
+        <main><LiveBar route={r.join('/')} wide />{content}</main>
       </div>
     );
   }
   return (
     <div className={`shell-m ${nav.bar ? 'has-bar' : ''}`}>
       <div className="scroller">{content}</div>
-      {nav.bar ? <TabBar active={nav.tab} /> : null}
+      {nav.bar ? <><LiveBar route={r.join('/')} wide={false} /><TabBar active={nav.tab} /></> : null}
     </div>
   );
 }

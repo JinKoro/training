@@ -62,6 +62,16 @@ test.describe('Workout flow', () => {
     await expect(page.getByText('Дальше · подход 2 из 2')).toBeVisible();
     await expect(page.getByText('50 кг × 10')).toBeVisible();
 
+    // «Свернуть»: out to the app, the bar counts the rest down and brings the workout back
+    await page.getByRole('button', { name: 'Свернуть тренировку' }).click();
+    await expect(page).toHaveURL(/#\/week$/);
+    const bar = page.getByRole('link', { name: 'Вернуться к тренировке' });
+    await expect(bar).toContainText(/Отдых · \d:\d\d/);
+    await expect(bar).toContainText('Дальше: Жим штанги лёжа · подход 2 из 2');
+    await expect(page.getByRole('link', { name: 'Продолжить тренировку' })).toBeVisible();
+    await bar.click();
+    await expect(page.getByText('Отдых', { exact: true })).toBeVisible();
+
     // a reload in the gym resumes in place
     await page.reload();
     await expect(page.getByText('Отдых', { exact: true })).toBeVisible();
@@ -70,10 +80,19 @@ test.describe('Workout flow', () => {
     await expect(page.getByText('52,5 × 11 ✓')).toBeVisible();
     await expect(weight(page)).toHaveValue('50');
 
-    // back returns to the rest screen
+    // the exercise's info from its card
+    await page.getByRole('button', { name: 'Об упражнении: Жим штанги лёжа' }).click();
+    await expect(sheet(page, 'Жим штанги лёжа').getByText('Старт')).toBeVisible();
+    await page.keyboard.press('Escape');
+
+    // back opens the set already done, not the rest: it stays done, only its numbers change
     await page.getByRole('button', { name: '‹ Назад' }).click();
-    await expect(page.getByText('Отдых', { exact: true })).toBeVisible();
-    await page.getByRole('button', { name: 'Пропустить отдых' }).click();
+    await expect(page.getByText('Упражнение 1 из 3 · подход 1 из 2')).toBeVisible();
+    await expect(page.getByText('✓ сделан')).toBeVisible();
+    await expect(weight(page)).toHaveValue('52,5');
+    await expect(page.getByRole('button', { name: 'Сделал' })).toHaveCount(0);
+    await page.getByRole('button', { name: 'Сохранить' }).click();
+    await expect(page.getByText('Упражнение 1 из 3 · подход 2 из 2')).toBeVisible();
     await page.getByRole('button', { name: 'Сделал' }).click();
     // rest after the exercise, then exercise 2
     await expect(page.getByText('Дальше · упражнение 2 из 3')).toBeVisible();
@@ -86,6 +105,20 @@ test.describe('Workout flow', () => {
     await page.getByRole('button', { name: 'Пропустить упражнение' }).click();
     await expect(page.getByText('Упражнение 3 из 3 · подход 1 из 1')).toBeVisible();
     await expect(page.getByText(/^Калибровка: подберите вес/)).toBeVisible();
+
+    // the day's plan from the menu (view only), an exercise's info from it
+    await page.getByRole('button', { name: 'Меню тренировки' }).click();
+    await sheet(page, 'Тренировка').getByRole('button', { name: 'План тренировки' }).click();
+    const plan = sheet(page, 'План тренировки');
+    await expect(plan.getByRole('button', { name: /Жим штанги лёжа/ })).toContainText('✓ 2 из 2');
+    await expect(plan.getByRole('button', { name: /Махи в стороны/ })).toContainText('пропущено');
+    await expect(plan.getByRole('button', { name: /Подъём ног лёжа/ })).toContainText('сейчас');
+    await plan.getByRole('button', { name: /Махи в стороны/ }).click();
+    await expect(sheet(page, 'Махи в стороны').getByText('Конец')).toBeVisible();
+    await sheet(page, 'Махи в стороны').getByRole('button', { name: '‹ План' }).click();
+    await expect(sheet(page, 'План тренировки')).toBeVisible();
+    await page.keyboard.press('Escape');
+    await expect(page.getByText('Упражнение 3 из 3 · подход 1 из 1')).toBeVisible();
 
     // finish from the menu with an exercise not done
     await page.getByRole('button', { name: 'Меню тренировки' }).click();
@@ -177,6 +210,27 @@ test.describe('Workout flow', () => {
     expect(await page.evaluate(() => Object.keys(localStorage).filter((k) => k.startsWith('podhod-flow-')))).toEqual([]);
   });
 
+  test('day screen: an exercise opens its info in place, «Изменить» → «Отмена» returns to the day; rest over opens the next set by itself', async ({ authed: page, user }) => {
+    const wd = weekdayIdx(today());
+    await createProgram(user.token, { name: 'Отдых', weeks: 1, days: { [wd]: [{ name: 'Жим штанги лёжа', sets: 2, reps: '5', kg: '40', rest: 15 }] } });
+    await open(page, `day/${today()}`);
+    await page.getByRole('button', { name: 'Об упражнении: Жим штанги лёжа' }).click();
+    await expect(sheet(page, 'Жим штанги лёжа').getByText('Старт')).toBeVisible();
+    await page.keyboard.press('Escape');
+    await expect(page).toHaveURL(new RegExp(`#/day/${today()}$`));
+    await page.getByRole('link', { name: 'Изменить' }).click();
+    await expect(page).toHaveURL(/#\/program\/\d+\/edit/);
+    await page.getByRole('link', { name: 'Отмена' }).click();
+    await expect(page).toHaveURL(new RegExp(`#/day/${today()}$`));
+
+    await page.locator('.fixed-bottom').getByRole('button', { name: 'Начать' }).click();
+    await page.getByRole('button', { name: 'Сделал' }).click();
+    await expect(page.getByText('Отдых', { exact: true })).toBeVisible();
+    await expect(page.getByRole('button', { name: 'К подходу' })).toHaveCount(0);
+    await page.getByRole('button', { name: '−15 с' }).click();
+    await expect(page.getByText('Упражнение 1 из 1 · подход 2 из 2')).toBeVisible();
+  });
+
   test('finishing every set goes straight to the summary; the week card then opens it', async ({ authed: page, user }) => {
     const wd = weekdayIdx(today());
     await createProgram(user.token, { name: 'Короткая', weeks: 1, days: { [wd]: [{ name: 'Жим штанги лёжа', sets: 1, reps: '5', kg: '40', rest: 90 }] } });
@@ -189,10 +243,16 @@ test.describe('Workout flow', () => {
     await expect(page.locator('.a-in', { hasText: 'Выполнено' })).toContainText('80%');
     await page.getByRole('button', { name: 'Продолжить' }).click();
     await expect(page.getByText('✓ выполнено 80%')).toBeVisible();
-    // «Итог» on the week opens the program on the week this workout belongs to
+    // «Итог» on the week opens this workout's summary; «‹ Назад» returns to the week
     await page.getByRole('link', { name: 'Итог' }).click();
-    await expect(page).toHaveURL(/#\/program\/\d+\/week\/1$/);
-    await page.goBack();
+    await expect(page).toHaveURL(/#\/summary\/\d+\/week$/);
+    await expect(page.getByText('× 4 из 5')).toBeVisible();
+    await page.getByRole('link', { name: '‹ Назад' }).click();
+    await expect(page).toHaveURL(/#\/week$/);
+    // «Изменить» → «Отмена» returns to the week too, not to the summary
+    await page.getByRole('link', { name: 'Изменить' }).click();
+    await expect(page).toHaveURL(/#\/workout-edit\/\d+\/week$/);
+    await page.getByRole('button', { name: 'Отмена' }).or(page.getByRole('link', { name: 'Отмена' })).click();
     await expect(page).toHaveURL(/#\/week$/);
     // the day screen now offers the summary instead of a new workout
     await open(page, `day/${today()}`);

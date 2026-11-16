@@ -87,7 +87,9 @@ export async function handleTimer(request, env, pathname) {
   const body = await request.json().catch(() => null);
   if (!isApplePushEndpoint(body?.endpoint)) return json(request, { error: 'invalid_endpoint' }, 400);
 
-  const timer = env.REST_TIMER.get(env.REST_TIMER.idFromName(body.endpoint));
+  // The idle workout reminder is a second timer of its own, so it never replaces the rest timer.
+  const name = body.kind === 'remind' ? `remind:${body.endpoint}` : body.endpoint;
+  const timer = env.REST_TIMER.get(env.REST_TIMER.idFromName(name));
 
   if (pathname === '/start') {
     const seconds = Number(body.seconds);

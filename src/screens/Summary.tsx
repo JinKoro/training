@@ -3,7 +3,7 @@ import { dayMonth, diffDays, WD_CAP, weekStart } from '../lib/dates';
 import { useState } from 'react';
 import { api } from '../lib/api';
 import { invalidate, useQuery, forget } from '../lib/query';
-import { go } from '../lib/router';
+import { go, onBackClick } from '../lib/router';
 import type { Workout } from '../lib/types';
 import { useApp } from '../app-context';
 import { ErrorBox, MoreButton, Sheet, Skeleton, errText, menuRow, toast } from '../ui';
@@ -17,7 +17,7 @@ export function SummaryBody({ w, back, cta, onMenu }: { w: Workout; back?: strin
       <div className="col" style={{ background: 'var(--hero)', color: '#fff', padding: 'calc(18px + var(--safe-top)) 18px 18px', borderRadius: '0 0 26px 26px', gap: 12 }}>
         {back || onMenu ? (
           <div className="between">
-            {back ? <a href={back} style={{ fontWeight: 800, minHeight: 44, display: 'inline-flex', alignItems: 'center' }}>‹ Назад</a> : <span />}
+            {back ? <a href={back} onClick={onBackClick} style={{ fontWeight: 800, minHeight: 44, display: 'inline-flex', alignItems: 'center' }}>‹ Назад</a> : <span />}
             {onMenu ? <MoreButton onClick={onMenu} color="#fff" /> : null}
           </div>
         ) : null}
@@ -88,7 +88,8 @@ export function SummaryScreen({ id, back }: { id: number; back?: string }) {
     try { await api('DELETE', `/workouts/${id}`); forget(`/workouts/${id}`); invalidate('/workouts'); toast('Тренировка удалена'); go('log'); }
     catch (e) { toast(errText(e)); setBusy(false); }
   };
-  const backHref = back === 'week' ? '#/week' : back === 'calendar' ? '#/calendar' : back === 'workouts' ? `#/workouts/${id}` : '#/log';
+  // a fallback only: «‹ Назад» goes back to the screen the summary was opened from
+  const backHref = back === 'week' ? '#/week' : back === 'calendar' ? '#/calendar' : back === 'sport' ? '#/sport' : back === 'workouts' ? `#/workouts/${id}` : '#/log';
   if (q.error) return <div className="page"><ErrorBox error={q.error} retry={q.reload} /></div>;
   if (!q.data) return <div className="page"><Skeleton n={4} /></div>;
   return (

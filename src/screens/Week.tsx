@@ -182,7 +182,7 @@ export function FoodCard({ d, title, meals }: { d: DayInfo; title?: string; meal
  * Workout card of a day. `calendar` = the full card (status, then full-width Итог/Изменить, Начать тренировка or
  * Открыть план); the calendar and the week screen use it, `from` says where Итог/Изменить return to.
  */
-export function WorkoutCard({ d, calendar, canTrain, from = 'calendar' }: { d: DayInfo; calendar?: boolean; canTrain?: boolean; from?: 'calendar' | 'week' }) {
+export function WorkoutCard({ d, calendar, canTrain, from = 'calendar' }: { d: DayInfo; calendar?: boolean; canTrain?: boolean; from?: 'calendar' | 'week' | 'sport' }) {
   const { programs, exById } = useApp();
   const program = activeProgram(programs);
   const t = today();
@@ -207,14 +207,12 @@ export function WorkoutCard({ d, calendar, canTrain, from = 'calendar' }: { d: D
     const s = workoutStats(w);
     const dur = durationMin(w);
     sub = `✓ выполнено ${s.pct}%${dur ? ` · ${dur} мин` : ''}`;
-    // «Итог» opens the program on the week this workout belongs to; a workout outside a program keeps its summary
-    const wp = w.programId ? programs.find((x) => x.id === w.programId) : undefined;
-    const ofWeek = wp && w.week ? `#/program/${wp.id}/week/${w.week}` : null;
-    btn = { text: calendar ? 'Итог' : 'Итог ›', href: ofWeek ?? (calendar ? `#/summary/${w.id}/${from}` : `#/summary/${w.id}`) };
+    // «Итог» opens this workout's summary; its «‹ Назад» returns here
+    btn = { text: calendar ? 'Итог' : 'Итог ›', href: `#/summary/${w.id}/${from}` };
     if (calendar) btn2 = { text: 'Изменить', href: `#/workout-edit/${w.id}/${from}` };
   } else if (w) {
     sub = 'идёт тренировка';
-    btn = { text: 'Продолжить', href: `#/workout/${w.id}`, primary: true };
+    btn = { text: calendar ? 'Продолжить тренировку' : 'Продолжить', href: `#/workout/${w.id}`, primary: true };
   } else if (d.date === t) {
     const rows = d.planned?.rows ?? [];
     sub = `${rows.length} ${plural(rows.length, ['упражнение', 'упражнения', 'упражнений'])} · ~ ${planMinutes(rows, exById)} мин`;
@@ -257,7 +255,7 @@ export function TodayWorkout() {
   const canTrain = !d.isTraining && !!program && pWeek !== null
     && program.weekdays.some((wd) => planRows(program, pWeek, wd).length > 0 && !slotDone(program, pWeek, wd, data.workouts));
   if (!d.isTraining && !canTrain) return null;
-  return <WorkoutCard d={d} canTrain={canTrain} />;
+  return <WorkoutCard d={d} canTrain={canTrain} from="sport" />;
 }
 
 function DayPanel({ d, onToday, canTrain }: { d: DayInfo; onToday: () => void; canTrain?: boolean }) {

@@ -7,7 +7,8 @@ import { invalidate, useQuery } from '../lib/query';
 import { go } from '../lib/router';
 import type { Workout } from '../lib/types';
 import { ExerciseArt } from '../art';
-import { errText, Screen, Skeleton, toast } from '../ui';
+import { errText, Screen, Sheet, Skeleton, toast } from '../ui';
+import { ExerciseInfo } from './Exercises';
 
 export function DayScreen({ date }: { date?: string }) {
   const { programs, exById, wide } = useApp();
@@ -17,6 +18,8 @@ export function DayScreen({ date }: { date?: string }) {
   const wq = useQuery<{ workouts: Workout[] }>(`/workouts?from=${weekStart(d)}&to=${addDays(weekStart(d), 6)}`);
   const [busy, setBusy] = useState(false);
   const [showOthers, setShowOthers] = useState(false);
+  /** Exercise shown in the info sheet (tap on a card); the day screen stays under it. */
+  const [info, setInfo] = useState<number | null>(null);
   const weekOffset = Math.round(diffDays(weekStart(d), weekStart(today())) / 7);
   const wdName = WD_CAP[diffDays(d, weekStart(d))];
 
@@ -98,7 +101,7 @@ export function DayScreen({ date }: { date?: string }) {
               const wText = ws.every((w) => w === null) ? '—' : uniq.length === 1 ? `${uniq[0]} × ${r.sets}` : ws.map((w) => showKg(w)).join(' · ');
               const rest = r.rest ?? ex?.rest ?? DEFAULT_REST;
               return (
-                <a key={i} className="card col a-in" style={{ gap: 10, padding: 12, borderRadius: 22 }} href={`#/exercises/all/${r.exerciseId}`}>
+                <button key={i} className="card col a-in" style={{ gap: 10, padding: 12, borderRadius: 22, width: '100%', textAlign: 'left', color: 'var(--ink)' }} onClick={() => setInfo(r.exerciseId)} aria-label={`Об упражнении: ${ex?.name ?? 'Упражнение'}`}>
                   <div className="row">
                     <ExerciseArt kind={ex?.kind} name={ex?.name} size={56} />
                     <div className="grow"><b>{i + 1}. {ex?.name ?? 'Упражнение'}</b><div className="sub">{ex ? exerciseSubtitle(ex) : ''}</div></div>
@@ -113,7 +116,7 @@ export function DayScreen({ date }: { date?: string }) {
                     ))}
                   </div>
                   {r.note ? <div className="sub" style={{ fontSize: 13, overflowWrap: 'anywhere' }}>{r.note}</div> : null}
-                </a>
+                </button>
               );
             })}
           </div>
@@ -144,6 +147,9 @@ export function DayScreen({ date }: { date?: string }) {
           {others.length ? <><span className="label">Можно провести тренировку из программы</span>{othersList}</> : null}
         </>
       )}
+      <Sheet open={info !== null} onClose={() => setInfo(null)} label={(info !== null && exById.get(info)?.name) || 'Упражнение'}>
+        {info !== null ? <ExerciseInfo e={exById.get(info)} name={exById.get(info)?.name ?? 'Упражнение'} kind={exById.get(info)?.kind ?? null} /> : null}
+      </Sheet>
     </Screen>
   );
 }

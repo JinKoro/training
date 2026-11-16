@@ -16,6 +16,34 @@ const muscleLine = (e: Exercise) => {
   return p ? `Основная: ${p}${s ? ` · помогают: ${s}` : ''}` : exerciseSubtitle(e);
 };
 
+/**
+ * What an exercise is, for a sheet over another screen (workout, day): name, muscles, start → end pictures,
+ * technique steps and the muscle map. No library actions.
+ */
+export function ExerciseInfo({ e, name, kind }: { e?: Exercise; name: string; kind: string | null }) {
+  const steps = e ? (e.steps.length ? e.steps : (e.description ?? '').split('\n').map((x) => x.trim()).filter(Boolean)) : [];
+  return (
+    <>
+      <div>
+        <h2 className="display" style={{ fontSize: 22, lineHeight: 1.2 }}>{name}</h2>
+        {e ? <div className="muted" style={{ fontSize: 14 }}>{muscleLine(e)}</div> : null}
+      </div>
+      <div className="row" style={{ justifyContent: 'center', gap: 12 }}>
+        <figure className="col" style={{ margin: 0, alignItems: 'center', gap: 4 }}><ExerciseArt kind={kind} name={name} phase="start" size={104} /><figcaption className="sub">Старт</figcaption></figure>
+        <b style={{ color: 'var(--acc)', fontSize: 22 }}>→</b>
+        <figure className="col" style={{ margin: 0, alignItems: 'center', gap: 4 }}><ExerciseArt kind={kind} name={name} phase="end" size={104} /><figcaption className="sub">Конец</figcaption></figure>
+      </div>
+      {steps.length > 1 ? <ol style={{ margin: 0, paddingLeft: 20, display: 'flex', flexDirection: 'column', gap: 6 }}>{steps.map((s, i) => <li key={i}>{s}</li>)}</ol>
+        : steps.length === 1 ? <p style={{ margin: 0 }}>{steps[0]}</p> : null}
+      {e && (e.primary.length || e.secondary.length) ? (
+        <div style={{ background: 'var(--sub)', borderRadius: 22, padding: 14, display: 'flex', justifyContent: 'center' }}>
+          <Muscles primary={e.primary} secondary={e.secondary} />
+        </div>
+      ) : null}
+    </>
+  );
+}
+
 function ExerciseCard({ e, wide }: { e: Exercise; wide?: boolean }) {
   const steps = e.steps.length ? e.steps : (e.description ?? '').split('\n').map((x) => x.trim()).filter(Boolean);
   const [del, setDel] = useState(false);
