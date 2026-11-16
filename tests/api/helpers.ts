@@ -1,3 +1,6 @@
+import { execSync } from 'node:child_process';
+import path from 'node:path';
+import { fileURLToPath } from 'node:url';
 export const BASE = 'http://localhost:8790';
 
 export const todayUtc = () => new Date().toISOString().slice(0, 10);
@@ -59,6 +62,14 @@ export async function newUser(over: Record<string, unknown> = {}, date?: string)
   const r = await call('POST', '/auth/register', body, { date });
   if (r.status !== 201) throw new Error(`register failed ${r.status} ${JSON.stringify(r.body)}`);
   return new Client(r.body.token, body.email as string, date);
+}
+
+/** Gives an account the admin role straight in the local database (the app has no way to grant it). */
+export function makeAdmin(email: string) {
+  const state = path.resolve(path.dirname(fileURLToPath(import.meta.url)), '.state');
+  execSync(`npx wrangler@4 d1 execute training --local --persist-to ${JSON.stringify(state)} --command ${JSON.stringify(`UPDATE users SET role = 'admin' WHERE email = '${email.toLowerCase()}'`)}`, {
+    cwd: path.resolve(path.dirname(fileURLToPath(import.meta.url)), '../../worker'), stdio: 'pipe', env: { ...process.env, CI: '1' },
+  });
 }
 
 /** Creates one own exercise; returns its id. */

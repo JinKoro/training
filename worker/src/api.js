@@ -95,7 +95,7 @@ function normStatements(env, userId, date, norms) {
 
 async function me(env, user) {
   return {
-    user: { id: user.id, email: user.email, theme: user.theme, goal: user.goal, createdAt: user.created_at },
+    user: { id: user.id, email: user.email, theme: user.theme, goal: user.goal, createdAt: user.created_at, role: user.role === 'admin' ? 'admin' : 'user' },
     profile: await currentProfile(env, user.id),
     norms: await normsHistory(env, user.id),
   };
@@ -509,6 +509,7 @@ export async function handleApi(request, env, path) {
 
   const user = await requireUser(env, request);
   const uid = user.id;
+  const admin = user.role === 'admin'; // may change and delete any product
 
   // --- me ---
   if (seg[0] === 'me') {
@@ -863,23 +864,23 @@ export async function handleApi(request, env, path) {
       if (mealMask !== 15) await env.DB.prepare('INSERT INTO product_meals (user_id, product_id, meals) VALUES (?, ?, ?)').bind(uid, r.id, mealMask).run();
       return ok({ product: productOut({ ...r, my_meals: mealMask }) }, 201);
     }
-    // Delete one's own product. Diary entries keep their copy (product link cleared); a product used in a dish stays.
+    // Delete one's own product (an admin: any product). Diary entries keep their copy (product link cleared); a product used in a dish stays.
     if (seg.length === 2 && method === 'DELETE') {
       const id = num(seg[1], 'id', { min: 1, int: true });
       const cur = await env.DB.prepare('SELECT * FROM products WHERE id = ?').bind(id).first();
       if (!cur) fail(404, 'not_found');
-      if (cur.created_by !== uid) fail(403, 'forbidden');
+      if (cur.created_by !== uid && !admin) fail(403, 'forbidden');
       const used = await env.DB.prepare('SELECT d.name FROM dish_ingredients di JOIN dishes d ON d.id = di.dish_id WHERE di.product_id = ? LIMIT 1').bind(id).first();
       if (used) return json(request, { error: 'product_in_dish', dish: used.name }, 409);
       await env.DB.prepare('DELETE FROM products WHERE id = ?').bind(id).run();
       return ok({ ok: true });
     }
-    // Edit a product: only its author. A shared product is fixed for everyone else (own kcal/macros go into a diary entry instead).
+    // Edit a product: only its author (or an admin). A shared product is fixed for everyone else (own kcal/macros go into a diary entry instead).
     if (seg.length === 2 && method === 'PUT') {
       const id = num(seg[1], 'id', { min: 1, int: true });
       const cur = await env.DB.prepare('SELECT * FROM products WHERE id = ?').bind(id).first();
       if (!cur) fail(404, 'not_found');
-      if (cur.created_by !== uid) fail(403, 'forbidden');
+      if (cur.created_by !== uid && !admin) fail(403, 'forbidden');
       const body = await readJson(request);
       const icon = body.icon === undefined ? cur.icon : oneOf(body.icon, 'icon', SUB_IDS);
       {

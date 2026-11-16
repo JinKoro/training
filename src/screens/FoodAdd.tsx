@@ -418,7 +418,8 @@ export function ItemScreen({ date, type, id, meal, ing }: { date?: string; type:
   const eff: FoodItem = ovVals ? { ...it, ...ovVals } : it;
   const ovChanged = !!ov && ovOk && (eff.protein !== it.protein || eff.fat !== it.fat || eff.carbs !== it.carbs || kcal100(eff) !== kcal100(it));
   const m100 = per100(eff).map((x) => (x * g) / 100) as [number, number, number];
-  const own = !ing && it.type === 'product' && it.createdBy === me.user.id;
+  // an admin may change or delete any product of the shared library, like their own
+  const own = !ing && it.type === 'product' && (it.createdBy === me.user.id || me.user.role === 'admin');
   const add = async () => {
     if (g < 1 || g > 5000 || busy || !ovOk) return;
     if (ing) { ing.onAdd(it, g); return; }
@@ -696,7 +697,7 @@ export function ProductEditScreen({ id }: { id: number }) {
   const p = q.data.product;
   const done = () => { invalidate('/products', '/food/recent', '/diary'); history.back(); };
   const header = <div className="navbar"><button className="link" onClick={() => history.back()}>Отмена</button><b>Изменить продукт</b><span style={{ width: 60 }} /></div>;
-  if (p.createdBy === me.user.id) return <Screen className="modal">{header}<ProductForm edit={p} onSaved={done} /></Screen>;
+  if (p.createdBy === me.user.id || me.user.role === 'admin') return <Screen className="modal">{header}<ProductForm edit={p} onSaved={done} /></Screen>;
   const cur = sub ?? (SUB_INFO[p.icon] ? p.icon : 'other');
   const save = async () => {
     if (!cur || busy) return;

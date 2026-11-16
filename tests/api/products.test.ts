@@ -1,5 +1,5 @@
 import { describe, it, expect, beforeAll } from 'vitest';
-import { Client, newUser, ownProduct, uniq } from './helpers';
+import { Client, makeAdmin, newUser, ownProduct, uniq } from './helpers';
 
 let a: Client; let b: Client;
 beforeAll(async () => { a = await newUser(); b = await newUser(); });
@@ -132,6 +132,23 @@ describe('products: edit / delete / meals', () => {
     expect((await a.get(`/products/${p.id}`)).status).toBe(404);
     const entries = (await a.get('/diary?from=2026-05-05&to=2026-05-05')).body.entries;
     expect(entries.find((x: any) => x.id === e.id)).toMatchObject({ productId: null, name: 'Удаляемый', protein: 10 });
+  });
+
+  it('an admin changes and deletes any product; the role is in /me, everyone else is «user»', async () => {
+    const adm = await newUser();
+    makeAdmin(adm.email);
+    expect((await adm.get('/me')).body.user.role).toBe('admin');
+    expect((await b.get('/me')).body.user.role).toBe('user');
+    const p = await ownProduct(a, { name: 'Админский тест' });
+    expect((await b.put(`/products/${p.id}`, { protein: 20 })).status).toBe(403);
+    const r = await adm.put(`/products/${p.id}`, { protein: 20, kcal: 250 });
+    expect(r.status).toBe(200);
+    expect(r.body.product).toMatchObject({ protein: 20, kcal: 250, createdBy: (await a.get('/me')).body.user.id });
+    const base = (await adm.get('/products/1')).body.product; // a base product too (same value, other tests read it)
+    expect((await adm.put('/products/1', { fat: base.fat })).status).toBe(200);
+    expect((await b.del(`/products/${p.id}`)).status).toBe(403);
+    expect((await adm.del(`/products/${p.id}`)).status).toBe(200);
+    expect((await a.get(`/products/${p.id}`)).status).toBe(404);
   });
 
   it('a product used in a dish cannot be deleted (409)', async () => {

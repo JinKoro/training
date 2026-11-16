@@ -5,7 +5,7 @@ export type TrainingMode = 'none' | 'time' | 'kcal';
 export type Goal = 'lose' | 'keep' | 'gain';
 
 export interface Me {
-  user: { id: number; email: string; theme: 'system' | 'light' | 'dark'; goal: 'lose' | 'keep' | 'gain'; createdAt: number };
+  user: { id: number; email: string; theme: 'system' | 'light' | 'dark'; goal: 'lose' | 'keep' | 'gain'; createdAt: number; role?: 'user' | 'admin' };
   profile: {
     name: string | null; weight: number | null; height: number | null; birthDate: string | null; steps: number | null;
     sex: Sex | null; bodyFat: number | null; trainingMode: TrainingMode | null; trainingMin: number | null; trainingKcal: number | null;
