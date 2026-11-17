@@ -177,13 +177,7 @@ export function EnergyFlow({ mode, init, wide, busy, error, onBack, onDone, onSk
             {inp('steps', 'Шагов в день', 'numeric', null, 'в среднем за день')}
             <div className="col" style={{ gap: 6 }}><span className="sub" style={{ fontSize: 13 }}>Тренировка</span>{seg(TMODES, f.tmode, (v) => setF((p) => ({ ...p, tmode: v })))}</div>
             {f.tmode === 'time' ? inp('min', 'Минут за тренировку', 'numeric') : f.tmode === 'kcal' ? inp('own', 'Ккал за тренировку', 'numeric') : null}
-            <div className="col" style={{ gap: 6 }}><span className="sub" style={{ fontSize: 13 }}>Цель</span><div className="seg">{GOALS.map(([k, l, pct]) => (
-              // the goal says how it changes the calories: «Похудеть −10 %», «Держать», «Набрать +10 %»
-              <button key={k} type="button" aria-pressed={f.goal === k} onClick={() => setF((p) => ({ ...p, goal: k }))}
-                style={{ flex: '1 1 auto', height: 52, padding: '0 6px', display: 'flex', flexDirection: 'column', alignItems: 'center', justifyContent: 'center', gap: 0, lineHeight: 1.15 }}>
-                <span style={{ fontSize: 16, whiteSpace: 'nowrap' }}>{l}</span>{pct ? <span style={{ fontSize: 12, opacity: 0.8 }}>{pct}</span> : null}
-              </button>
-            ))}</div></div>
+            <div className="col" style={{ gap: 6 }}><span className="sub" style={{ fontSize: 13 }}>Цель</span>{seg(GOALS.map(([k, l]) => [k, l] as [Goal, string]), f.goal, (v) => setF((p) => ({ ...p, goal: v })))}</div>
           </div>
           <div className="col" style={{ flex: '1 1 340px', minWidth: 0, gap: 12 }}>
             <div className="card col a-in" style={{ gap: 12, borderRadius: 22 }}>
@@ -206,7 +200,7 @@ export function EnergyFlow({ mode, init, wide, busy, error, onBack, onDone, onSk
               </div>
             </div>
             <div className="col a-in" style={{ background: 'var(--hero)', color: '#fff', borderRadius: 22, padding: 16, gap: 12 }}>
-              <div className="between"><b style={{ fontSize: 17 }}>План калорий</b><span style={{ fontSize: 13, fontWeight: 700, opacity: 0.85 }}>{GOALS.find((g) => g[0] === f.goal)![1]}</span></div>
+              <div className="between"><b style={{ fontSize: 17 }}>План калорий</b><span style={{ fontSize: 13, fontWeight: 700, opacity: 0.85 }}>{(([, l, pct]) => (pct ? `${l} · ${pct}` : l))(GOALS.find((g) => g[0] === f.goal)!)}</span></div>
               {days.map((d) => (
                 <div key={d.n} className="col" style={{ gap: 6 }}>
                   <div className="between" style={{ alignItems: 'flex-end' }}>
