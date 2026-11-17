@@ -192,3 +192,8 @@ export function PasswordInput({ id, value, onChange, autoComplete, invalid, styl
 export const Beta = ({ color }: { color?: string }) => (
   <span style={{ border: `1px solid ${color ?? 'var(--acc)'}`, color: color ?? 'var(--acc)', borderRadius: 6, padding: '1px 6px', fontSize: 11, fontWeight: 800, letterSpacing: '.08em', fontFamily: 'var(--body, inherit)' }}>BETA</span>
 );
+
+/** A small spinning ring for a button that is waiting for the server (current text colour). */
+export const Spinner = ({ size = 20 }: { size?: number }) => (
+  <span role="status" aria-label="Загрузка" className="spinner" style={{ width: size, height: size }} />
+);

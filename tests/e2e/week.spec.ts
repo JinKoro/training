@@ -1,4 +1,4 @@
-import { test, expect, open, today, addDays, weekdayIdx, weekStart, createProgram, addEntry, fmt, dayMonth, WD_SHORT, login, registerUser } from './fixtures';
+import { test, expect, open, today, addDays, weekdayIdx, weekStart, createProgram, addEntry, fmt, dayMonth, WD_SHORT, login, registerUser, call } from './fixtures';
 import { kcal } from '../../src/lib/calc';
 
 const FROM = ['с понедельника', 'со вторника', 'со среды', 'с четверга', 'с пятницы', 'с субботы', 'с воскресенья'];
@@ -116,6 +116,27 @@ test.describe('Week screen', () => {
     await expect(page.getByText('✓ выполнено 100%')).toBeVisible();
     await page.getByRole('button', { name: /^Вс/ }).click();
     await expect(page.locator('div.muted', { hasText: /^День отдыха$/ })).toBeVisible();
+  });
+
+  test('two sessions to choose from: only the pressed «Начать» waits, and the workout opens without a second load', async ({ authed: page, user }) => {
+    const D = today(), wd = weekdayIdx(D);
+    test.skip(wd >= 5, 'needs two later training days in this week');
+    await createProgram(user.token, { name: 'Выбор', weeks: 1, days: { 5: [{ name: 'Жим штанги лёжа', sets: 2, reps: '5', kg: '40' }], 6: [{ name: 'Приседания со штангой', sets: 2, reps: '5', kg: '60' }] } });
+    await open(page, `day/${D}`);
+    // a slow server: the press must show at once on that one button only
+    await page.route('**/api/workouts', async (r) => { if (r.request().method() === 'POST') await new Promise((ok) => setTimeout(ok, 800)); await r.continue(); });
+    const sat = page.locator('.card', { hasText: 'Суббота · 1 упражнение' }), sun = page.locator('.card', { hasText: 'Воскресенье · 1 упражнение' });
+    const gets: string[] = [];
+    page.on('request', (r) => { if (r.method() === 'GET' && /\/api\/workouts\/\d+$/.test(r.url())) gets.push(r.url()); });
+    await sat.getByRole('button', { name: 'Начать' }).click();
+    await expect(sat.locator('button[aria-busy="true"]')).toBeVisible();
+    await expect(sun.getByRole('button', { name: 'Начать' })).toBeEnabled();
+    await expect(sun.locator('button[aria-busy="true"]')).toHaveCount(0);
+    await sun.getByRole('button', { name: 'Начать' }).click(); // ignored while the first one starts
+    await expect(page.getByText('Упражнение 1 из 1 · подход 1 из 2')).toBeVisible();
+    await expect(page.getByText('Жим штанги лёжа').first()).toBeVisible();
+    expect(gets).toEqual([]);
+    expect((await call(user.token, 'GET', `/workouts?from=${D}&to=${D}`)).workouts).toHaveLength(1);
   });
 
   test('a later session done today leaves its own day a training day with the session still open', async ({ authed: page, user }) => {

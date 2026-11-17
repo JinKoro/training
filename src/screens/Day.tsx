@@ -3,11 +3,11 @@ import { useApp } from '../app-context';
 import { api } from '../lib/api';
 import { activeProgram, DEFAULT_REST, dayTitle, exerciseSubtitle, mmss, plannedOpen, planMinutes, planRows, programWeek, setWeights, showKg, slotDone, workoutFromPlan } from '../lib/calc';
 import { addDays, diffDays, isDayStr, plural, today, WD_CAP, weekStart } from '../lib/dates';
-import { invalidate, useQuery } from '../lib/query';
+import { invalidate, seed, useQuery } from '../lib/query';
 import { go } from '../lib/router';
 import type { Workout } from '../lib/types';
 import { ExerciseArt } from '../art';
-import { errText, Screen, Sheet, Skeleton, toast } from '../ui';
+import { errText, Screen, Sheet, Skeleton, Spinner, toast } from '../ui';
 import { ExerciseInfo } from './Exercises';
 
 export function DayScreen({ date }: { date?: string }) {
@@ -16,7 +16,8 @@ export function DayScreen({ date }: { date?: string }) {
   const program = activeProgram(programs);
   // The whole week, to know which program days were already trained (possibly on another date).
   const wq = useQuery<{ workouts: Workout[] }>(`/workouts?from=${weekStart(d)}&to=${addDays(weekStart(d), 6)}`);
-  const [busy, setBusy] = useState(false);
+  // which start is running: 'day' (the day's own session) or a program weekday of «Другие тренировки недели»
+  const [busy, setBusy] = useState<'day' | number | null>(null);
   const [showOthers, setShowOthers] = useState(false);
   /** Exercise shown in the info sheet (tap on a card); the day screen stays under it. */
   const [info, setInfo] = useState<number | null>(null);
@@ -34,13 +35,14 @@ export function DayScreen({ date }: { date?: string }) {
       .map((wd) => ({ wd, rows: planRows(program, pWeek, wd), title: dayTitle(planRows(program, pWeek, wd), exById, WD_CAP[wd]) }))
     : [];
   const startOther = async (wd: number, t: string) => {
-    if (busy || !program || pWeek === null) return;
-    setBusy(true);
+    if (busy !== null || !program || pWeek === null) return;
+    setBusy(wd);
     try {
       const { workout } = await api<{ workout: Workout }>('POST', '/workouts', workoutFromPlan(program, pWeek, wd, d, exById, t));
-      invalidate('/workouts');
+      seed(`/workouts/${workout.id}`, { workout }); // the workout screen opens with it, no second request
+      invalidate('/workouts?'); // the lists; the new workout itself is fresh
       go('workout', workout.id);
-    } catch (e) { toast(errText(e)); setBusy(false); }
+    } catch (e) { toast(errText(e)); setBusy(null); }
   };
   const othersList = (
     <div className="col" style={{ gap: 8 }}>
@@ -50,7 +52,8 @@ export function DayScreen({ date }: { date?: string }) {
             <b>{o.title}</b>
             <div className="sub">{WD_CAP[o.wd]} · {o.rows.length} {plural(o.rows.length, ['упражнение', 'упражнения', 'упражнений'])}</div>
           </div>
-          <button className="btn small blue" disabled={busy} onClick={() => void startOther(o.wd, o.title)}>Начать</button>
+          {/* only the pressed one shows progress; the others just ignore taps meanwhile */}
+          <button className="btn small blue" aria-busy={busy === o.wd} onClick={() => void startOther(o.wd, o.title)} style={{ minWidth: 92 }}>{busy === o.wd ? <Spinner /> : 'Начать'}</button>
         </div>
       ))}
     </div>
@@ -61,15 +64,16 @@ export function DayScreen({ date }: { date?: string }) {
   const minutes = planMinutes(rows, exById);
 
   const start = async () => {
-    if (busy) return;
+    if (busy !== null) return;
     if (existing) { go(existing.status === 'finished' ? 'summary' : 'workout', existing.id); return; }
     if (!program || !planned) return;
-    setBusy(true);
+    setBusy('day');
     try {
       const { workout } = await api<{ workout: Workout }>('POST', '/workouts', workoutFromPlan(program, planned.week, planned.weekday, d, exById, title));
-      invalidate('/workouts');
+      seed(`/workouts/${workout.id}`, { workout });
+      invalidate('/workouts?'); // the lists; the new workout itself is fresh
       go('workout', workout.id);
-    } catch (e) { toast(errText(e)); setBusy(false); }
+    } catch (e) { toast(errText(e)); setBusy(null); }
   };
 
   return (
@@ -84,7 +88,7 @@ export function DayScreen({ date }: { date?: string }) {
           <div className="muted" style={{ fontSize: 14, fontWeight: 700 }}>{wdName}{planned ? ` · неделя ${planned.week} программы` : ''}</div>
           <h1 className="display a-h" style={{ fontSize: 24 }}>{planned ? title : 'Тренировки нет'}</h1>
         </div>
-        {wide && planned && rows.length ? <button className="btn blue" style={{ height: 48, borderRadius: 18 }} onClick={start} disabled={busy}>{existing ? (existing.status === 'finished' ? 'Итог ›' : 'Продолжить') : 'Начать тренировку'}</button> : null}
+        {wide && planned && rows.length ? <button className="btn blue" style={{ height: 48, borderRadius: 18 }} onClick={start} aria-busy={busy === 'day'}>{busy === 'day' ? <Spinner /> : existing ? (existing.status === 'finished' ? 'Итог ›' : 'Продолжить') : 'Начать тренировку'}</button> : null}
       </div>
       {planned && rows.length ? (
         <>
@@ -126,8 +130,8 @@ export function DayScreen({ date }: { date?: string }) {
           ) : null}
           {!wide ? (
             <div className="fixed-bottom">
-              <button className="btn big blue" style={{ height: 60 }} onClick={start} disabled={busy}>
-                {existing ? (existing.status === 'finished' ? 'Итог ›' : 'Продолжить') : 'Начать'}
+              <button className="btn big blue" style={{ height: 60 }} onClick={start} aria-busy={busy === 'day'}>
+                {busy === 'day' ? <Spinner /> : existing ? (existing.status === 'finished' ? 'Итог ›' : 'Продолжить') : 'Начать'}
               </button>
             </div>
           ) : null}

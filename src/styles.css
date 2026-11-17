@@ -176,3 +176,5 @@ html[data-kb] .tabbar { display: none; }
 html[data-theme="dark"] .live-bar { box-shadow: none; }
 .live-bar .live-ico { flex: none; width: 40px; height: 40px; border-radius: 50%; background: rgba(0, 0, 0, .16); display: flex; align-items: center; justify-content: center; }
 .live-bar .live-go { flex: none; height: 44px; padding: 0 14px; border-radius: 16px; background: #fff; color: #C2410C; font-weight: 800; font-size: 15px; display: flex; align-items: center; }
+.spinner { display: inline-block; flex: none; border-radius: 50%; border: 2.5px solid currentColor; border-right-color: transparent; animation: spin .7s linear infinite; }
+@keyframes spin { to { transform: rotate(360deg); } }

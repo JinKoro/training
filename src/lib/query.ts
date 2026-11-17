@@ -54,6 +54,14 @@ export function useQuery<T>(path: string | null, opts?: { keep?: boolean }): { d
   };
 }
 
+/** Put data the app already has (e.g. a POST's answer) into the cache as fresh, so the next screen shows it at once. */
+export function seed(path: string, data: unknown) {
+  const e: Entry = cache.get(path) ?? { at: 0, gen: 0 };
+  e.gen += 1; e.data = data; e.error = undefined; e.at = Date.now(); e.promise = undefined;
+  cache.set(path, e);
+  emit();
+}
+
 /** Drop exact cache entries (a deleted item), so a following invalidate doesn't refetch it into a 404. */
 export function forget(...paths: string[]) { for (const p of paths) cache.delete(p); }
 
