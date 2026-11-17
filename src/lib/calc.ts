@@ -170,6 +170,9 @@ export const mmss = (t: number) => { const s = Math.max(0, Math.round(t)); retur
 
 const GROUP_RU: Record<string, string> = { legs: 'Ноги', back: 'Спина', chest: 'Грудь', shoulders: 'Плечи', arms: 'Руки', abs: 'Пресс', cardio: 'Кардио', warmup: 'Разминка' };
 
+/** A past day against its calorie plan: under 90 % «меньше плана», up to 105 % «по плану», above «больше плана». */
+export const dayState = (eaten: number, plan: number): 'under' | 'ok' | 'over' => (plan <= 0 ? 'ok' : eaten > plan * 1.05 ? 'over' : eaten < plan * 0.9 ? 'under' : 'ok');
+
 /** A time in seconds as people say it: «45 с», «10 мин», «1:30». */
 export const durText = (sec: number) => { const s = Math.max(0, Math.round(sec)); return s < 60 ? `${s} с` : s % 60 === 0 ? `${s / 60} мин` : mmss(s); };
 /** «3×10» for reps; for a timed exercise the reps are seconds: «10 мин», «3 × 45 с». */

@@ -38,7 +38,7 @@ test.describe('Week screen', () => {
     if (wd < 6) {
       const rest = Array.from({ length: 6 - wd }, (_, i) => wd + 1 + i);
       const x = Math.round((B - Math.max(218, T)) / rest.length);
-      await expect(budget).toContainText(`Доешьте сегодня норму, и на ${joinDays(rest)} останется по ${fmt(x)}`);
+      await expect(budget).toContainText(`Съешьте сегодня по плану, и на ${joinDays(rest)} останется по ${fmt(x)}`);
     }
     // today's panel
     await expect(page.getByText(`Сегодня, ${dayMonth(D)}`)).toBeVisible();

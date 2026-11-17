@@ -1,6 +1,6 @@
 import { useMemo, useState } from 'react';
 import { useApp } from '../app-context';
-import { kcal } from '../lib/calc';
+import { kcal, dayState } from '../lib/calc';
 import { addDays, dayMonth, diffDays, fromDay, isDayStr, MONTH_GEN, MONTH_NOM, toDay, today, WD_CAP, WD_SHORT, weekStart } from '../lib/dates';
 import { useDays } from '../lib/hooks';
 import { go } from '../lib/router';
@@ -29,7 +29,7 @@ export function CalendarScreen({ date, food }: { date?: string; food?: boolean }
   if (!data.days) return <Screen title="Календарь"><Skeleton n={4} /></Screen>;
   const d = data.days.find((x) => x.date === selected)!;
   const status = d.isToday ? ['идёт день', 'var(--acc)'] : d.isPlan ? ['впереди', 'var(--muted)'] : d.noNorm ? ['прошёл', 'var(--muted)']
-    : (d.kcal ?? 0) > kcal(d.norm) + 100 ? ['перебор', 'var(--warnT)'] : ['в норме', 'var(--goodT)'];
+    : dayState(d.kcal ?? 0, kcal(d.norm)) === 'over' ? ['больше плана', 'var(--warnT)'] : dayState(d.kcal ?? 0, kcal(d.norm)) === 'under' ? ['меньше плана', 'var(--muted)'] : ['по плану', 'var(--goodT)'];
 
   const grid = (
     <>
@@ -49,7 +49,7 @@ export function CalendarScreen({ date, food }: { date?: string; food?: boolean }
           const isSel = x.date === selected;
           const past = x.date < t;
           const hasFood = (x.kcal ?? 0) > 0;
-          const foodColor = x.isToday ? (hasFood ? 'var(--track)' : null) : past && hasFood ? (x.noNorm ? 'var(--chart)' : (x.kcal ?? 0) > kcal(x.norm) + 100 ? 'var(--warn)' : 'var(--good)') : null;
+          const foodColor = x.isToday ? (hasFood ? 'var(--track)' : null) : past && hasFood ? (x.noNorm ? 'var(--chart)' : ({ over: 'var(--warn)', under: 'var(--muted)', ok: 'var(--good)' } as const)[dayState(x.kcal ?? 0, kcal(x.norm))]) : null;
           const missed = past && x.isTraining && !x.workout;
           return (
             <button key={x.date} onClick={() => setSel(x.date)} aria-pressed={isSel} title={dayMonth(x.date)}
@@ -69,8 +69,9 @@ export function CalendarScreen({ date, food }: { date?: string; food?: boolean }
       </div>
       <div className="row muted" style={{ fontSize: 13, fontWeight: 700, gap: 14, flexWrap: 'wrap' }}>
         <span className="row" style={{ gap: 6 }}><i style={{ width: 7, height: 7, borderRadius: 4, background: 'var(--acc)' }} />тренировка</span>
-        <span className="row" style={{ gap: 6 }}><i style={{ width: 14, height: 7, borderRadius: 4, background: 'var(--good)' }} />в норме</span>
-        <span className="row" style={{ gap: 6 }}><i style={{ width: 14, height: 7, borderRadius: 4, background: 'var(--warn)' }} />перебор</span>
+        <span className="row" style={{ gap: 6 }}><i style={{ width: 14, height: 7, borderRadius: 4, background: 'var(--good)' }} />по плану</span>
+        <span className="row" style={{ gap: 6 }}><i style={{ width: 14, height: 7, borderRadius: 4, background: 'var(--muted)' }} />меньше</span>
+        <span className="row" style={{ gap: 6 }}><i style={{ width: 14, height: 7, borderRadius: 4, background: 'var(--warn)' }} />больше</span>
       </div>
     </>
   );

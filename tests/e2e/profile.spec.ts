@@ -73,7 +73,7 @@ test.describe('Profile', () => {
 
   test('norms screen: edit, week budget, clear the training-day norm', async ({ authed: page, user }) => {
     await open(page, 'profile/norms');
-    await expect(page.getByRole('heading', { name: 'Нормы питания' })).toBeVisible();
+    await expect(page.getByRole('heading', { name: 'План питания' })).toBeVisible();
     const rest = page.locator('.card', { hasText: 'День отдыха' });
     await expect(rest).toContainText(`${fmt(kcal(user.norms.rest))} ккал`);
     await page.locator('#nm-rest-0').fill('100');

@@ -1,6 +1,6 @@
 import { afterEach, describe, expect, it, vi } from 'vitest';
 import {
-  durText, schemeText,
+  durText, schemeText, dayState,
   buildDays, dayTitle, dayTotals, DEFAULT_REST, donePct, durationMin, energy, entryMacros, exerciseSubtitle, fmt1, fmtG,
   kcal, kcal100, kcalAt, macroLine, macrosFor, mmss, normFor, parseReps, planMinutes, plannedFor, plannedOpen, planRows,
   programDonePct, programEnd, moveSession, weekSchedule, programProgress, programSlots, programWeek, setNormFor, setWeights, showKg, slotDone,
@@ -503,5 +503,16 @@ describe('durText / schemeText', () => {
     expect(schemeText({ sets: 3, reps: '45' }, 'time')).toBe('3 × 45 с');
     expect(schemeText({ sets: 3, reps: '30-60' }, 'time')).toBe('3 × 30 с–1 мин');
     expect(schemeText({ sets: 3, reps: '8-10' }, 'weight_reps')).toBe('3×8–10');
+  });
+});
+
+describe('dayState', () => {
+  it('under 90 % of the plan is less, up to 105 % on plan, above more; no plan is fine', () => {
+    expect(dayState(100, 2000)).toBe('under');
+    expect(dayState(1799, 2000)).toBe('under');
+    expect(dayState(1800, 2000)).toBe('ok');
+    expect(dayState(2100, 2000)).toBe('ok');
+    expect(dayState(2101, 2000)).toBe('over');
+    expect(dayState(500, 0)).toBe('ok');
   });
 });

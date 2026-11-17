@@ -77,7 +77,7 @@ export function MacroBar({ name, value, norm, color, over }: { name: string; val
 export function NoNormCard() {
   return (
     <div className="card row a-in" style={{ gap: 12 }}>
-      <span className="col grow" style={{ gap: 2, minWidth: 0 }}><b>Норма калорий не задана</b><span className="muted" style={{ fontSize: 14 }}>Без неё видно только, сколько съедено</span></span>
+      <span className="col grow" style={{ gap: 2, minWidth: 0 }}><b>План калорий не задан</b><span className="muted" style={{ fontSize: 14 }}>Без него видно только, сколько съедено</span></span>
       <a className="btn small" href="#/profile/recalc" style={{ flex: 'none' }}>Рассчитать</a>
     </div>
   );

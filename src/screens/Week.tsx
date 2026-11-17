@@ -1,6 +1,6 @@
 import { useMemo, useRef, useState } from 'react';
 import { useApp } from '../app-context';
-import { activeProgram, dayTitle, durationMin, fmt, planMinutes, kcal, MEAL_RU, MEALS, weekRange, workoutStats, type DayInfo, programWeek, planRows, slotDone, moveSession } from '../lib/calc';
+import { activeProgram, dayTitle, durationMin, fmt, planMinutes, kcal, MEAL_RU, MEALS, weekRange, workoutStats, type DayInfo, programWeek, planRows, slotDone, moveSession, dayState } from '../lib/calc';
 import { addDays, dayMonth, diffDays, plural, today, WD_CAP, WD_SHORT, weekDays, weekStart } from '../lib/dates';
 import { useDays } from '../lib/hooks';
 import { go } from '../lib/router';
@@ -141,7 +141,7 @@ function Budget({ days, offset }: { days: DayInfo[]; offset: number }) {
       const before = days.slice(0, ti).reduce((a, d) => a + (d.kcal ?? 0), 0);
       const tday = days[ti];
       const x = Math.round((B - before - Math.max(tday.kcal ?? 0, kcal(tday.norm))) / rest.length);
-      hint = `Доешьте сегодня норму, и на ${joinDays(rest.map((_, i) => ti + 1 + i))} останется по ${fmt(Math.max(0, x))}`;
+      hint = `Съешьте сегодня по плану, и на ${joinDays(rest.map((_, i) => ti + 1 + i))} останется по ${fmt(Math.max(0, x))}`;
     } else hint = null;
   } else {
     label = 'Бюджет на неделю'; big = B;
@@ -170,11 +170,11 @@ function Bars({ days, selected, onSelect }: { days: DayInfo[]; selected: number;
     <div style={{ display: 'grid', gridTemplateColumns: 'repeat(7, 1fr)', gap: 6, height: 128 }}>
       {days.map((d, k) => {
         const val = d.isPlan ? (d.noNorm ? 0 : kcal(d.norm)) : d.kcal ?? 0;
-        const over = !d.noNorm && !d.isPlan && !d.isToday && (d.kcal ?? 0) > kcal(d.norm) + 100;
+        const over = !d.noNorm && !d.isPlan && !d.isToday && dayState(d.kcal ?? 0, kcal(d.norm)) === 'over';
         const isSel = k === selected;
         return (
           <button key={d.date} onClick={() => onSelect(k)} aria-pressed={isSel}
-            title={d.isPlan ? (d.noNorm ? WD_SHORT[k] : `${WD_SHORT[k]}: норма ${kcal(d.norm)} ккал`) : `${WD_SHORT[k]}: ${d.kcal} ккал`}
+            title={d.isPlan ? (d.noNorm ? WD_SHORT[k] : `${WD_SHORT[k]}: план ${kcal(d.norm)} ккал`) : `${WD_SHORT[k]}: ${d.kcal} ккал`}
             style={{ display: 'flex', flexDirection: 'column', alignItems: 'center', justifyContent: 'flex-end', gap: 4 }}>
             <i className="a-bar" style={{
               width: '100%', maxWidth: 34, height: Math.max(4, Math.round((val / scale) * 90)), borderRadius: '6px 6px 2px 2px',
@@ -196,7 +196,7 @@ function Bars({ days, selected, onSelect }: { days: DayInfo[]; selected: number;
 
 export function FoodCard({ d, title, meals }: { d: DayInfo; title?: string; meals?: boolean }) {
   const normK = kcal(d.norm);
-  const over = !d.noNorm && !d.isPlan && !d.isToday && (d.kcal ?? 0) > normK + 100;
+  const over = !d.noNorm && !d.isPlan && !d.isToday && dayState(d.kcal ?? 0, normK) === 'over';
   const suffix = d.isToday ? 'пока' : d.isPlan ? 'план' : 'итог';
   const eaten: Macros = d.eaten ?? [0, 0, 0];
   return (
@@ -436,9 +436,9 @@ function MacroWeek({ j, days }: { j: number; days: DayInfo[] }) {
     const avgNorm = rest.reduce((a, d) => a + d.norm[j], 0) / rest.length;
     const diff = Math.round(left - avgNorm);
     const pre = (() => { const s = joinDays(rest.map((d) => days.indexOf(d))); return s[0].toUpperCase() + s.slice(1); })();
-    line = diff < -5 ? { text: `${pre}: по ${left} г, на ${-diff} г меньше нормы — неделя уже с перебором`, warn: true }
-      : diff > 5 ? { text: `${pre}: по ${left} г, можно добрать ${diff} г сверх нормы`, warn: false }
-        : { text: `${pre}: по ${left} г, ровно по норме`, warn: false };
+    line = diff < -5 ? { text: `${pre}: по ${left} г, на ${-diff} г меньше плана — неделя уже сверх плана`, warn: true }
+      : diff > 5 ? { text: `${pre}: по ${left} г, можно добрать ${diff} г сверх плана`, warn: false }
+        : { text: `${pre}: по ${left} г, ровно по плану`, warn: false };
   }
   const max = 1.1 * Math.max(1, ...days.map((d) => Math.max(d.eaten?.[j] ?? 0, d.norm[j], d.isPlan ? left : 0)));
   return (

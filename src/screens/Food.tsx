@@ -1,7 +1,7 @@
 import { useEffect, useMemo, useRef, useState } from 'react';
 import { useApp } from '../app-context';
 import { api } from '../lib/api';
-import { MEALS, MEAL_RU, entryKcal, entryMacros, fmt, fmt1, fmtG, fmtKcal, kcal, kcal100, kcalTenths, macroLine, sumKcal, sumMacros, weekRange } from '../lib/calc';
+import { MEALS, MEAL_RU, entryKcal, entryMacros, fmt, fmt1, fmtG, fmtKcal, kcal, kcal100, kcalTenths, macroLine, sumKcal, sumMacros, weekRange, dayState } from '../lib/calc';
 import { addDays, dayMonth, diffDays, fromDay, isDayStr, plural, today, WD_SHORT, weekDays, weekStart } from '../lib/dates';
 import { useDays } from '../lib/hooks';
 import { go } from '../lib/router';
@@ -121,7 +121,7 @@ export function FoodScreen({ date }: { date?: string }) {
   const eaten = info.eaten ?? sumMacros(entries.map(entryMacros));
   const eatenK = info.kcal ?? Math.round(sumKcal(entries)), normK = kcal(info.norm);
   const nn = info.noNorm;
-  const over = !nn && eatenK > normK + 100;
+  const over = !nn && dayState(eatenK, normK) === 'over';
   const byMeal = (m: Meal) => entries.filter((e) => e.meal === m);
 
   const sheets = (
@@ -164,7 +164,7 @@ export function FoodScreen({ date }: { date?: string }) {
       <div className="card row a-in" style={{ borderRadius: 22, padding: 14, gap: 16 }}>
         <Ring eaten={eatenK} norm={nn ? 0 : normK} over={over} />
         <div className="col grow" style={{ gap: 9 }}>
-          <b style={{ fontSize: 15, color: over ? 'var(--warnT)' : 'var(--ink)' }}>{nn ? 'Съедено за день' : over ? `Сверх нормы ${fmt(eatenK - normK)} ккал` : `Осталось ${fmt(normK - eatenK)} ккал`}</b>
+          <b style={{ fontSize: 15, color: over ? 'var(--warnT)' : 'var(--ink)' }}>{nn ? 'Съедено за день' : over ? `Больше плана на ${fmt(eatenK - normK)} ккал` : `Осталось ${fmt(normK - eatenK)} ккал`}</b>
           {nn ? null : <span className="sub" style={{ whiteSpace: 'nowrap' }}>{fmt(normK)} · {info.isTraining ? 'тренировка' : 'отдых'}</span>}
           {[0, 1, 2].map((i) => {
             const o = !nn && eaten[i] > info.norm[i] + 3;

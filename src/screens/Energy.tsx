@@ -124,16 +124,18 @@ export function EnergyFlow({ mode, init, wide, busy, error, onBack, onDone, onSk
   return (
     <div className="col" style={{ gap: 14, flex: 1, width: '100%', maxWidth: wide ? (step === 2 ? 880 : 560) : undefined, alignSelf: 'center' }}>
       <div className="between">
-        {step > 0 || onBack ? <button type="button" className="link" onClick={() => (step === 0 ? onBack?.() : setStep(step - 1))}>{step === 0 && !reg ? '‹ Нормы' : '‹ Назад'}</button> : <span />}
+        {step > 0 || onBack ? <button type="button" className="link" onClick={() => (step === 0 ? onBack?.() : setStep(step - 1))}>{step === 0 && !reg ? '‹ План питания' : '‹ Назад'}</button> : <span />}
         <span className="muted" style={{ fontWeight: 700 }}>Шаг {no} из {total}</span>
       </div>
       <div style={{ display: 'grid', gridTemplateColumns: `repeat(${total}, 1fr)`, gap: 6 }}>
         {Array.from({ length: total }, (_, i) => <i key={i} style={{ height: 5, borderRadius: 3, background: i < no ? 'var(--acc)' : 'var(--track)' }} />)}
       </div>
-      <h1 className="h1 a-h">{['О себе', 'Процент жира', 'Расход и норма'][step]}</h1>
+      <h1 className="h1 a-h">{['О себе', 'Процент жира', 'Расход и план'][step]}</h1>
 
       {step === 0 ? (
         <>
+          {/* at sign-up people did not know why these questions: say what they are for and that they can be skipped */}
+          {reg ? <span className="muted" style={NOTE}>Посчитаем, сколько калорий вам нужно в день. Для этого нужны пол, возраст, вес и рост, процент жира и шаги. Не хотите считать — нажмите «Пропустить расчёт», план можно задать позже в профиле.</span> : null}
           {seg([['m', 'Мужчина'], ['f', 'Женщина']], f.sex, (v) => setF((p) => ({ ...p, sex: v })))}
           <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 10 }}>
             {inp('birth', 'Дата рождения', 'numeric', birthIso && !errs.birth ? years(ageFrom(birthIso)) : null)}
@@ -146,6 +148,7 @@ export function EnergyFlow({ mode, init, wide, busy, error, onBack, onDone, onSk
 
       {step === 1 ? (
         <>
+          <span className="muted" style={NOTE}>Сколько в теле жира. Мышцы тратят больше энергии, чем жир, поэтому с ним расчёт точнее. Не знаете точно — выберите фигуру, на которую вы похожи.</span>
           <div style={{ display: 'grid', gridTemplateColumns: `repeat(${wide ? 6 : 3}, 1fr)`, gap: 8 }}>
             {LEVELS[f.sex].map((pct, i) => {
               const on = i === near && !Number.isNaN(fat);
@@ -173,7 +176,7 @@ export function EnergyFlow({ mode, init, wide, busy, error, onBack, onDone, onSk
       {step === 2 ? (
         <div style={{ display: 'flex', flexWrap: 'wrap', gap: 16, alignItems: 'flex-start' }}>
           <div className="col" style={{ flex: '1 1 300px', minWidth: 0, gap: 12 }}>
-            {inp('steps', 'Шагов в день', 'numeric')}
+            {inp('steps', 'Шагов в день', 'numeric', 'в среднем за обычный день')}
             <div className="col" style={{ gap: 6 }}><span className="sub" style={{ fontSize: 13 }}>Тренировка</span>{seg(TMODES, f.tmode, (v) => setF((p) => ({ ...p, tmode: v })))}</div>
             {f.tmode === 'time' ? inp('min', 'Минут за тренировку', 'numeric') : f.tmode === 'kcal' ? inp('own', 'Ккал за тренировку (с часов)', 'numeric') : null}
             <div className="col" style={{ gap: 6 }}><span className="sub" style={{ fontSize: 13 }}>Цель</span>{seg(GOALS.map(([k, l]) => [k, l] as [Goal, string]), f.goal, (v) => setF((p) => ({ ...p, goal: v })))}</div>
@@ -220,7 +223,7 @@ export function EnergyFlow({ mode, init, wide, busy, error, onBack, onDone, onSk
       <div style={{ flex: 1 }} />
       {error ? <span className="err">{error}</span> : null}
       <button type="button" className="btn big" disabled={!okStep || busy} onClick={next}>{step < 2 ? 'Дальше' : reg ? 'Готово' : 'Сохранить'}</button>
-      {onSkip ? <button type="button" className="btn sec" disabled={busy} onClick={skip} style={{ marginTop: -4 }}>Пропустить</button> : null}
+      {onSkip ? <button type="button" className="btn sec" disabled={busy} onClick={skip} style={{ marginTop: -4 }}>Пропустить расчёт</button> : null}
     </div>
   );
 }

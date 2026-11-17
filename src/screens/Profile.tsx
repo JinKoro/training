@@ -62,7 +62,7 @@ export function ProfileScreen() {
     <>
       <span className="label">Питание</span>
       <div className="list">
-        {!hasNorm(me) ? row('#/profile/recalc', 'Норма калорий', 'Рассчитать ›')
+        {!hasNorm(me) ? row('#/profile/recalc', 'Калории в день', 'Рассчитать ›')
           : n.training ? <>{row('#/profile/norms', 'Тренировочный день', `${fmt(kcal(n.training))} ккал ›`)}{row('#/profile/norms', 'День отдыха', `${fmt(kcal(n.rest))} ккал ›`)}</>
           : <>{row('#/profile/norms', 'Обычный день', `${fmt(kcal(n.rest))} ккал ›`)}{row('#/profile/norms', 'День тренировки', 'Не задано ›')}</>}
         {row('#/profile/body', 'Данные и замеры', '›')}
@@ -401,7 +401,7 @@ export function NormsScreen() {
   return (
     <Screen className="modal">
       <div className="between"><a className="link" href="#/profile">‹ Профиль</a><button className="link" disabled={!nf.valid || busy} onClick={save} style={{ color: nf.valid ? 'var(--acc)' : '#6E6A64' }}>Сохранить</button></div>
-      <h1 className="h1" style={{ fontSize: 26 }}>Нормы питания</h1>
+      <h1 className="h1" style={{ fontSize: 26 }}>План питания</h1>
       {order.map((t) => {
         const m = nf.macros(t);
         return (
@@ -520,7 +520,7 @@ export function DeleteAccountScreen() {
   const body = (
     <div className="col" style={{ gap: 14, maxWidth: wide ? 520 : undefined }}>
       <section className="card col a-in" style={{ gap: 12 }}>
-        <div className="col" style={{ gap: 6 }}><b style={{ color: 'var(--warnT)' }}>Удалится навсегда</b><span className="muted" style={{ lineHeight: 1.45 }}>Профиль и нормы, дневник еды, блюда, тренировки, программы и свои упражнения. Вернуть их будет нельзя.</span></div>
+        <div className="col" style={{ gap: 6 }}><b style={{ color: 'var(--warnT)' }}>Удалится навсегда</b><span className="muted" style={{ lineHeight: 1.45 }}>Профиль и план питания, дневник еды, блюда, тренировки, программы и свои упражнения. Вернуть их будет нельзя.</span></div>
         <div style={{ height: 1, background: 'var(--line)' }} />
         <div className="col" style={{ gap: 6 }}><b>Останется</b><span className="muted" style={{ lineHeight: 1.45 }}>Продукты, которые вы добавили в общую библиотеку, — без вашего имени.</span></div>
       </section>
