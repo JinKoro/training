@@ -95,7 +95,8 @@ export function EnergyFlow({ mode, init, wide, busy, error, onBack, onDone, onSk
 
   const total = reg ? 4 : 3, no = reg ? step + 2 : step + 1;
   const seg = <T extends string>(opts: [T, string][], cur: T, pick: (v: T) => void) => (
-    <div className="seg">{opts.map(([k, l]) => <button key={k} type="button" aria-pressed={cur === k} onClick={() => pick(k)}>{l}</button>)}</div>
+    // one line per option («По времени» wrapped on a phone): the longer label takes the room it needs
+    <div className="seg">{opts.map(([k, l]) => <button key={k} type="button" aria-pressed={cur === k} onClick={() => pick(k)} style={{ flex: '1 1 auto', whiteSpace: 'nowrap', padding: '0 8px', fontSize: 16 }}>{l}</button>)}</div>
   );
   const inp = (k: keyof EnergyForm, label: string, im: 'numeric' | 'decimal', aside?: string | null) => (
     <div className="field" style={{ minWidth: 0 }}>
