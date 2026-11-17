@@ -183,7 +183,7 @@ export function EnergyFlow({ mode, init, wide, busy, error, onBack, onDone, onSk
           </div>
           <div className="col" style={{ flex: '1 1 340px', minWidth: 0, gap: 12 }}>
             <div className="card col a-in" style={{ gap: 12, borderRadius: 22 }}>
-              <div className="between"><b style={{ fontSize: 17 }}>Тратите в день</b><span className="muted" style={{ fontSize: 13, fontWeight: 700 }}>ккал</span></div>
+              <div className="between"><b style={{ fontSize: 17 }}>Расход в день</b><span className="muted" style={{ fontSize: 13, fontWeight: 700 }}>ккал</span></div>
               <div style={{ display: 'flex', gap: 2, height: 12, borderRadius: 6, overflow: 'hidden' }}>
                 {parts.map((p) => <i key={p.n} className="a-fill" style={{ flex: `${Math.max(p.v, 1)} 1 0`, background: p.c }} />)}
               </div>

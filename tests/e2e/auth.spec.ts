@@ -88,7 +88,7 @@ test.describe('Registration wizard', () => {
     const input = { sex: 'f' as const, weight: 62.5, bodyFat: 27, steps: 9000, trainingMode: 'time' as const, trainingMin: 45, trainingKcal: 0 };
     const en = energy(input);
     const norms = suggestNorms(input, 'lose');
-    const card = page.locator('.card', { hasText: 'Тратите в день' });
+    const card = page.locator('.card', { hasText: 'Расход в день' });
     await expect(card.getByText(fmt(en.bmr), { exact: true })).toBeVisible();
     await expect(card.getByText(`+${fmt(en.training)}`, { exact: true })).toBeVisible();
     // the plan says where it comes from: the day's spend minus 10 %
