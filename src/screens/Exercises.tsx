@@ -3,7 +3,7 @@ import { useApp } from '../app-context';
 import { api, ApiError } from '../lib/api';
 import { DEFAULT_REST, MUSCLE_RU, exerciseSubtitle, mmss } from '../lib/calc';
 import { invalidate } from '../lib/query';
-import { go } from '../lib/router';
+import { go, onBackClick } from '../lib/router';
 import type { Exercise } from '../lib/types';
 import { ExerciseArt, KINDS, Muscles } from '../art';
 import { KIND_MUSCLES } from '../lib/kindMuscles';
@@ -222,7 +222,7 @@ export function ExerciseFormScreen({ id }: { id?: number }) {
     <Screen className="modal">
       <div className="col" style={{ gap: 26, padding: '0 4px' }}>
         <div className="navbar">
-          <a className="link" href={back}>Отмена</a>
+          <a className="link" href={back} onClick={onBackClick}>Отмена</a>
           <b>{id ? 'Изменить упражнение' : 'Новое упражнение'}</b>
           <button className="link" disabled={!valid || busy} onClick={save} style={{ color: valid ? 'var(--acc)' : 'var(--muted)' }}>Готово</button>
         </div>

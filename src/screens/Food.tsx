@@ -32,7 +32,7 @@ const EASE = 'cubic-bezier(.22,.9,.24,1)';
  * While the finger moves, styles are written straight to the DOM (no React re-render per frame) for smoothness.
  * A tap opens the entry, or closes the row when the button is showing.
  */
-function SwipeToDelete({ children, onDelete, onTap }: { children: React.ReactNode; onDelete: () => void; onTap: () => void }) {
+export function SwipeToDelete({ children, onDelete, onTap }: { children: React.ReactNode; onDelete: () => void; onTap: () => void }) {
   const wrap = useRef<HTMLDivElement>(null);
   const row = useRef<HTMLButtonElement>(null);
   const bin = useRef<HTMLButtonElement>(null);

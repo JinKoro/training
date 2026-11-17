@@ -5,13 +5,13 @@ import { MEALS, MEAL_IN, MEAL_RU, fmt, fmt1, fmtG, fmtKcal, kcal, kcal100, kcalA
 import { addDays, dayMonth, diffDays, isDayStr, today } from '../lib/dates';
 import { getCamera, parkCamera } from '../lib/camera';
 import { invalidate, useQuery, forget } from '../lib/query';
-import { go, replace } from '../lib/router';
+import { go, onBackClick, replace } from '../lib/router';
 import type { Entry, FoodItem, Meal } from '../lib/types';
 import { FOOD_CATS, SUB_INFO, guessSub } from '../lib/categories';
 import { FoodArt, Icon } from '../art';
 import { AmountInput, ErrorBox, MoreButton, Screen, Sheet, Skeleton, TOAST_MS, errText, menuRow, toast } from '../ui';
 import { SearchInput } from './ExercisePicker';
-import { AmountSheet, Tiles } from './Food';
+import { AmountSheet, SwipeToDelete, Tiles } from './Food';
 
 const asMeal = (m?: string): Meal => (MEALS.includes(m as Meal) ? (m as Meal) : 'breakfast');
 const asDate = (d?: string) => (isDayStr(d) ? d : today());
@@ -750,7 +750,7 @@ export function ProductNewScreen({ date, meal, barcode }: { date?: string; meal?
   const d = asDate(date), m = asMeal(meal);
   return (
     <Screen className="modal">
-      <div className="navbar"><a className="link" href={`#/food/${d}/add/${m}`}>Отмена</a><b>Новый продукт</b><span style={{ width: 60 }} /></div>
+      <div className="navbar"><a className="link" href={`#/food/${d}/add/${m}`} onClick={onBackClick}>Отмена</a><b>Новый продукт</b><span style={{ width: 60 }} /></div>
       <ProductForm barcode={barcode && /^\d+$/.test(barcode) ? barcode : undefined} name={barcode?.startsWith('name:') ? barcode.slice(5) : undefined} onScan={() => go('food', d, 'scan', m)}
         onSaved={(p) => go('food', d, 'item', 'product', p.id, m)} />
     </Screen>
@@ -840,6 +840,10 @@ function IngredientSearch({ date, meal, ing, onBack }: { date: string; meal: Mea
 }
 
 const X3 = (it: Per100, g: number): [number, number, number] => [(it.protein * g) / 100, (it.fat * g) / 100, (it.carbs * g) / 100];
+/** A stable React key per ingredient object (rows slide out on swipe, so an index key would hand the animation to the next row). */
+const ingKeys = new WeakMap<object, number>();
+let ingSeq = 0;
+const ingKey = (i: object) => { let k = ingKeys.get(i); if (k === undefined) { k = ++ingSeq; ingKeys.set(i, k); } return k; };
 /** The per-100 g values an ingredient counts with: its own ones, else the product's. */
 const effOf = (i: Ing): Per100 => (i.own ? { ...i.product, ...i.own } : i.product);
 
@@ -894,8 +898,8 @@ function DishForm({ title, cancel, draft, setDraft, onAddIngredient, onSaved, ed
   const removeIng = () => { if (edit === null) return; patch({ ings: ings.filter((_, j) => j !== edit) }); closeIng(); };
   const done = <button className={wide ? 'btn small' : 'btn big'} disabled={!valid || busy} onClick={() => void save()}>Готово</button>;
   return (
-    <Screen className="modal" title={title} actions={<div className="row" style={{ gap: 10 }}><a className="btn sec small" href={cancel}>Отмена</a>{done}</div>}>
-      {!wide ? <div className="navbar"><a className="link" href={cancel}>Отмена</a><b>{title}</b><span style={{ width: 60 }} /></div> : null}
+    <Screen className="modal" title={title} actions={<div className="row" style={{ gap: 10 }}><a className="btn sec small" href={cancel} onClick={onBackClick}>Отмена</a>{done}</div>}>
+      {!wide ? <div className="navbar"><a className="link" href={cancel} onClick={onBackClick}>Отмена</a><b>{title}</b><span style={{ width: 60 }} /></div> : null}
       <div className="col" style={{ gap: 12, width: '100%', maxWidth: wide ? 760 : 'none' }}>
         <section className="card col a-in" style={{ gap: 12, padding: '14px 16px 16px' }}>
           <label htmlFor="dish-name" className="label">Название</label>
@@ -908,13 +912,14 @@ function DishForm({ title, cancel, draft, setDraft, onAddIngredient, onSaved, ed
             <span className="muted" style={{ fontWeight: 700 }}>{fmt(totK)} ккал</span>
             <button aria-label="Добавить ингредиент" onClick={onAddIngredient} style={{ width: 40, height: 40, borderRadius: 20, flex: 'none', background: 'var(--acc)', color: 'var(--onAcc)', display: 'inline-flex', alignItems: 'center', justifyContent: 'center', fontSize: 22, fontWeight: 800 }}>+</button>
           </div>
-          {ings.map((i, k) => (
-            <button key={k} className="row" onClick={() => { setIg(String(Math.round(gOf(i)))); setIov(i.own ? ownOf(i.own) : null); setEdit(k); }}
-              style={{ width: '100%', minHeight: 48, textAlign: 'left', background: 'var(--card)', borderRadius: 12 }}>
+          {/* swipe left to take an ingredient out, like a diary entry; a tap opens its weight sheet */}
+          {ings.map((i) => (
+            <SwipeToDelete key={ingKey(i)} onDelete={() => setDraft((x) => x && { ...x, ings: x.ings.filter((y) => y !== i) })}
+              onTap={() => { const k = ings.indexOf(i); setIg(String(Math.round(gOf(i)))); setIov(i.own ? ownOf(i.own) : null); setEdit(k); }}>
               <FoodArt kind={i.product.icon} size={40} />
               <div className="grow" style={{ minWidth: 0 }}><div className="ell" style={{ fontWeight: 700, fontSize: 15 }}>{i.product.name}</div><div className="sub">{fmtG(gOf(i))} г · {macroLine(X3(effOf(i), gOf(i)))}</div></div>
               <b style={{ fontSize: 15 }}>{fmt(kcalAt(effOf(i), gOf(i)))}</b>
-            </button>
+            </SwipeToDelete>
           ))}
         </section>
         <div className="a-in" style={{ background: 'var(--hero)', color: 'var(--onHero)', borderRadius: 22, padding: 14 }}>

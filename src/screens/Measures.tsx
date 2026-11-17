@@ -4,7 +4,7 @@ import { api } from '../lib/api';
 import { dayMonth, fromDay, isDayStr, MONTH_GEN, MONTH_NOM, WD_SHORT, today, addDays, toDay, type Day } from '../lib/dates';
 import { CIRCS, METRICS, PERIODS, change, f1, inPeriod, latest, metricOf, seriesOf, type MEntry, type Metric, type MetricKey } from '../lib/measures';
 import { invalidate, useQuery } from '../lib/query';
-import { go } from '../lib/router';
+import { go, onBackClick } from '../lib/router';
 import type { Sex } from '../lib/types';
 import { numIn, vFat, vWeight } from '../lib/validate';
 import { ErrorBox, Field, Screen, Sheet, Skeleton, errText, menuRow, toast } from '../ui';
@@ -153,7 +153,7 @@ export function MeasureScreen() {
         <div className="between">
           <h1 className="h1">Внести замеры</h1>
           <div className="row" style={{ gap: 10 }}>
-            <a className="btn sec small" href="#/profile/body">Отмена</a>
+            <a className="btn sec small" href="#/profile/body" onClick={onBackClick}>Отмена</a>
             <button className="btn small" disabled={!valid || busy} onClick={() => void save()}>Сохранить</button>
           </div>
         </div>
@@ -164,7 +164,7 @@ export function MeasureScreen() {
   return (
     <Screen className="modal">
       <div className="navbar">
-        <a className="link" href="#/profile/body">Отмена</a><b>Замеры</b>
+        <a className="link" href="#/profile/body" onClick={onBackClick}>Отмена</a><b>Замеры</b>
         <button className="link" disabled={!valid || busy} onClick={() => void save()} style={{ color: valid ? 'var(--acc)' : 'var(--muted)' }}>Сохранить</button>
       </div>
       {body}

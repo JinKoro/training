@@ -5,7 +5,7 @@ import { activeProgram, fmt, hasNorm, kcal, programWeek, setNormFor, suggestNorm
 import { ageFrom, today, WD_SHORT, weekDays, weekStart } from '../lib/dates';
 import { useDays } from '../lib/hooks';
 import { clearCache, invalidate } from '../lib/query';
-import { go } from '../lib/router';
+import { go, onBackClick } from '../lib/router';
 import type { Macros, Me, Sex } from '../lib/types';
 import { birthToInput, maskBirth, numIn, parseBirth, vBirth, vFat, vHeight, vName, vPassword, vSteps, vWeight, years } from '../lib/validate';
 import { EnergyFlow, energyFormFrom, type EnergyResult } from './Energy';
@@ -260,7 +260,7 @@ export function ProfileEditScreen() {
         <div className="between" style={{ maxWidth: 1000 }}>
           <h1 className="h1">Данные и замеры</h1>
           <div className="row" style={{ gap: 10 }}>
-            <a className="btn sec small" href="#/profile/body">Отмена</a>
+            <a className="btn sec small" href="#/profile/body" onClick={onBackClick}>Отмена</a>
             <button className="btn small" disabled={!valid || busy} onClick={() => void save()}>Сохранить</button>
           </div>
         </div>
@@ -272,7 +272,7 @@ export function ProfileEditScreen() {
   return (
     <Screen className="modal">
       <div className="navbar">
-        <a className="link" href="#/profile/body">Отмена</a><b>Данные и замеры</b>
+        <a className="link" href="#/profile/body" onClick={onBackClick}>Отмена</a><b>Данные и замеры</b>
         <button className="link" disabled={!valid || busy} onClick={save} style={{ color: valid ? 'var(--acc)' : 'var(--muted)' }}>Сохранить</button>
       </div>
       {cards}
@@ -529,7 +529,7 @@ export function DeleteAccountScreen() {
           <PasswordInput id="del-pass" autoComplete="current-password" value={pass} onChange={(v) => { setPass(v); setErr(null); }} invalid={!!err} />
         </Field>
         <button className="btn big" disabled={!pass || busy} onClick={() => void del()} style={pass ? { background: 'var(--warn)', color: '#fff' } : undefined}>Удалить аккаунт навсегда</button>
-        <a className="btn sec" href="#/profile">Отмена</a>
+        <a className="btn sec" href="#/profile" onClick={onBackClick}>Отмена</a>
       </section>
     </div>
   );

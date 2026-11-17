@@ -233,6 +233,19 @@ test.describe('Food diary', () => {
     await page.getByRole('button', { name: 'Добавить Куриная грудка' }).click();
     await expect(total).toContainText('Всё блюдо · 310 г');
 
+    // a swipe to the left takes an ingredient out too, like a diary entry
+    const box = (await ing('Куриная грудка').boundingBox())!;
+    const cdp = await page.context().newCDPSession(page);
+    const y = box.y + box.height / 2, x0 = box.x + box.width - 10;
+    await cdp.send('Input.dispatchTouchEvent', { type: 'touchStart', touchPoints: [{ x: x0, y }] });
+    for (let k = 1; k <= 10; k++) await cdp.send('Input.dispatchTouchEvent', { type: 'touchMove', touchPoints: [{ x: x0 - k * box.width * 0.08, y }] });
+    await cdp.send('Input.dispatchTouchEvent', { type: 'touchEnd', touchPoints: [] });
+    await expect(ing('Куриная грудка')).toHaveCount(0);
+    await expect(total).toContainText('Всё блюдо · 190 г');
+    await page.getByRole('button', { name: 'Добавить ингредиент' }).click();
+    await page.getByRole('button', { name: 'Добавить Куриная грудка' }).click();
+    await expect(total).toContainText('Всё блюдо · 310 г');
+
     await done.click();
     await expect(page.getByRole('heading', { name: 'Гречка с курицей' })).toBeVisible();
     await expect(page.getByText('своё блюдо', { exact: true })).toBeVisible();
@@ -284,6 +297,15 @@ test.describe('Food diary', () => {
     await page.getByRole('button', { name: 'Меню' }).click();
     await sheet(page, 'Блюдо').getByRole('link', { name: 'Изменить' }).click();
     await expect(page.getByText('Изменить блюдо')).toBeVisible();
+    // «Отмена» steps back, so «‹ Назад» then leaves the dish instead of opening the form again
+    await page.getByRole('link', { name: 'Отмена' }).click();
+    await expect(page.getByRole('heading', { name: 'Обеденная каша' })).toBeVisible();
+    await page.getByRole('button', { name: '‹ Назад' }).click();
+    await expect(page.getByPlaceholder('Поиск по всем продуктам и блюдам')).toBeVisible();
+    await expect(page.getByText('Изменить блюдо')).toHaveCount(0);
+    await page.locator('a', { hasText: 'Обеденная каша' }).click();
+    await page.getByRole('button', { name: 'Меню' }).click();
+    await sheet(page, 'Блюдо').getByRole('link', { name: 'Изменить' }).click();
     await expect(page.getByLabel('Название')).toHaveValue('Обеденная каша');
     const ings = page.getByRole('region', { name: 'Ингредиенты' });
     await expect(ings.locator('button.row', { hasText: 'Гречка варёная' })).toContainText('200 г');
