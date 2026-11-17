@@ -216,7 +216,7 @@ export function EnergyFlow({ mode, init, wide, busy, error, onBack, onDone, onSk
               ))}
             </div>
             <FoodQualityNote />
-            <span className="muted" style={{ fontSize: 13, lineHeight: 1.4 }}>Расчёт примерный, это не медицинская рекомендация.</span>
+            <span className="muted" style={{ fontSize: 13, lineHeight: 1.4 }}>Расчёт примерный, не является медицинской рекомендацией.</span>
           </div>
         </div>
       ) : null}

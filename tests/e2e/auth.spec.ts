@@ -97,7 +97,7 @@ test.describe('Registration wizard', () => {
     await expect(page.getByText(`${fmt(kcal(norms.training!))} ккал`, { exact: true })).toBeVisible();
     await expect(page.getByText(`${fmt(kcal(norms.rest))} ккал`, { exact: true })).toBeVisible();
 
-    await expect(page.getByText(/Расчёт примерный.*не медицинская рекомендация/)).toBeVisible();
+    await expect(page.getByText("Расчёт примерный, не является медицинской рекомендацией.")).toBeVisible();
 
     // Back keeps the body data.
     await page.getByRole('button', { name: '‹ Назад' }).click();
