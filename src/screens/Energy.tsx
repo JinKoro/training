@@ -119,11 +119,9 @@ export function EnergyFlow({ mode, init, wide, busy, error, onBack, onDone, onSk
       n: 'Тренировка', v: en.training, c: 'var(--warn)', plus: true,
     }]),
   ];
-  // each day's plan shows where it comes from: that day's spend, then the goal (−10 % / as is / +10 %)
   const days = norms.training
-    ? [{ n: 'День тренировки', m: norms.training, spend: en.train }, { n: 'День отдыха', m: norms.rest, spend: en.rest }]
-    : [{ n: 'В день', m: norms.rest, spend: en.rest }];
-  const goalPart = GOALS.find((g) => g[0] === f.goal)![2];
+    ? [{ n: 'День тренировки', m: norms.training }, { n: 'День отдыха', m: norms.rest }]
+    : [{ n: 'В день', m: norms.rest }];
 
   return (
     <div className="col" style={{ gap: 14, flex: 1, width: '100%', maxWidth: wide ? (step === 2 ? 880 : 560) : undefined, alignSelf: 'center' }}>
@@ -179,7 +177,13 @@ export function EnergyFlow({ mode, init, wide, busy, error, onBack, onDone, onSk
             {inp('steps', 'Шагов в день', 'numeric', null, 'в среднем за день')}
             <div className="col" style={{ gap: 6 }}><span className="sub" style={{ fontSize: 13 }}>Тренировка</span>{seg(TMODES, f.tmode, (v) => setF((p) => ({ ...p, tmode: v })))}</div>
             {f.tmode === 'time' ? inp('min', 'Минут за тренировку', 'numeric') : f.tmode === 'kcal' ? inp('own', 'Ккал за тренировку', 'numeric') : null}
-            <div className="col" style={{ gap: 6 }}><span className="sub" style={{ fontSize: 13 }}>Цель</span>{seg(GOALS.map(([k, l]) => [k, l] as [Goal, string]), f.goal, (v) => setF((p) => ({ ...p, goal: v })))}</div>
+            <div className="col" style={{ gap: 6 }}><span className="sub" style={{ fontSize: 13 }}>Цель</span><div className="seg">{GOALS.map(([k, l, pct]) => (
+              // the goal says how it changes the calories: «Похудеть −10 %», «Держать», «Набрать +10 %»
+              <button key={k} type="button" aria-pressed={f.goal === k} onClick={() => setF((p) => ({ ...p, goal: k }))}
+                style={{ flex: '1 1 auto', height: 52, padding: '0 6px', display: 'flex', flexDirection: 'column', alignItems: 'center', justifyContent: 'center', gap: 0, lineHeight: 1.15 }}>
+                <span style={{ fontSize: 16, whiteSpace: 'nowrap' }}>{l}</span>{pct ? <span style={{ fontSize: 12, opacity: 0.8 }}>{pct}</span> : null}
+              </button>
+            ))}</div></div>
           </div>
           <div className="col" style={{ flex: '1 1 340px', minWidth: 0, gap: 12 }}>
             <div className="card col a-in" style={{ gap: 12, borderRadius: 22 }}>
@@ -206,7 +210,7 @@ export function EnergyFlow({ mode, init, wide, busy, error, onBack, onDone, onSk
               {days.map((d) => (
                 <div key={d.n} className="col" style={{ gap: 6 }}>
                   <div className="between" style={{ alignItems: 'flex-end' }}>
-                    <span className="col" style={{ gap: 1 }}><span style={{ fontWeight: 700 }}>{d.n}</span><span style={{ fontSize: 13, fontWeight: 700, opacity: 0.85 }}>{goalPart ? `расход ${fmt(d.spend)} ${goalPart}` : `как расход ${fmt(d.spend)}`}</span></span>
+                    <span style={{ fontWeight: 700 }}>{d.n}</span>
                     <b className="display num" style={{ fontSize: 20 }}>{fmt(kcal(d.m))} ккал</b>
                   </div>
                   <div style={{ display: 'grid', gridTemplateColumns: 'repeat(3, 1fr)', gap: 6 }}>

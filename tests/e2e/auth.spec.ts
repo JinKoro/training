@@ -93,8 +93,7 @@ test.describe('Registration wizard', () => {
     await expect(card.getByText(`+${fmt(en.training)}`, { exact: true })).toBeVisible();
     // the plan says where it comes from: the day's spend minus 10 %
     await expect(page.getByText('План калорий')).toBeVisible();
-    await expect(page.getByText(`расход ${fmt(en.train)} −10 %`, { exact: true })).toBeVisible();
-    await expect(page.getByText(`расход ${fmt(en.rest)} −10 %`, { exact: true })).toBeVisible();
+    await expect(page.getByRole('button', { name: 'Похудеть −10 %' })).toHaveAttribute('aria-pressed', 'true');
     await expect(page.getByText(`${fmt(kcal(norms.training!))} ккал`, { exact: true })).toBeVisible();
     await expect(page.getByText(`${fmt(kcal(norms.rest))} ккал`, { exact: true })).toBeVisible();
 
