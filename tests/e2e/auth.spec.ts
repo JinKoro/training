@@ -201,7 +201,7 @@ test.describe('Registration wizard', () => {
     await page.getByLabel('Мой процент').fill('22');
     await page.getByRole('button', { name: 'Дальше' }).click();
     await expect(page.getByRole('heading', { name: 'Расход и план' })).toBeVisible();
-    await expect(page.getByText('в среднем за обычный день')).toBeVisible();
+    await expect(page.getByPlaceholder('в среднем за день')).toBeVisible();
     await page.getByRole('button', { name: 'Пропустить расчёт' }).click();
     await expect(page).toHaveURL(/#\/week/);
     await expect(page.getByText('План калорий не задан')).toBeVisible();

@@ -98,12 +98,14 @@ export function EnergyFlow({ mode, init, wide, busy, error, onBack, onDone, onSk
     // one line per option («По времени» wrapped on a phone): the longer label takes the room it needs
     <div className="seg">{opts.map(([k, l]) => <button key={k} type="button" aria-pressed={cur === k} onClick={() => pick(k)} style={{ flex: '1 1 auto', whiteSpace: 'nowrap', padding: '0 8px', fontSize: 16 }}>{l}</button>)}</div>
   );
-  const inp = (k: keyof EnergyForm, label: string, im: 'numeric' | 'decimal', aside?: string | null) => (
+  /** `ph`: a hint inside the empty field («в среднем за день»); `aside`: a line under it. */
+  const inp = (k: keyof EnergyForm, label: string, im: 'numeric' | 'decimal', aside?: string | null, ph?: string) => (
     <div className="field" style={{ minWidth: 0 }}>
       <label htmlFor={`en-${k}`} className="sub" style={{ fontSize: 13 }}><span>{label}</span></label>
-      <input id={`en-${k}`} className="input" inputMode={im} placeholder={k === 'birth' ? 'ДД.ММ.ГГГГ' : undefined} value={f[k]} onChange={set(k)} aria-invalid={!!show(k)}
+      <input id={`en-${k}`} className={ph ? 'input ph-hint' : 'input'} inputMode={im} placeholder={ph ?? (k === 'birth' ? 'ДД.ММ.ГГГГ' : undefined)} value={f[k]} onChange={set(k)} aria-invalid={!!show(k)}
         style={{ height: 50, borderRadius: 12, fontFamily: 'var(--display)', fontWeight: 800, fontSize: 18 }} />
-      <span className={show(k) ? 'err' : 'sub'} style={{ fontSize: 12, minHeight: 15 }}>{show(k) ?? aside ?? ''}</span>
+      {/* the line under a field only when there is something to say (an error or a note), no empty gap */}
+      {show(k) || aside ? <span className={show(k) ? 'err' : 'sub'} style={{ fontSize: 12 }}>{show(k) ?? aside}</span> : null}
     </div>
   );
   const birthIso = parseBirth(f.birth);
@@ -175,9 +177,9 @@ export function EnergyFlow({ mode, init, wide, busy, error, onBack, onDone, onSk
       ) : null}
 
       {step === 2 ? (
-        <div style={{ display: 'flex', flexWrap: 'wrap', gap: 16, alignItems: 'flex-start' }}>
-          <div className="col" style={{ flex: '1 1 300px', minWidth: 0, gap: 12 }}>
-            {inp('steps', 'Шагов в день', 'numeric', 'в среднем за обычный день')}
+        <div style={{ display: 'flex', flexWrap: 'wrap', gap: 12, alignItems: 'flex-start' }}>
+          <div className="col" style={{ flex: '1 1 300px', minWidth: 0, gap: 8 }}>
+            {inp('steps', 'Шагов в день', 'numeric', null, 'в среднем за день')}
             <div className="col" style={{ gap: 6 }}><span className="sub" style={{ fontSize: 13 }}>Тренировка</span>{seg(TMODES, f.tmode, (v) => setF((p) => ({ ...p, tmode: v })))}</div>
             {f.tmode === 'time' ? inp('min', 'Минут за тренировку', 'numeric') : f.tmode === 'kcal' ? inp('own', 'Ккал за тренировку', 'numeric') : null}
             <div className="col" style={{ gap: 6 }}><span className="sub" style={{ fontSize: 13 }}>Цель</span>{seg(GOALS.map(([k, l]) => [k, l] as [Goal, string]), f.goal, (v) => setF((p) => ({ ...p, goal: v })))}</div>

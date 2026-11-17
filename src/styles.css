@@ -178,3 +178,5 @@ html[data-theme="dark"] .live-bar { box-shadow: none; }
 .live-bar .live-go { flex: none; height: 44px; padding: 0 14px; border-radius: 16px; background: #fff; color: #C2410C; font-weight: 800; font-size: 15px; display: flex; align-items: center; }
 .spinner { display: inline-block; flex: none; border-radius: 50%; border: 2.5px solid currentColor; border-right-color: transparent; animation: spin .7s linear infinite; }
 @keyframes spin { to { transform: rotate(360deg); } }
+/* a hint inside an empty field (not a value): regular weight, smaller */
+.input.ph-hint::placeholder { font-family: var(--font); font-weight: 600; font-size: 16px; }
