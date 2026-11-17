@@ -151,7 +151,7 @@ export function EnergyFlow({ mode, init, wide, busy, error, onBack, onDone, onSk
 
       {step === 1 ? (
         <>
-          <span className="muted" style={NOTE}>Сколько в теле жира. Мышцы тратят больше энергии, чем жир, поэтому с ним расчёт точнее. Не знаете точно — выберите фигуру, на которую вы похожи.</span>
+          <span className="muted" style={NOTE}>Нужен, чтобы точнее посчитать калории: мышцы тратят больше энергии, чем жир.</span>
           <div style={{ display: 'grid', gridTemplateColumns: `repeat(${wide ? 6 : 3}, 1fr)`, gap: 8 }}>
             {LEVELS[f.sex].map((pct, i) => {
               const on = i === near && !Number.isNaN(fat);

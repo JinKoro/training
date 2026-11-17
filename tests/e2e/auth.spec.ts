@@ -183,7 +183,7 @@ test.describe('Registration wizard', () => {
     await page.getByLabel('Вес, кг').fill('58');
     await page.getByLabel('Рост, см').fill('165');
     await page.getByRole('button', { name: 'Дальше' }).click();
-    await expect(page.getByText(/^Сколько в теле жира/)).toBeVisible();
+    await expect(page.getByText(/^Нужен, чтобы точнее посчитать калории/)).toBeVisible();
     await page.getByRole('button', { name: 'Пропустить', exact: true }).click();
     await expect(page).toHaveURL(/#\/week/);
     await open(page, 'profile/body');
