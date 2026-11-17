@@ -8,7 +8,7 @@ import { clearCache, invalidate } from '../lib/query';
 import { go, onBackClick } from '../lib/router';
 import type { Macros, Me, Sex } from '../lib/types';
 import { birthToInput, maskBirth, numIn, parseBirth, vBirth, vFat, vHeight, vName, vPassword, vSteps, vWeight, years } from '../lib/validate';
-import { EnergyFlow, energyFormFrom, type EnergyResult } from './Energy';
+import { EnergyFlow, energyFormFrom, type EnergyResult, FoodQualityNote } from './Energy';
 import { BodyFigure } from '../art/Body';
 import { MeasuresCard } from './Measures';
 import { Field, Screen, Sheet, errText, toast, PasswordInput } from '../ui';
@@ -426,6 +426,7 @@ export function NormsScreen() {
         <div><b>Бюджет этой недели</b><div style={{ fontSize: 13, opacity: 0.9 }}>{wb.text}</div></div>
         <b className="display" style={{ fontSize: 20, whiteSpace: 'nowrap' }}>{fmt(wb.B)} ккал</b>
       </div>
+      <FoodQualityNote />
       <a className="btn sec" style={{ height: 48, borderRadius: 18, fontSize: 15 }} href="#/profile/recalc">Пересчитать по формуле</a>
     </Screen>
   );

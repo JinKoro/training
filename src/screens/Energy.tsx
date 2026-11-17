@@ -215,6 +215,7 @@ export function EnergyFlow({ mode, init, wide, busy, error, onBack, onDone, onSk
                 </div>
               ))}
             </div>
+            <FoodQualityNote />
             <span className="muted" style={{ fontSize: 13, lineHeight: 1.4 }}>Расчёт примерный, это не медицинская рекомендация.</span>
           </div>
         </div>
@@ -229,3 +230,8 @@ export function EnergyFlow({ mode, init, wide, busy, error, onBack, onDone, onSk
 }
 
 const fmt1 = (n: number) => (Math.round(n * 10) / 10).toLocaleString('ru-RU');
+
+/** Calories are not everything: shown under the plan in the calculator and on «План питания». */
+export const FoodQualityNote = () => (
+  <span style={{ fontSize: 14, lineHeight: 1.4 }}>Важно и то, что вы едите: основу пусть составляют обычные продукты — мясо, рыба, яйца, крупы, овощи, фрукты. Сладкому, фастфуду и другим вкусняшкам — не больше 20 % калорий за день.</span>
+);
