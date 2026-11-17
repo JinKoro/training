@@ -25,7 +25,7 @@ export function BodyFigure({ sex, fat, size = 96, selected }: { sex: 'm' | 'f'; 
   const band = fem ? `M${X(W + B * 0.5)} 59.4H${x(W + B * 0.5)}` : `M${X(Math.max(H, W + B * 0.6))} 60.4H${x(Math.max(H, W + B * 0.6))}`;
   const abs = fem ? 'M30 44V50.5' : `M30 39.5V56.5M${X(W * 0.42)} 45.5H${x(W * 0.42)}M${X(W * 0.4)} 50.5H${x(W * 0.4)}M${X(Ch - 2.2)} 36.5Q${X(5.5)} 40 ${X(0.6)} 37.6M${x(Ch - 2.2)} 36.5Q${x(5.5)} 40 ${x(0.6)} 37.6`;
   const folds = fem ? `M${X(W * 0.8)} 55Q30 57.8 ${x(W * 0.8)} 55` : `M${X(W * 0.75)} 57.6Q30 61.2 ${x(W * 0.75)} 57.6M${X(Ch - 1.5)} 38Q${X(5)} 42.4 ${X(1)} 39M${x(Ch - 1.5)} 38Q${x(5)} 42.4 ${x(1)} 39`;
-  const hair = fem ? 'M22.6 15.5C21 1.8 39 1.8 37.4 15.5L35.9 15.5C36.6 8 23.4 8 24.1 15.5Z' : 'M23.4 9.5C23 2.6 37 2.6 36.6 9.5C34.8 6.4 25.2 6.4 23.4 9.5Z';
+  const hair = fem ? 'M22.4 15.5C20.8 -1.4 39.2 -1.4 37.6 15.5L35.9 15.5C36.6 4.6 23.4 4.6 24.1 15.5Z' : 'M23.4 9.5C23 2.6 37 2.6 36.6 9.5C34.8 6.4 25.2 6.4 23.4 9.5Z';
   const skin = selected ? 'var(--bodyOn)' : 'var(--body)', cloth = selected ? 'var(--chart)' : 'var(--cloth)', hairC = selected ? 'var(--hairOn)' : 'var(--hair)';
   const line = 'rgba(16,21,28,.32)', mirror = 'translate(60 0) scale(-1 1)';
   return (
