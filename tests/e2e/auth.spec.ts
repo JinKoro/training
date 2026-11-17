@@ -146,7 +146,7 @@ test.describe('Registration wizard', () => {
 
   test('«Пропустить» on «О себе» skips everything: no calories, the week and food show what was eaten only', async ({ page }) => {
     await step1(page);
-    await page.getByRole('button', { name: 'Пропустить расчёт' }).click();
+    await page.getByRole('button', { name: 'Пропустить', exact: true }).click();
     await expect(page).toHaveURL(/#\/week/);
     await expect(page.getByText('План калорий не задан')).toBeVisible();
     await expect(page.getByText('Бюджет на неделю')).toHaveCount(0);
@@ -175,15 +175,13 @@ test.describe('Registration wizard', () => {
 
   test('«Пропустить» on «Процент жира» keeps step 2; on «Расход и план» keeps the body fat too', async ({ page }) => {
     await step1(page);
-    // what the questions are for, and that they can be skipped
-    await expect(page.getByText(/^Посчитаем, сколько калорий вам нужно в день/)).toBeVisible();
     await page.getByRole('button', { name: 'Женщина' }).click();
     await page.getByLabel('Дата рождения').pressSequentially('01011995');
     await page.getByLabel('Вес, кг').fill('58');
     await page.getByLabel('Рост, см').fill('165');
     await page.getByRole('button', { name: 'Дальше' }).click();
     await expect(page.getByText(/^Сколько в теле жира/)).toBeVisible();
-    await page.getByRole('button', { name: 'Пропустить расчёт' }).click();
+    await page.getByRole('button', { name: 'Пропустить', exact: true }).click();
     await expect(page).toHaveURL(/#\/week/);
     await open(page, 'profile/body');
     await expect(page.getByText('58 кг')).toBeVisible();

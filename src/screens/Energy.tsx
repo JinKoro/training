@@ -134,8 +134,6 @@ export function EnergyFlow({ mode, init, wide, busy, error, onBack, onDone, onSk
 
       {step === 0 ? (
         <>
-          {/* at sign-up people did not know why these questions: say what they are for and that they can be skipped */}
-          {reg ? <span className="muted" style={NOTE}>Посчитаем, сколько калорий вам нужно в день. Для этого нужны пол, возраст, вес и рост, процент жира и шаги. Не хотите считать — нажмите «Пропустить расчёт», план можно задать позже в профиле.</span> : null}
           {seg([['m', 'Мужчина'], ['f', 'Женщина']], f.sex, (v) => setF((p) => ({ ...p, sex: v })))}
           <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 10 }}>
             {inp('birth', 'Дата рождения', 'numeric', birthIso && !errs.birth ? years(ageFrom(birthIso)) : null)}
@@ -223,7 +221,7 @@ export function EnergyFlow({ mode, init, wide, busy, error, onBack, onDone, onSk
       <div style={{ flex: 1 }} />
       {error ? <span className="err">{error}</span> : null}
       <button type="button" className="btn big" disabled={!okStep || busy} onClick={next}>{step < 2 ? 'Дальше' : reg ? 'Готово' : 'Сохранить'}</button>
-      {onSkip ? <button type="button" className="btn sec" disabled={busy} onClick={skip} style={{ marginTop: -4 }}>Пропустить расчёт</button> : null}
+      {onSkip ? <button type="button" className="btn sec" disabled={busy} onClick={skip} style={{ marginTop: -4 }}>{step === 2 ? 'Пропустить расчёт' : 'Пропустить'}</button> : null}
     </div>
   );
 }
