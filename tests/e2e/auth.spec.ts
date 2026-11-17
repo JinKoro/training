@@ -91,7 +91,6 @@ test.describe('Registration wizard', () => {
     const card = page.locator('.card', { hasText: 'Тратите в день' });
     await expect(card.getByText(fmt(en.bmr), { exact: true })).toBeVisible();
     await expect(card.getByText(`+${fmt(en.training)}`, { exact: true })).toBeVisible();
-    await expect(card.getByText('Столько, чтобы вес не менялся')).toBeVisible();
     // the plan says where it comes from: the day's spend minus 10 %
     await expect(page.getByText('План калорий')).toBeVisible();
     await expect(page.getByText(`расход ${fmt(en.train)} −10 %`, { exact: true })).toBeVisible();

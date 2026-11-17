@@ -110,14 +110,13 @@ export function EnergyFlow({ mode, init, wide, busy, error, onBack, onDone, onSk
   );
   const birthIso = parseBirth(f.birth);
   const near = LEVELS[f.sex].reduce((b, x, i, a) => (Math.abs(x - fat) < Math.abs(a[b] - fat) ? i : b), 0);
-  const profileNote = reg ? <span className="muted" style={NOTE}>Всё это можно будет изменить в профиле.</span> : null;
 
   const parts = [
-    { n: 'Базовый обмен', sub: `370 + 21,6 × ${fmt1(en.lean)} кг сухой массы`, v: en.bmr, c: 'var(--chart)' },
-    { n: 'Переваривание еды', sub: '17 % от базового', v: en.tef, c: 'var(--dig)' },
-    { n: 'Шаги', sub: `${fmt(input.steps)} × ${fmt(en.per1000)} ккал на 1 000 шагов`, v: en.steps, c: 'var(--good)' },
+    { n: 'Базовый обмен', v: en.bmr, c: 'var(--chart)' },
+    { n: 'Переваривание еды', v: en.tef, c: 'var(--dig)' },
+    { n: 'Шаги', v: en.steps, c: 'var(--good)' },
     ...(f.tmode === 'none' ? [] : [{
-      n: 'Тренировка', sub: `${f.tmode === 'time' ? `0,07 × ${fmt1(input.weight)} кг × ${fmt(input.trainingMin)} мин · ` : ''}только в дни тренировок`, v: en.training, c: 'var(--warn)', plus: true,
+      n: 'Тренировка', v: en.training, c: 'var(--warn)', plus: true,
     }]),
   ];
   // each day's plan shows where it comes from: that day's spend, then the goal (−10 % / as is / +10 %)
@@ -145,7 +144,6 @@ export function EnergyFlow({ mode, init, wide, busy, error, onBack, onDone, onSk
             {inp('weight', 'Вес, кг', 'decimal')}
             {inp('height', 'Рост, см', 'numeric')}
           </div>
-          {profileNote}
         </>
       ) : null}
 
@@ -172,7 +170,6 @@ export function EnergyFlow({ mode, init, wide, busy, error, onBack, onDone, onSk
             </div>
           </div>
           <span className="muted" style={NOTE}>Точнее процент жира покажет биоимпедансный анализ: умные весы, фитнес-клуб или клиника. Ещё можно сравнить себя с фото в интернете.</span>
-          {profileNote}
         </>
       ) : null}
 
@@ -191,9 +188,9 @@ export function EnergyFlow({ mode, init, wide, busy, error, onBack, onDone, onSk
                 {parts.map((p) => <i key={p.n} className="a-fill" style={{ flex: `${Math.max(p.v, 1)} 1 0`, background: p.c }} />)}
               </div>
               {parts.map((p) => (
-                <div key={p.n} style={{ display: 'grid', gridTemplateColumns: '12px 1fr auto', gap: 10, alignItems: 'start' }}>
-                  <i style={{ width: 12, height: 12, borderRadius: 4, background: p.c, marginTop: 4 }} />
-                  <span className="col" style={{ gap: 2, minWidth: 0 }}><b>{p.n}</b><span className="muted" style={{ fontSize: 13, lineHeight: 1.3 }}>{p.sub}</span></span>
+                <div key={p.n} style={{ display: 'grid', gridTemplateColumns: '12px 1fr auto', gap: 10, alignItems: 'center' }}>
+                  <i style={{ width: 12, height: 12, borderRadius: 4, background: p.c }} />
+                  <b style={{ minWidth: 0 }}>{p.n}</b>
                   <b className="display num" style={{ fontSize: 16, whiteSpace: 'nowrap' }}>{'plus' in p ? '+' : ''}{fmt(p.v)}</b>
                 </div>
               ))}
@@ -203,8 +200,6 @@ export function EnergyFlow({ mode, init, wide, busy, error, onBack, onDone, onSk
                   <div key={n} className="col" style={{ gap: 2 }}><span className="sub" style={{ fontSize: 13 }}>{n}</span><b className="display num" style={{ fontSize: 20 }}>{fmt(v as number)}</b></div>
                 ))}
               </div>
-              {/* people took this for the plan: it is what keeps the weight as it is */}
-              <span className="muted" style={{ fontSize: 13, fontWeight: 700 }}>Столько, чтобы вес не менялся</span>
             </div>
             <div className="col a-in" style={{ background: 'var(--hero)', color: '#fff', borderRadius: 22, padding: 16, gap: 12 }}>
               <div className="between"><b style={{ fontSize: 17 }}>План калорий</b><span style={{ fontSize: 13, fontWeight: 700, opacity: 0.85 }}>{GOALS.find((g) => g[0] === f.goal)![1]}</span></div>
@@ -222,8 +217,7 @@ export function EnergyFlow({ mode, init, wide, busy, error, onBack, onDone, onSk
                 </div>
               ))}
             </div>
-            {reg ? <span className="muted" style={NOTE}>Желаемые калории можно будет поменять в профиле.</span> : null}
-            <span className="muted" style={{ fontSize: 13, lineHeight: 1.4 }}>Расчёт примерный, по общим формулам. Это не медицинская рекомендация: при болезнях, беременности или особой диете посоветуйтесь с врачом.</span>
+            <span className="muted" style={{ fontSize: 13, lineHeight: 1.4 }}>Расчёт примерный, это не медицинская рекомендация.</span>
           </div>
         </div>
       ) : null}
