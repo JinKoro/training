@@ -5,7 +5,7 @@ import type { Exercise } from '../lib/types';
 import { ExerciseArt } from '../art';
 
 /** Filter chips: body-part groups, plus "m:<muscle>" for a muscle (glutes are part of legs but worth their own chip). */
-export const GROUP_CHIPS: [string, string | null][] = [['Все', null], ['Ноги', 'legs'], ['Ягодицы', 'm:glutes'], ['Спина', 'back'], ['Грудь', 'chest'], ['Плечи', 'shoulders'], ['Руки', 'arms'], ['Пресс', 'abs'], ['Кардио', 'cardio'], ['Мои', 'own']];
+export const GROUP_CHIPS: [string, string | null][] = [['Все', null], ['Ноги', 'legs'], ['Ягодицы', 'm:glutes'], ['Спина', 'back'], ['Грудь', 'chest'], ['Плечи', 'shoulders'], ['Руки', 'arms'], ['Пресс', 'abs'], ['Кардио', 'cardio'], ['Разминка', 'warmup'], ['Мои', 'own']];
 
 export function filterExercises(list: Exercise[], group: string | null, q: string) {
   const s = q.trim().toLowerCase();

@@ -44,7 +44,8 @@ test.describe('Ready-made programs', () => {
     const day = templateDay(t, 12, 0);
     const mon = page.locator('.card', { hasText: 'Понедельник' });
     await expect(mon).toContainText(`${day.length} упр.`);
-    await expect(mon).toContainText(`${day[0].sets}×${day[0].reps}`);
+    await expect(mon).toContainText('Разминка10 мин'); // every day opens with the warmup
+    await expect(mon).toContainText(`${day[1].sets}×${day[1].reps}`);
     await expect(mon).toContainText('дропсет'); // last accessory of a peak week, levels 1–2
   });
 

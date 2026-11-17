@@ -1,7 +1,7 @@
 import { useState } from 'react';
 import { useApp } from '../app-context';
 import { api } from '../lib/api';
-import { activeProgram, DEFAULT_REST, dayTitle, exerciseSubtitle, mmss, plannedOpen, planMinutes, planRows, programWeek, setWeights, showKg, slotDone, workoutFromPlan } from '../lib/calc';
+import { activeProgram, DEFAULT_REST, schemeText, dayTitle, exerciseSubtitle, mmss, plannedOpen, planMinutes, planRows, programWeek, setWeights, showKg, slotDone, workoutFromPlan } from '../lib/calc';
 import { addDays, diffDays, isDayStr, plural, today, WD_CAP, weekStart } from '../lib/dates';
 import { invalidate, seed, useQuery } from '../lib/query';
 import { go } from '../lib/router';
@@ -112,7 +112,7 @@ export function DayScreen({ date }: { date?: string }) {
                     <span className="muted" style={{ fontWeight: 800 }}>›</span>
                   </div>
                   <div className="row" style={{ gap: 6 }}>
-                    {[[`${r.sets} × ${r.reps}`, 'подходы', 1], [wText, 'вес, кг', 1.6], [mmss(rest), 'отдых', 1]].map(([v, l, f]) => (
+                    {(ex?.type === 'time' ? [[schemeText(r, ex.type), 'время', 1], ...(wText !== '—' ? [[wText, 'вес, кг', 1.6]] : []), ...(rest ? [[mmss(rest), 'отдых', 1]] : [])] : [[`${r.sets} × ${r.reps}`, 'подходы', 1], [wText, 'вес, кг', 1.6], [mmss(rest), 'отдых', 1]]).map(([v, l, f]) => (
                       <div key={String(l)} style={{ flex: Number(f), minWidth: 0, background: 'var(--bg)', borderRadius: 10, padding: '6px 8px' }}>
                         <div className="ell" style={{ fontWeight: 800, fontSize: 15 }}>{v}</div>
                         <div className="sub" style={{ fontSize: 12 }}>{l}</div>

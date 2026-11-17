@@ -100,7 +100,7 @@ describe('blockOf / schemeOf', () => {
   });
   it('women: reps only 8–15 for non-abs in every week', () => {
     for (const x of templatesFor('f')) for (let w = 1; w <= x.weeks; w++) for (let d = 0; d < 3; d++) {
-      for (const r of templateDay(x, w, d)) if (r.kind !== 'p') {
+      for (const r of templateDay(x, w, d)) if (r.kind !== 'p' && r.kind !== 'w') {
         const { min, max } = parseReps(r.reps);
         expect(min).toBeGreaterThanOrEqual(8);
         expect(max).toBeLessThanOrEqual(15);
@@ -126,6 +126,7 @@ describe('restOf', () => {
 describe('templateDay', () => {
   it('rows of m0 day A week 1', () => {
     expect(templateDay(t('m0'), 1, 0)).toEqual([
+      { name: 'Разминка', kind: 'w', sets: 1, reps: '600', rest: 0, note: null },
       { name: 'Жим штанги лёжа', kind: 'm', sets: 3, reps: '12', rest: 150, note: null },
       { name: 'Тяга верхнего блока к груди', kind: 'm', sets: 3, reps: '12', rest: 150, note: null },
       { name: 'Жим ногами, стандартная', kind: 'm', sets: 3, reps: '12', rest: 150, note: null },
@@ -139,8 +140,13 @@ describe('templateDay', () => {
     expect(templateDay(t('m2'), 12, 1).at(-1)!.note).toBeNull(); // last is abs
     expect(templateDay(t('f2'), 10, 2).find((r) => r.name === 'Ягодичный мост на полу')!.note).toBe('на одной ноге');
   });
+  it('every day of every template opens with a 10-minute warmup', () => {
+    for (const x of TEMPLATES) for (let w = 1; w <= x.weeks; w++) for (let d = 0; d < x.days.length; d++) {
+      expect(templateDay(x, w, d)[0]).toEqual({ name: 'Разминка', kind: 'w', sets: 1, reps: '600', rest: 0, note: null });
+    }
+  });
   it('dayMinutes', () => {
-    expect(dayMinutes(templateDay(t('m0'), 1, 0))).toBe(Math.round((3 * 195 * 3 + 3 * 135) / 60));
+    expect(dayMinutes(templateDay(t('m0'), 1, 0))).toBe(Math.round((600 + 3 * 195 * 3 + 3 * 135) / 60));
     expect(dayMinutes([])).toBe(0);
   });
 });

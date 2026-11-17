@@ -166,7 +166,7 @@ function Editor({ mode, program, week }: { mode: 'new' | 'edit'; program?: Progr
         </div>
       </div>
       {/* the load follows the plan as it is being written; a bar opens its week */}
-      <LoadChart loads={weekLoads(plan, weeks)} sel={sel} onPick={setSel} height={48} />
+      <LoadChart loads={weekLoads(plan, weeks, (id) => exById.get(id)?.type === 'time')} sel={sel} onPick={setSel} height={48} />
       {wide && mode === 'edit' ? <button className="btn danger" style={{ height: 48, borderRadius: 18, fontSize: 15, alignSelf: 'flex-start' }} onClick={() => setDel(true)}>Удалить программу</button> : null}
     </div>
   );

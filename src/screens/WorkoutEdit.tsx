@@ -1,7 +1,7 @@
 import { useEffect, useState } from 'react';
 import { useApp } from '../app-context';
 import { api } from '../lib/api';
-import { activeProgram, exerciseSubtitle, plannedOpen, showKg, workoutStats, dayTitle } from '../lib/calc';
+import { activeProgram, exerciseSubtitle, plannedOpen, showKg, workoutStats, dayTitle, schemeText } from '../lib/calc';
 import { addDays, dayMonth, diffDays, today, WD_CAP, WD_SHORT, weekStart } from '../lib/dates';
 import { invalidate, useQuery } from '../lib/query';
 import { go, backTo as goBack } from '../lib/router';
@@ -174,7 +174,7 @@ export function WorkoutsScreen({ selected }: { selected: number | null }) {
                 return (
                   <div key={i} className="card row a-in" style={{ borderRadius: 22 }}>
                     <ExerciseArt kind={e?.kind} name={e?.name} size={72} />
-                    <div className="grow"><b style={{ fontSize: 17 }}>{e?.name}</b><div className="muted">{r.sets}×{r.reps}{r.kg ? ` · ${r.kg} кг` : ''}</div></div>
+                    <div className="grow"><b style={{ fontSize: 17 }}>{e?.name}</b><div className="muted">{schemeText(r, e?.type)}{r.kg ? ` · ${r.kg} кг` : ''}</div></div>
                   </div>
                 );
               })}

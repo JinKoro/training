@@ -8,8 +8,10 @@ import type { Exercise, Plan, PlanRow, Sex } from './types';
 export type Level = 0 | 1 | 2;
 export const LEVEL_RU = ['новичок', 'любитель', 'продвинутый'] as const;
 
-/** m = main lift (follows the block), a = accessory, p = abs. */
-type Kind = 'm' | 'a' | 'p';
+/** m = main lift (follows the block), a = accessory, p = abs, w = the warmup every day starts with. */
+type Kind = 'm' | 'a' | 'p' | 'w';
+/** Every day of a ready-made program opens with a 10-minute warmup (a timed exercise: the reps are seconds). */
+export const WARMUP = { name: 'Разминка', seconds: 600 };
 type Ex = [name: string, kind: Kind, note?: string];
 interface Block { name: string; from: number; to: number; load: number; scheme: [string, string, string] }
 
@@ -124,14 +126,15 @@ export function weightFor(kgAtAsk: number, askReps: number, reps: number, factor
 export interface TemplateRow { name: string; kind: Kind; sets: number; reps: string; rest: number; note: string | null }
 export function templateDay(t: Template, week: number, day: number): TemplateRow[] {
   const ex = t.days[day];
-  return ex.map(([name, kind, note], i) => {
+  const warm: TemplateRow = { name: WARMUP.name, kind: 'w', sets: 1, reps: String(WARMUP.seconds), rest: 0, note: null };
+  return [warm, ...ex.map(([name, kind, note], i) => {
     const s = schemeOf(t, week, kind, name);
     const [sets, reps] = s.split('×');
     const notes = [note, dropset(t, week, kind, i, ex) ? 'дропсет' : null].filter(Boolean).join(', ');
     return { name, kind, sets: Number(sets), reps, rest: restOf(kind, s), note: notes || null };
-  });
+  })];
 }
-export const dayMinutes = (rows: TemplateRow[]) => Math.round(rows.reduce((t, r) => t + r.sets * (45 + r.rest), 0) / 60);
+export const dayMinutes = (rows: TemplateRow[]) => Math.round(rows.reduce((t, r) => t + r.sets * ((r.kind === 'w' ? Number(r.reps) : 45) + r.rest), 0) / 60);
 
 /** The user's copy: days A/B/C go to the chosen weekdays; known weights fill the asked lifts in every week. */
 export function buildPlan(t: Template, weekdays: number[], weights: Record<string, number>, byName: Map<string, Exercise>): Plan {
@@ -147,7 +150,7 @@ export function buildPlan(t: Template, weekdays: number[], weights: Record<strin
         const base = weights[r.name];
         const kg = base > 0 && r.kind === 'm' ? String(weightFor(base, t.askReps, Number(r.reps.split('–').pop()), f)).replace('.', ',') : '';
         // pct = this week's load: calibration scales a weight found in one week to every other week by it.
-        rows.push({ exerciseId: ex.id, sets: r.sets, reps: r.reps, kg, rest: r.rest, note: r.note, pct: r.kind !== 'p' ? Math.round(f * 100) : null });
+        rows.push({ exerciseId: ex.id, sets: r.sets, reps: r.reps, kg, rest: r.rest, note: r.note, pct: r.kind !== 'p' && r.kind !== 'w' ? Math.round(f * 100) : null });
       }
       if (rows.length) plan[w][wd] = rows;
     });

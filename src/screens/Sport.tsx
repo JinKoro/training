@@ -1,7 +1,7 @@
 import { useEffect, useState } from 'react';
 import { useApp } from '../app-context';
 import { api } from '../lib/api';
-import { DEFAULT_REST, mmss, planMinutes, programDonePct, programEnd, programProgress, timesPerWeek, weeksText } from '../lib/calc';
+import { DEFAULT_REST, mmss, schemeText, planMinutes, programDonePct, programEnd, programProgress, timesPerWeek, weeksText } from '../lib/calc';
 import { plural, today, WD_CAP } from '../lib/dates';
 import { invalidate, useQuery } from '../lib/query';
 import { go } from '../lib/router';
@@ -151,7 +151,7 @@ export function ProgramScreen({ id, week: atWeek }: { id: number; week?: number 
           <div key={l} className="card col a-in" style={{ borderRadius: 20, padding: 12, gap: 2 }}><b className="display" style={{ fontSize: 18 }}>{v}</b><span className="muted" style={{ fontSize: 13, fontWeight: 700 }}>{l}</span></div>
         ))}
       </div>
-      <LoadChart loads={weekLoads(p.plan, p.weeks)} cur={cur || undefined} sel={sel} onPick={setSel} />
+      <LoadChart loads={weekLoads(p.plan, p.weeks, (id) => exById.get(id)?.type === 'time')} cur={cur || undefined} sel={sel} onPick={setSel} />
       <div style={p.weeks > 13 ? { display: 'flex', gap: 4, overflowX: 'auto' } : { display: 'grid', gridTemplateColumns: `repeat(${p.weeks}, minmax(0, 1fr))`, gap: 3 }}>
         {Array.from({ length: p.weeks }, (_, i) => i + 1).map((n) => {
           const isSel = n === sel;
@@ -178,7 +178,7 @@ export function ProgramScreen({ id, week: atWeek }: { id: number; week?: number 
                 <div key={i} className="col" style={{ fontSize: 14, gap: 2 }}>
                   <div className="between" style={{ gap: 8 }}>
                     <span className="ell" style={{ minWidth: 0 }}>{e?.name ?? 'Упражнение'}</span>
-                    <span className="muted" style={{ whiteSpace: 'nowrap', flex: 'none' }}>{`${r.sets}×${r.reps.replace('-', '–')} · ${mmss(r.rest ?? e?.rest ?? DEFAULT_REST)}`}</span>
+                    <span className="muted" style={{ whiteSpace: 'nowrap', flex: 'none' }}>{e?.type === 'time' && !(r.rest ?? e.rest) ? schemeText(r, e.type) : `${schemeText(r, e?.type)} · ${mmss(r.rest ?? e?.rest ?? DEFAULT_REST)}`}</span>
                   </div>
                   {r.note ? <span className="muted" style={{ fontSize: 13, overflowWrap: 'anywhere' }}>{r.note}</span> : null}
                 </div>

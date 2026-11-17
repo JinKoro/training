@@ -1,7 +1,7 @@
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import { useApp } from '../app-context';
 import { api } from '../lib/api';
-import { mmss, showKg } from '../lib/calc';
+import { mmss, showKg, schemeText, durText } from '../lib/calc';
 import { invalidate, useQuery, forget } from '../lib/query';
 import { go, scrollTop } from '../lib/router';
 import { enqueue, drained } from '../lib/sync';
@@ -24,6 +24,8 @@ interface St extends Snap {
   ret?: { screen: Screen; ei: number; si: number; w: string; r: string } | null;
   /** Sheet over the workout: the day's plan, or one exercise's info (infoBack = opened from the plan). */
   sheet?: 'plan' | 'info' | null; infoEi?: number; infoBack?: boolean;
+  /** Timer of a timed exercise's set (warmup, plank…): which set it belongs to («ei-si»), seconds counted before, start of the running stretch. */
+  tKey?: string; tAcc?: number; tRun?: number | null;
 }
 
 /** No action in the workout for this long → «Не забудьте про тренировку» (rest time is not counted). */
@@ -164,10 +166,33 @@ function Flow({ workout }: { workout: Workout }) {
   const e = EX[s.ei];
   const w = num(s.w) || 0, r = Math.max(0, Math.round(num(s.r) || 0));
 
-  const done = () => {
+  // A timed exercise (warmup, plank, run…) counts down its planned seconds; the time it ran is what gets written.
+  const timed = e.type === 'time' && s.screen === 'set';
+  const tKey = `${s.ei}-${s.si}`;
+  const tPlan = e.reps > 0 ? e.reps : 60;
+  const tMine = s.tKey === tKey;
+  const tRunning = tMine && !!s.tRun;
+  const tElapsed = tMine ? (s.tAcc ?? 0) + (s.tRun ? (Date.now() - s.tRun) / 1000 : 0) : 0;
+  const tLeft = Math.max(0, tPlan - tElapsed);
+  useEffect(() => {
+    if (!tRunning) return;
+    const t = setInterval(() => tick((x) => x + 1), 250);
+    return () => clearInterval(t);
+  }, [tRunning]);
+  const tStart = () => setS((st) => ({ ...st, tKey, tAcc: st.tKey === tKey ? st.tAcc ?? 0 : 0, tRun: Date.now() }));
+  const tPause = () => setS((st) => ({ ...st, tAcc: (st.tAcc ?? 0) + (st.tRun ? (Date.now() - st.tRun) / 1000 : 0), tRun: null }));
+  const tDone = () => { const sec = Math.max(1, Math.round(Math.min(tElapsed, tPlan) || tPlan)); setS((st) => ({ ...st, tRun: null, tAcc: 0, tKey: undefined })); done(sec); };
+  // time is up: the set is written with the planned time and the workout moves on by itself
+  useEffect(() => {
+    if (tRunning && tLeft <= 0) tDone();
+  }); // eslint-disable-line react-hooks/exhaustive-deps
+
+  /** `reps`: the seconds a timed set ran (its timer), instead of the field. */
+  const done = (reps?: number) => {
+    const r1 = reps ?? r;
     const log = s.log.map((a) => a.slice());
-    log[s.ei][s.si] = { w, r };
-    enqueue({ method: 'PUT', path: `${path(s.ei)}/sets/${s.si}`, body: { weight: w, reps: r } });
+    log[s.ei][s.si] = { w, r: r1 };
+    enqueue({ method: 'PUT', path: `${path(s.ei)}/sets/${s.si}`, body: { weight: w, reps: r1 } });
     const nxt = s.si + 1 < e.w.length ? [s.ei, s.si + 1] : (() => { const n = firstOpen(log, s.ei + 1, s.skipped); return n < 0 ? null : [n, log[n].length]; })();
     if (!nxt) { finish(log); return; }
     const rest = s.restFor?.[s.ei] ?? e.rest;
@@ -289,7 +314,38 @@ function Flow({ workout }: { workout: Workout }) {
   let body: React.ReactNode;
   const editing = s.screen === 'edit';
   const openInfo = (i: number, fromPlan = false) => setS((st) => ({ ...st, sheet: 'info', infoEi: i, infoBack: fromPlan, menu: false }));
-  if (s.screen === 'set' || editing) {
+  if (timed) {
+    const deg = Math.round(Math.min(1, tElapsed / tPlan) * 360);
+    const big: React.CSSProperties = { height: 64, borderRadius: 22, fontSize: 18 };
+    const outline: React.CSSProperties = { ...big, border: '2px solid #fff', color: '#fff' };
+    const white: React.CSSProperties = { ...big, background: '#fff', color: '#1A1A1A' };
+    body = (
+      <>
+        <div style={{ fontWeight: 700 }}>Упражнение {s.ei + 1} из {EX.length}{e.w.length > 1 ? ` · подход ${s.si + 1} из ${e.w.length}` : ''}</div>
+        <button className="row a-in" onClick={() => openInfo(s.ei)} aria-label={`Об упражнении: ${e.name}`} style={{ width: '100%', background: 'rgba(0,0,0,.16)', borderRadius: 22, padding: '8px 14px 8px 8px', gap: 12, color: '#fff', textAlign: 'left' }}>
+          <ExerciseArt kind={e.kind} name={e.name} size={64} />
+          <div className="grow"><div className="display" style={{ fontSize: 18 }}>{e.name}</div><div style={{ fontSize: 13, fontWeight: 700, opacity: 0.9 }}>{e.muscles ? `${e.muscles} · ` : ''}план {schemeText({ sets: e.w.length, reps: String(e.reps) }, e.type)}</div></div>
+          <span aria-hidden="true" style={{ fontWeight: 800, fontSize: 22 }}>›</span>
+        </button>
+        <div className={tRunning ? 'a-pulse' : undefined} role="timer" aria-label={`Осталось ${mmss(tLeft)}`} style={{ alignSelf: 'center', width: 264, height: 264, borderRadius: '50%', background: `conic-gradient(#FFFFFF ${deg}deg, rgba(255,255,255,.22) 0)`, display: 'flex', alignItems: 'center', justifyContent: 'center', transition: 'background .3s' }}>
+          <div style={{ width: 228, height: 228, borderRadius: '50%', background: 'var(--hero)', display: 'flex', flexDirection: 'column', alignItems: 'center', justifyContent: 'center', gap: 4 }}>
+            <span className="display num" style={{ fontSize: 64, lineHeight: 1 }}>{mmss(Math.ceil(tLeft))}</span>
+            <span style={{ fontWeight: 700, fontSize: 16, opacity: 0.85 }}>{tRunning ? 'идёт' : tElapsed > 0 ? 'пауза' : `из ${durText(tPlan)}`}</span>
+          </div>
+        </div>
+        <div style={{ flex: 1 }} />
+        <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 10 }}>
+          {tRunning ? (
+            <><button className="display" style={outline} onClick={tPause}>Пауза</button><button className="display" style={white} onClick={tDone}>Готово</button></>
+          ) : tElapsed > 0 ? (
+            <><button className="display" style={outline} onClick={tDone}>Готово</button><button className="display" style={white} onClick={tStart}>Продолжить</button></>
+          ) : (
+            <><button className="display" style={outline} onClick={skipEx} aria-label="Пропустить упражнение">Пропустить</button><button className="display" style={white} onClick={tStart}>Старт</button></>
+          )}
+        </div>
+      </>
+    );
+  } else if (s.screen === 'set' || editing) {
     body = (
       <>
         <div className="row" style={{ gap: 8, minWidth: 0 }}>
@@ -298,7 +354,7 @@ function Flow({ workout }: { workout: Workout }) {
         </div>
         <button className="row a-in" onClick={() => openInfo(s.ei)} aria-label={`Об упражнении: ${e.name}`} style={{ width: '100%', background: 'rgba(0,0,0,.16)', borderRadius: 22, padding: '8px 14px 8px 8px', gap: 12, color: '#fff', textAlign: 'left' }}>
           <ExerciseArt kind={e.kind} name={e.name} size={64} />
-          <div className="grow"><div className="display" style={{ fontSize: 18 }}>{e.name}</div><div style={{ fontSize: 13, fontWeight: 700, opacity: 0.9 }}>{e.muscles ? `${e.muscles} · ` : ''}план {e.w.length} × {e.reps}</div></div>
+          <div className="grow"><div className="display" style={{ fontSize: 18 }}>{e.name}</div><div style={{ fontSize: 13, fontWeight: 700, opacity: 0.9 }}>{e.muscles ? `${e.muscles} · ` : ''}план {schemeText({ sets: e.w.length, reps: String(e.reps) }, e.type)}</div></div>
           <span aria-hidden="true" style={{ fontWeight: 800, fontSize: 22 }}>›</span>
         </button>
         <div className="col" style={{ gap: 8 }}>
@@ -337,7 +393,7 @@ function Flow({ workout }: { workout: Workout }) {
           <button onClick={saveEdit} className="display" style={{ height: 64, borderRadius: 22, background: '#fff', color: '#1A1A1A', fontSize: 19 }}>Сохранить</button>
         ) : <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 10 }}>
           <button onClick={skipEx} aria-label="Пропустить упражнение" className="display" style={{ height: 64, borderRadius: 22, border: '2px solid #fff', color: '#fff', fontSize: 18 }}>Пропустить</button>
-          <button onClick={done} className="display" style={{ height: 64, borderRadius: 22, background: '#fff', color: '#1A1A1A', fontSize: 18 }}>Сделал</button>
+          <button onClick={() => done()} className="display" style={{ height: 64, borderRadius: 22, background: '#fff', color: '#1A1A1A', fontSize: 18 }}>Сделал</button>
         </div>}
       </>
     );
@@ -383,7 +439,7 @@ function Flow({ workout }: { workout: Workout }) {
             goTo({ screen: 'set', skipped: s.skipped.filter((k) => k !== i), ...at(i, 0) });
           }} style={{ background: '#fff', color: '#1A1A1A', borderRadius: 22, padding: 10, gap: 12, textAlign: 'left' }}>
             <ExerciseArt kind={x.kind} name={x.name} size={56} />
-            <div className="grow"><b>{x.name}</b><div style={{ color: '#6E6A64', fontSize: 13, fontWeight: 700 }}>{x.w.length} × {x.reps}{x.w.some((v) => v != null) ? ` · ${[...new Set(x.w.filter((v) => v != null).map((v) => showKg(v)))].join(' → ')} кг` : ''}</div></div>
+            <div className="grow"><b>{x.name}</b><div style={{ color: '#6E6A64', fontSize: 13, fontWeight: 700 }}>{schemeText({ sets: x.w.length, reps: String(x.reps) }, x.type)}{x.w.some((v) => v != null) ? ` · ${[...new Set(x.w.filter((v) => v != null).map((v) => showKg(v)))].join(' → ')} кг` : ''}</div></div>
             <b style={{ color: 'var(--hero)' }}>Вернуться ›</b>
           </button>
         ))}
@@ -429,7 +485,7 @@ function Flow({ workout }: { workout: Workout }) {
             return (
               <button key={i} className="row" onClick={() => openInfo(i, true)} style={{ minHeight: 68, padding: '8px 0', gap: 12, textAlign: 'left', borderTop: i ? '1px solid var(--line)' : 0 }}>
                 <ExerciseArt kind={x.kind} name={x.name} size={48} />
-                <span className="grow col" style={{ gap: 2, minWidth: 0 }}><b style={{ lineHeight: 1.25 }}>{i + 1}. {x.name}</b><span className="sub" style={{ fontSize: 13 }}>{x.w.length} × {x.reps}{kg.length ? ` · ${kg.join(' → ')} кг` : ''}</span></span>
+                <span className="grow col" style={{ gap: 2, minWidth: 0 }}><b style={{ lineHeight: 1.25 }}>{i + 1}. {x.name}</b><span className="sub" style={{ fontSize: 13 }}>{schemeText({ sets: x.w.length, reps: String(x.reps) }, x.type)}{kg.length ? ` · ${kg.join(' → ')} кг` : ''}</span></span>
                 <b style={{ flex: 'none', fontSize: 14, color: col }}>{st}</b>
                 <span className="muted" aria-hidden="true" style={{ fontWeight: 800 }}>›</span>
               </button>

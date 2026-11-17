@@ -168,7 +168,17 @@ export function donePct(done: number, plan: number): number {
 export const showKg = (n: number | null | undefined) => (n == null ? '—' : String(Math.round(n * 100) / 100).replace('.', ','));
 export const mmss = (t: number) => { const s = Math.max(0, Math.round(t)); return `${Math.floor(s / 60)}:${String(s % 60).padStart(2, '0')}`; };
 
-const GROUP_RU: Record<string, string> = { legs: 'Ноги', back: 'Спина', chest: 'Грудь', shoulders: 'Плечи', arms: 'Руки', abs: 'Пресс', cardio: 'Кардио' };
+const GROUP_RU: Record<string, string> = { legs: 'Ноги', back: 'Спина', chest: 'Грудь', shoulders: 'Плечи', arms: 'Руки', abs: 'Пресс', cardio: 'Кардио', warmup: 'Разминка' };
+
+/** A time in seconds as people say it: «45 с», «10 мин», «1:30». */
+export const durText = (sec: number) => { const s = Math.max(0, Math.round(sec)); return s < 60 ? `${s} с` : s % 60 === 0 ? `${s / 60} мин` : mmss(s); };
+/** «3×10» for reps; for a timed exercise the reps are seconds: «10 мин», «3 × 45 с». */
+export function schemeText(r: { sets: number | string; reps: string }, type?: string | null): string {
+  const reps = String(r.reps).replace('-', '–');
+  if (type !== 'time') return `${r.sets}×${reps}`;
+  const t = reps.split('–').map((x) => durText(Number(x))).join('–');
+  return Number(r.sets) === 1 ? t : `${r.sets} × ${t}`;
+}
 export const MUSCLE_RU: Record<string, string> = {
   chest: 'грудь', shoulders: 'плечи', biceps: 'бицепс', forearms: 'предплечья', abs: 'пресс', quads: 'квадрицепс', calves: 'икры',
   traps: 'трапеции', reardelts: 'задние дельты', lats: 'широчайшие', triceps: 'трицепс', lowerback: 'поясница', glutes: 'ягодицы', hamstrings: 'бицепс бедра',
@@ -185,7 +195,7 @@ export function dayTitle(rows: PlanRow[], byId: Map<number, Exercise>, fallback:
   const count = new Map<string, number>();
   for (const r of rows) {
     const g = byId.get(r.exerciseId)?.group;
-    if (g) count.set(g, (count.get(g) ?? 0) + 1);
+    if (g && g !== 'warmup') count.set(g, (count.get(g) ?? 0) + 1); // a warmup does not name the day
   }
   const top = [...count.entries()].sort((a, b) => b[1] - a[1]).slice(0, 2).map(([g]) => GROUP_RU[g] ?? g);
   if (!top.length) return fallback;
@@ -226,8 +236,12 @@ export function workoutStats(w: Workout) {
   return { done, total, D, P, pct: donePct(D, P) };
 }
 /** Planned length of a session in minutes: each set ≈ 45 s of work plus its rest. */
+/** A set takes ~45 s, a timed one its own time (the reps are seconds); plus the rest after it. */
 export const planMinutes = (rows: PlanRow[], byId: Map<number, Exercise>) =>
-  Math.round(rows.reduce((a, r) => a + r.sets * (45 + (r.rest ?? byId.get(r.exerciseId)?.rest ?? DEFAULT_REST)), 0) / 60);
+  Math.round(rows.reduce((a, r) => {
+    const ex = byId.get(r.exerciseId), work = ex?.type === 'time' ? Number(String(r.reps).split(/[–-]/).pop()) || 45 : 45;
+    return a + r.sets * (work + (r.rest ?? ex?.rest ?? DEFAULT_REST));
+  }, 0) / 60);
 
 export const durationMin = (w: Workout) => (w.finishedAt ? Math.max(1, Math.round((w.finishedAt - w.startedAt) / 60000)) : null);
 

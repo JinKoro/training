@@ -8,7 +8,7 @@ import { SUB_IDS, SUB_NAMES, guessSub } from './categories.js';
 const MEALS = ['breakfast', 'lunch', 'snack', 'dinner'];
 const FOOD_ICONS = ['oat', 'eggs', 'buckwheat', 'chicken', 'curd', 'salmon', 'dish', ...SUB_IDS];
 const MUSCLES = ['chest', 'shoulders', 'biceps', 'forearms', 'abs', 'quads', 'calves', 'traps', 'reardelts', 'lats', 'triceps', 'lowerback', 'glutes', 'hamstrings'];
-const GROUPS = ['legs', 'back', 'chest', 'shoulders', 'arms', 'abs', 'cardio'];
+const GROUPS = ['legs', 'back', 'chest', 'shoulders', 'arms', 'abs', 'cardio', 'warmup'];
 
 const parse = (s, fallback) => { try { return JSON.parse(s); } catch { return fallback; } };
 

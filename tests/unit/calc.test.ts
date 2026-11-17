@@ -1,5 +1,6 @@
 import { afterEach, describe, expect, it, vi } from 'vitest';
 import {
+  durText, schemeText,
   buildDays, dayTitle, dayTotals, DEFAULT_REST, donePct, durationMin, energy, entryMacros, exerciseSubtitle, fmt1, fmtG,
   kcal, kcal100, kcalAt, macroLine, macrosFor, mmss, normFor, parseReps, planMinutes, plannedFor, plannedOpen, planRows,
   programDonePct, programEnd, moveSession, weekSchedule, programProgress, programSlots, programWeek, setNormFor, setWeights, showKg, slotDone,
@@ -490,5 +491,17 @@ describe('kcal with tenths', () => {
     expect(fmtKcal(411.75, true)).toBe('411,8');
     expect(fmtKcal(342, true)).toBe('342');
     expect(fmtKcal(274.5)).toBe('275');
+  });
+});
+
+describe('durText / schemeText', () => {
+  it('seconds as people say them; timed rows show time, others sets×reps', () => {
+    expect(durText(45)).toBe('45 с');
+    expect(durText(600)).toBe('10 мин');
+    expect(durText(90)).toBe('1:30');
+    expect(schemeText({ sets: 1, reps: '600' }, 'time')).toBe('10 мин');
+    expect(schemeText({ sets: 3, reps: '45' }, 'time')).toBe('3 × 45 с');
+    expect(schemeText({ sets: 3, reps: '30-60' }, 'time')).toBe('3 × 30 с–1 мин');
+    expect(schemeText({ sets: 3, reps: '8-10' }, 'weight_reps')).toBe('3×8–10');
   });
 });

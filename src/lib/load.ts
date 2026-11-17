@@ -21,8 +21,9 @@ const topReps = (reps: string) => { const n = String(reps).split(/[–-]/).map(N
 const firstKg = (kg: string | null | undefined) => { const m = String(kg ?? '').match(/\d+(?:[.,]\d+)?/); return m ? Number(m[0].replace(',', '.')) : 0; };
 const setsOf = (r: LoadRow) => Math.max(0, Number(r.sets) || 0);
 
-export function weekLoads(plan: LoadPlan, weeks: number): number[] {
-  const rows = Array.from({ length: weeks }, (_, i) => Object.values(plan[i + 1] ?? plan[String(i + 1)] ?? {}).flat());
+/** `timed`: exercises counted by time (warmup, plank…) — they carry no load and are left out. */
+export function weekLoads(plan: LoadPlan, weeks: number, timed?: (exerciseId: number) => boolean): number[] {
+  const rows = Array.from({ length: weeks }, (_, i) => Object.values(plan[i + 1] ?? plan[String(i + 1)] ?? {}).flat().filter((r) => !timed?.(r.exerciseId)));
   // heaviness of a row; with a weight and without one are compared separately (different scales)
   const heavy = (r: LoadRow) => { const kg = firstKg(r.kg), e = 1 + topReps(r.reps) / 30; return kg > 0 ? { k: 'kg', v: kg * e } : { k: 'rel', v: (r.pct ?? 100) / e }; };
   const peak = new Map<string, number>();

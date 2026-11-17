@@ -34,6 +34,25 @@ const after404 = /http 404 GET \/api\/workouts\/\d+$|status of 404 .*\/api\/work
 
 test.describe('Workout flow', () => {
   test.beforeEach(({ allowErrors }) => allowErrors(after404));
+  test('a timed exercise (warmup) counts down: Старт, Пауза, Продолжить; time up writes the planned time and moves on', async ({ authed: page, user }) => {
+    const D = today();
+    await createProgram(user.token, { name: 'С разминкой', weeks: 1, days: { [weekdayIdx(D)]: [{ name: 'Разминка', sets: 1, reps: '3', rest: 0 }, { name: 'Жим штанги лёжа', sets: 1, reps: '5', kg: '40' }] } });
+    await open(page, `day/${D}`);
+    await expect(page.getByRole('heading', { name: 'Грудь' })).toBeVisible(); // the warmup does not name the day
+    await expect(page.locator('.card', { hasText: 'Разминка' })).toContainText('3 с');
+    await page.locator('.fixed-bottom').getByRole('button', { name: 'Начать' }).click();
+    await expect(page.getByText('Упражнение 1 из 2', { exact: true })).toBeVisible();
+    await expect(page.getByRole('timer')).toContainText('0:03');
+    await page.getByRole('button', { name: 'Старт' }).click();
+    await page.getByRole('button', { name: 'Пауза' }).click();
+    await expect(page.getByRole('timer')).toContainText('пауза');
+    await page.getByRole('button', { name: 'Продолжить' }).click();
+    // the time runs out: the next exercise opens by itself (no rest after a warmup)
+    await expect(page.getByText('Упражнение 2 из 2 · подход 1 из 1')).toBeVisible({ timeout: 8000 });
+    const { workouts } = await call(user.token, 'GET', `/workouts?from=${D}&to=${D}`);
+    await expect.poll(async () => (await call(user.token, 'GET', `/workouts/${workouts[0].id}`)).workout.exercises[0].sets[0].reps).toBe(3);
+  });
+
   test('sets, steppers, rest, skip, finish via menu, summary, journal, edit, delete', async ({ authed: page, user }) => {
     const p = await setup(user);
     await startFromWeek(page);

@@ -1,7 +1,7 @@
 import { useMemo, useState } from 'react';
 import { useApp } from '../app-context';
 import { api } from '../lib/api';
-import { mmss, programProgress, timesPerWeek, weeksText } from '../lib/calc';
+import { durText, mmss, programProgress, timesPerWeek, weeksText } from '../lib/calc';
 import { addDays, dayMonth, today, weekStart, weekdayIdx, WD_CAP, WD_LONG, WD_SHORT } from '../lib/dates';
 import { invalidate } from '../lib/query';
 import { go } from '../lib/router';
@@ -100,7 +100,7 @@ export function TemplateScreen({ id }: { id: string }) {
               <div key={i} className="col" style={{ fontSize: 14, gap: 2 }}>
                 <div className="between" style={{ gap: 8 }}>
                   <span className="ell" style={{ minWidth: 0 }}>{r.name}</span>
-                  <span className="muted" style={{ whiteSpace: 'nowrap', flex: 'none' }}>{r.sets}×{r.reps} · {mmss(r.rest)}</span>
+                  <span className="muted" style={{ whiteSpace: 'nowrap', flex: 'none' }}>{r.kind === 'w' ? durText(Number(r.reps)) : `${r.sets}×${r.reps} · ${mmss(r.rest)}`}</span>
                 </div>
                 {r.note ? <span className="muted" style={{ fontSize: 13 }}>{r.note}</span> : null}
               </div>

@@ -37,7 +37,7 @@ export const MORE_LABELS = {
   jumprope: 'Скакалка', stepper: 'Степпер', burpee: 'Берпи', boxjump: 'Прыжки на тумбу', kbswing: 'Махи гирей', swim: 'Плавание', walk: 'Ходьба',
   thruster: 'Трастеры', sled: 'Толкание саней', ohcarry: 'Прогулка с весом над головой', vacuum: 'Вакуум', deadbug: 'Мёртвый жук', bicycle: 'Велосипед',
 cleanpress: 'Взятие на грудь и жим', renegade: 'Отжимания с тягой гантелей', burpeepull: 'Берпи с подтягиванием', getup: 'Турецкий подъём', squatcurlpress: 'Присед, бицепс и жим',
-    pullover: 'Пуловер', chestpress: 'Жим в тренажёре', cablepullover: 'Пуловер на блоке', goblet: 'Гоблет-приседания', airsquat: 'Приседания', kickbackarm: 'Разгибание в наклоне',
+    pullover: 'Пуловер', chestpress: 'Жим в тренажёре', cablepullover: 'Пуловер на блоке', goblet: 'Гоблет-приседания', airsquat: 'Приседания', warmup: 'Разминка', stretch: 'Растяжка', kickbackarm: 'Разгибание в наклоне',
 };
 
 export const MORE_KINDS = {
@@ -304,6 +304,15 @@ export const MORE_KINDS = {
   goblet: {
     start: (v) => front() + p('M36 20L30 28L34 27M36 20L42 28L38 27') + kb(v, 36, 28) + m(v, 34, 44),
     end: (v) => h(36, 26) + p('M36 31V46M36 46L26 50L28 62M36 46L46 50L44 62M36 34L30 40L34 39M36 34L42 40L38 39') + kb(v, 36, 40) + m(v, 30, 50),
+  },
+  // Warmup: arm circles (arms up and out, then down); stretch: a standing forward fold.
+  warmup: {
+    start: (v) => front() + p('M36 20L24 8M36 20L48 8') + q(v, 'M18 14a12 12 0 0 1 6-10M54 14a12 12 0 0 0-6-10', 2) + m(v, 36, 20),
+    end: (v) => front() + p('M36 20L22 28M36 20L50 28') + q(v, 'M16 30a12 12 0 0 0 4 10M56 30a12 12 0 0 1-4 10', 2) + m(v, 36, 20),
+  },
+  stretch: {
+    start: (v) => side() + p('M36 20L36 4') + m(v, 35, 50),
+    end: (v) => h(47, 53) + p('M27 63L30 30M33 63L30 30M30 30Q45 28 46 47M44 41L40 62') + m(v, 30, 47),
   },
   airsquat: {
     start: (v) => side() + p('M36 20L54 22') + m(v, 37, 46),
