@@ -115,7 +115,7 @@ export function EnergyFlow({ mode, init, wide, busy, error, onBack, onDone, onSk
     { n: 'Переваривание еды', sub: '17 % от базового', v: en.tef, c: 'var(--dig)' },
     { n: 'Шаги', sub: `${fmt(input.steps)} × ${fmt(en.per1000)} ккал на 1 000 шагов`, v: en.steps, c: 'var(--good)' },
     ...(f.tmode === 'none' ? [] : [{
-      n: 'Тренировка', sub: `${f.tmode === 'time' ? `0,07 × ${fmt1(input.weight)} кг × ${fmt(input.trainingMin)} мин` : 'с часов'} · только в дни тренировок`, v: en.training, c: 'var(--warn)', plus: true,
+      n: 'Тренировка', sub: `${f.tmode === 'time' ? `0,07 × ${fmt1(input.weight)} кг × ${fmt(input.trainingMin)} мин · ` : ''}только в дни тренировок`, v: en.training, c: 'var(--warn)', plus: true,
     }]),
   ];
   const days = norms.training
@@ -177,7 +177,7 @@ export function EnergyFlow({ mode, init, wide, busy, error, onBack, onDone, onSk
           <div className="col" style={{ flex: '1 1 300px', minWidth: 0, gap: 12 }}>
             {inp('steps', 'Шагов в день', 'numeric', 'в среднем за обычный день')}
             <div className="col" style={{ gap: 6 }}><span className="sub" style={{ fontSize: 13 }}>Тренировка</span>{seg(TMODES, f.tmode, (v) => setF((p) => ({ ...p, tmode: v })))}</div>
-            {f.tmode === 'time' ? inp('min', 'Минут за тренировку', 'numeric') : f.tmode === 'kcal' ? inp('own', 'Ккал за тренировку (с часов)', 'numeric') : null}
+            {f.tmode === 'time' ? inp('min', 'Минут за тренировку', 'numeric') : f.tmode === 'kcal' ? inp('own', 'Ккал за тренировку', 'numeric') : null}
             <div className="col" style={{ gap: 6 }}><span className="sub" style={{ fontSize: 13 }}>Цель</span>{seg(GOALS.map(([k, l]) => [k, l] as [Goal, string]), f.goal, (v) => setF((p) => ({ ...p, goal: v })))}</div>
           </div>
           <div className="col" style={{ flex: '1 1 340px', minWidth: 0, gap: 12 }}>
