@@ -49,9 +49,19 @@ export function energy(e: EnergyInput) {
 }
 
 /** Macros for a calorie target: protein 1.8 g/kg, fat 0.9 g/kg (men) or 1 g/kg (women), the rest carbs. */
+/**
+ * Protein 1.8 g/kg, fat 0.9 (men) / 1 (women) g/kg, the rest carbs — in whole grams that add up to exactly the target's
+ * calories (rounded to 1 kcal): carbs move in 4 kcal steps, so fat takes the remainder (−1…+2 g), else a plan of
+ * «как расход 2 700» showed 2 698.
+ */
 export function macrosFor(kcalTarget: number, weight: number, sex: Sex): Macros {
-  const p = Math.round(1.8 * weight), f = Math.round((sex === 'f' ? 1 : 0.9) * weight);
-  return [p, f, Math.max(0, Math.round((kcalTarget - 4 * p - 9 * f) / 4))];
+  const t = Math.round(kcalTarget);
+  const p = Math.round(1.8 * weight), f0 = Math.round((sex === 'f' ? 1 : 0.9) * weight);
+  const r = t - 4 * p - 9 * f0;
+  if (r < 0) return [p, f0, 0]; // a target below protein and fat: no carbs, nothing to balance
+  const df = [0, 1, 2, -1][((r % 4) + 4) % 4]; // 9 ≡ 1 (mod 4): this many grams of fat leave a remainder carbs can take
+  const f = Math.max(0, f0 + df);
+  return [p, f, Math.max(0, Math.round((t - 4 * p - 9 * f) / 4))];
 }
 
 /** Suggested norms; no training means no training-day norm. */

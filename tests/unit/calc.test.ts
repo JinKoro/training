@@ -55,7 +55,8 @@ describe('energy', () => {
 
 describe('macrosFor / suggestNorms', () => {
   it('men 1.8 / 0.9, rest carbs', () => {
-    expect(macrosFor(2370, 80, 'm')).toEqual([144, 72, 287]); // (2370-576-648)/4 = 286.5
+    expect(macrosFor(2370, 80, 'm')).toEqual([144, 74, 282]); // 72 g fat would leave 286.5 g carbs: fat takes the 2 kcal
+    expect(kcal(macrosFor(2370, 80, 'm'))).toBe(2370);
   });
   it('women fat 1 g/kg', () => {
     expect(macrosFor(2000, 60, 'f')).toEqual([108, 60, 257]); // (2000-432-540)/4 = 257
@@ -63,9 +64,13 @@ describe('macrosFor / suggestNorms', () => {
   it('carbs never negative', () => {
     expect(macrosFor(500, 100, 'm')).toEqual([180, 90, 0]);
   });
-  it('macros add up to the target (± rounding)', () => {
-    const m = macrosFor(2500, 77, 'm');
-    expect(Math.abs(kcal(m) - 2500)).toBeLessThanOrEqual(5);
+  it('macros add up to exactly the target, fat moves at most −1…+2 g', () => {
+    for (let t = 1800; t <= 3600; t += 7) for (const [w, sex] of [[77, 'm'], [62.5, 'f'], [95, 'm']] as const) {
+      const m = macrosFor(t + 0.4, w, sex);
+      expect(kcal(m), `${t} ${w}`).toBe(t);
+      expect(m[1] - Math.round((sex === 'f' ? 1 : 0.9) * w)).toBeGreaterThanOrEqual(-1);
+      expect(m[1] - Math.round((sex === 'f' ? 1 : 0.9) * w)).toBeLessThanOrEqual(2);
+    }
   });
   it('goals -10 % / keep / +10 %', () => {
     const e = { sex: 'm' as const, weight: 80, bodyFat: 20, steps: 10000, trainingMode: 'time' as const, trainingMin: 60, trainingKcal: 0 };
