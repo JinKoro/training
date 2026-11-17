@@ -70,7 +70,7 @@ export function EnergyFlow({ mode, init, wide, busy, error, onBack, onDone, onSk
     sex: f.sex, weight: Number.isNaN(w) ? 0 : w, bodyFat: Number.isNaN(fat) ? 0 : fat, steps: errs.steps ? 0 : intIn(f.steps),
     trainingMode: f.tmode, trainingMin: errs.min ? 0 : intIn(f.min), trainingKcal: errs.own ? 0 : intIn(f.own),
   };
-  const en = energy(input);
+  const en = energy(input, f.goal); // the spend shown is the one the plan is made of
   const norms = suggestNorms(input, f.goal);
 
   const next = () => {

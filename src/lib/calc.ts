@@ -36,37 +36,45 @@ export interface EnergyInput {
 }
 export const GOAL_FACTOR: Record<Goal, number> = { lose: 0.9, keep: 1, gain: 1.1 };
 
-/** Daily expenditure: Katch-McArdle BMR + 17 % digestion + steps (20-40 kcal per 1000 by body size) + training. */
-export function energy(e: EnergyInput) {
+/** Protein and fat grams for a body: protein 1.8 g/kg, fat 0.9 g/kg (men) or 1 g/kg (women). */
+const pfFor = (weight: number, sex: Sex) => [Math.round(1.8 * weight), Math.round((sex === 'f' ? 1 : 0.9) * weight)] as const;
+
+/**
+ * Daily expenditure: Katch-McArdle BMR + 17 % digestion + steps (20-40 kcal per 1000 by body size) + training.
+ * With `goal` the steps (rest day) and the training (training day) move by a few kcal so that the day's plan
+ * (spend × goal) minus protein and fat leaves a whole number of grams of carbs: the plan then equals the spend with
+ * the goal to the calorie and fat stays exactly by its formula (carbs alone could only step by 4 kcal).
+ */
+export function energy(e: EnergyInput, goal?: Goal) {
   const lean = e.weight * (1 - e.bodyFat / 100);
   const bmr = Math.round(370 + 21.6 * lean);
   const tef = Math.round(bmr * 0.17);
   const per1000 = Math.max(20, Math.min(40, e.weight * 0.4));
-  const steps = Math.round((e.steps / 1000) * per1000);
-  const training = Math.round(e.trainingMode === 'time' ? 0.07 * e.weight * e.trainingMin : e.trainingMode === 'kcal' ? e.trainingKcal : 0);
+  let steps = Math.round((e.steps / 1000) * per1000);
+  let training = Math.round(e.trainingMode === 'time' ? 0.07 * e.weight * e.trainingMin : e.trainingMode === 'kcal' ? e.trainingKcal : 0);
+  if (goal) {
+    const k = GOAL_FACTOR[goal], [p, f] = pfFor(e.weight, e.sex);
+    const fits = (spend: number) => (((Math.round(spend * k) - 4 * p - 9 * f) % 4) + 4) % 4 === 0;
+    const nudge = (base: number, part: number) => {
+      for (const d of [0, 1, -1, 2, -2, 3, -3, 4, -4, 5, -5, 6, -6, 7, 8]) if (part + d >= 0 && fits(base + d)) return part + d;
+      return part;
+    };
+    steps = nudge(bmr + tef + steps, steps);
+    if (e.trainingMode !== 'none') training = nudge(bmr + tef + steps + training, training);
+  }
   const rest = bmr + tef + steps;
   return { lean, bmr, tef, per1000, steps, training, rest, train: rest + training };
 }
 
-/** Macros for a calorie target: protein 1.8 g/kg, fat 0.9 g/kg (men) or 1 g/kg (women), the rest carbs. */
-/**
- * Protein 1.8 g/kg, fat 0.9 (men) / 1 (women) g/kg, the rest carbs — in whole grams that add up to exactly the target's
- * calories (rounded to 1 kcal): carbs move in 4 kcal steps, so fat takes the remainder (−1…+2 g), else a plan of
- * «как расход 2 700» showed 2 698.
- */
+/** Macros for a calorie target: protein 1.8 g/kg, fat 0.9 g/kg (men) or 1 g/kg (women), the rest carbs (whole grams). */
 export function macrosFor(kcalTarget: number, weight: number, sex: Sex): Macros {
-  const t = Math.round(kcalTarget);
-  const p = Math.round(1.8 * weight), f0 = Math.round((sex === 'f' ? 1 : 0.9) * weight);
-  const r = t - 4 * p - 9 * f0;
-  if (r < 0) return [p, f0, 0]; // a target below protein and fat: no carbs, nothing to balance
-  const df = [0, 1, 2, -1][((r % 4) + 4) % 4]; // 9 ≡ 1 (mod 4): this many grams of fat leave a remainder carbs can take
-  const f = Math.max(0, f0 + df);
-  return [p, f, Math.max(0, Math.round((t - 4 * p - 9 * f) / 4))];
+  const [p, f] = pfFor(weight, sex);
+  return [p, f, Math.max(0, Math.round((Math.round(kcalTarget) - 4 * p - 9 * f) / 4))];
 }
 
-/** Suggested norms; no training means no training-day norm. */
+/** Suggested norms; no training means no training-day norm. Their calories equal energy(e, goal) × the goal exactly. */
 export function suggestNorms(e: EnergyInput, goal: Goal): { training: Macros | null; rest: Macros } {
-  const en = energy(e), k = GOAL_FACTOR[goal];
+  const en = energy(e, goal), k = GOAL_FACTOR[goal];
   return {
     rest: macrosFor(en.rest * k, e.weight, e.sex),
     training: e.trainingMode === 'none' ? null : macrosFor(en.train * k, e.weight, e.sex),

@@ -86,7 +86,7 @@ test.describe('Registration wizard', () => {
     await page.getByLabel('Минут за тренировку').fill('45');
     await page.getByRole('button', { name: 'Похудеть' }).click();
     const input = { sex: 'f' as const, weight: 62.5, bodyFat: 27, steps: 9000, trainingMode: 'time' as const, trainingMin: 45, trainingKcal: 0 };
-    const en = energy(input);
+    const en = energy(input, 'lose');
     const norms = suggestNorms(input, 'lose');
     const card = page.locator('.card', { hasText: 'Расход в день' });
     await expect(card.getByText(fmt(en.bmr), { exact: true })).toBeVisible();

@@ -1,6 +1,6 @@
 import { afterEach, describe, expect, it, vi } from 'vitest';
 import {
-  durText, schemeText, dayState,
+  durText, schemeText, dayState, GOAL_FACTOR,
   buildDays, dayTitle, dayTotals, DEFAULT_REST, donePct, durationMin, energy, entryMacros, exerciseSubtitle, fmt1, fmtG,
   kcal, kcal100, kcalAt, macroLine, macrosFor, mmss, normFor, parseReps, planMinutes, plannedFor, plannedOpen, planRows,
   programDonePct, programEnd, moveSession, weekSchedule, programProgress, programSlots, programWeek, setNormFor, setWeights, showKg, slotDone,
@@ -55,8 +55,7 @@ describe('energy', () => {
 
 describe('macrosFor / suggestNorms', () => {
   it('men 1.8 / 0.9, rest carbs', () => {
-    expect(macrosFor(2370, 80, 'm')).toEqual([144, 74, 282]); // 72 g fat would leave 286.5 g carbs: fat takes the 2 kcal
-    expect(kcal(macrosFor(2370, 80, 'm'))).toBe(2370);
+    expect(macrosFor(2370, 80, 'm')).toEqual([144, 72, 287]); // (2370-576-648)/4 = 286.5
   });
   it('women fat 1 g/kg', () => {
     expect(macrosFor(2000, 60, 'f')).toEqual([108, 60, 257]); // (2000-432-540)/4 = 257
@@ -64,12 +63,18 @@ describe('macrosFor / suggestNorms', () => {
   it('carbs never negative', () => {
     expect(macrosFor(500, 100, 'm')).toEqual([180, 90, 0]);
   });
-  it('macros add up to exactly the target, fat moves at most −1…+2 g', () => {
-    for (let t = 1800; t <= 3600; t += 7) for (const [w, sex] of [[77, 'm'], [62.5, 'f'], [95, 'm']] as const) {
-      const m = macrosFor(t + 0.4, w, sex);
-      expect(kcal(m), `${t} ${w}`).toBe(t);
-      expect(m[1] - Math.round((sex === 'f' ? 1 : 0.9) * w)).toBeGreaterThanOrEqual(-1);
-      expect(m[1] - Math.round((sex === 'f' ? 1 : 0.9) * w)).toBeLessThanOrEqual(2);
+  it('the plan is the spend with the goal to the calorie; fat exactly by formula; steps/training move a few kcal at most', () => {
+    for (const sex of ['m', 'f'] as const) for (let w = 45; w <= 130; w += 3.5) for (const steps of [0, 2500, 7000, 12345]) for (const mode of ['none', 'time', 'kcal'] as const) for (const goal of ['lose', 'keep', 'gain'] as const) {
+      const e = { sex, weight: w, bodyFat: 22, steps, trainingMode: mode, trainingMin: 47, trainingKcal: 333 };
+      const raw = energy(e), en = energy(e, goal), k = GOAL_FACTOR[goal], n = suggestNorms(e, goal);
+      const tag = `${sex} ${w} ${steps} ${mode} ${goal}`;
+      expect(kcal(n.rest), tag).toBe(Math.round(en.rest * k));
+      if (n.training) expect(kcal(n.training), tag).toBe(Math.round(en.train * k));
+      expect(n.rest[1], tag).toBe(Math.round((sex === 'f' ? 1 : 0.9) * w));
+      expect(Math.abs(en.steps - raw.steps), tag).toBeLessThanOrEqual(8);
+      expect(Math.abs(en.training - raw.training), tag).toBeLessThanOrEqual(8);
+      expect(en.rest, tag).toBe(en.bmr + en.tef + en.steps);
+      expect(en.train, tag).toBe(en.rest + en.training);
     }
   });
   it('goals -10 % / keep / +10 %', () => {
