@@ -230,6 +230,18 @@ describe('products: search', () => {
     expect(list[0]).toBe(`Зяблик второй ${t}`);
   });
 
+  it('at the same match the own products come before the library and before other people\'s', async () => {
+    const t = tag();
+    await ownProduct(b, { name: `Пшёнка ${t} чужая` }); // someone else's
+    await ownProduct(a, { name: `Пшёнка ${t} моя` });
+    const list = names(await a.get(`/products?q=${encodeURIComponent(`пшенка ${t}`)}`));
+    expect(list).toEqual([`Пшёнка ${t} моя`, `Пшёнка ${t} чужая`]);
+    // a better match still wins: a name starting with the query before an own one that only contains it
+    await ownProduct(b, { name: `Кукурузка ${t}` });
+    await ownProduct(a, { name: `Каша кукурузка ${t}` });
+    expect(names(await a.get(`/products?q=${encodeURIComponent(`кукурузка ${t}`)}`))[0]).toBe(`Кукурузка ${t}`);
+  });
+
   it('weird input never crashes: quotes, FTS operators, punctuation only, very long', async () => {
     for (const q of ['"', '""*', 'AND', 'OR NOT', 'NEAR(a b)', '*', '-', '---', '"молоко', 'молоко"*', "'", '\\', 'x'.repeat(2000), 'a:b', '^с', 'col:молоко']) {
       const r = await a.get(`/products?q=${encodeURIComponent(q)}`);

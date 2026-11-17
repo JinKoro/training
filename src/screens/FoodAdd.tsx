@@ -23,6 +23,14 @@ const subtitle = (it: FoodItem) => {
 };
 const n = (s: string) => Number(String(s).replace(',', '.').trim());
 const MEAL_GEN: Record<Meal, string> = { breakfast: 'завтрака', lunch: 'обеда', dinner: 'ужина', snack: 'перекуса' };
+const MEAL_ACC: Record<Meal, string> = { breakfast: 'завтрак', lunch: 'обед', dinner: 'ужин', snack: 'перекус' };
+/** How well a name matches the search: 0 it starts with it, 1 every word of the query starts a word of it, 2 anywhere. */
+const matchRank = (names: string[], needle: string) => {
+  const ns = names.map((x) => x.toLowerCase().replace(/ё/g, 'е'));
+  if (ns.some((x) => x.startsWith(needle))) return 0;
+  const words = needle.split(/[^\p{L}\p{N}]+/u).filter(Boolean);
+  return ns.some((x) => { const ts = x.split(/[^\p{L}\p{N}]+/u); return words.every((w) => ts.some((t) => t.startsWith(w))); }) ? 1 : 2;
+};
 const MEAL_GEN_PL: Record<Meal, string> = { breakfast: 'завтраков', lunch: 'обедов', dinner: 'ужинов', snack: 'перекусов' };
 
 /** Four on/off chips: which meals a food shows up for. At least one stays on. */
@@ -137,7 +145,7 @@ interface IngPick { onPick: (it: FoodItem) => void; onAdd: (it: FoodItem, grams:
  * With `ing` it picks a dish ingredient: no «Блюда» tab, no dishes, no scan / new-product links (they would leave the dish).
  */
 function AddPanel({ date: d, meal: m, ing }: { date: string; meal: Meal; ing?: IngPick }) {
-  const { wide } = useApp();
+  const { wide, me } = useApp();
   const key = ing ? `${d}/${m}/ing` : `${d}/${m}`;
   const [q, setQ] = useState(() => panelState.get(key)?.q ?? '');
   const [tab, setTab] = useState<Tab>(() => panelState.get(key)?.tab ?? 'recent');
@@ -180,12 +188,16 @@ function AddPanel({ date: d, meal: m, ing }: { date: string; meal: Meal; ing?: I
 
   let body: React.ReactNode;
   if (s) {
-    const low = s.toLowerCase();
-    const found = ing ? hits.data?.products
-      : hits.data && dishes.data ? [...dishes.data.dishes.filter((x) => x.name.toLowerCase().includes(low)), ...hits.data.products] : undefined;
+    const low = s.toLowerCase().replace(/ё/g, 'е');
+    // Best match first; at the same match the user's dishes, then their own products, the shared library, then other people's.
+    const kindOf = (it: FoodItem) => (it.type === 'dish' ? 0 : it.createdBy === me.user.id ? 1 : it.createdBy == null ? 2 : 3);
+    const all = ing ? hits.data?.products
+      : hits.data && dishes.data ? [...dishes.data.dishes.filter((x) => x.name.toLowerCase().replace(/ё/g, 'е').includes(low)), ...hits.data.products] : undefined;
+    const found = all?.map((it, i) => ({ it, i, r: matchRank([it.name, it.title ?? it.name], low), k: kindOf(it) }))
+      .sort((a, b) => a.r - b.r || a.k - b.k || a.i - b.i).map((x) => x.it);
     body = !found ? <Skeleton n={4} /> : (
       <div className="col" style={{ gap: 4 }}>
-        {found.map((it) => <ItemRow key={`${it.type}${it.id}`} it={it} href={itemHref(it)} onPick={pickOf(it)} onOpen={remember} sub={`${subtitle(it)}${it.type === 'product' && it.base === false ? ' · добавлен пользователем' : ''}`} />)}
+        {found.map((it) => <ItemRow key={`${it.type}${it.id}`} it={it} href={itemHref(it)} onPick={pickOf(it)} onOpen={remember} sub={`${subtitle(it)}${it.type !== 'product' ? '' : it.createdBy === me.user.id ? ' · мой продукт' : it.base === false ? ' · добавлен пользователем' : ''}`} />)}
         {!found.length ? <span className="muted" style={{ padding: '12px 0' }}>Ничего не нашлось</span> : null}
         {!ing ? <a className="btn ghost" href={newProduct} style={{ height: 48, borderRadius: 18, fontSize: 15, marginTop: 8 }}>+ Добавить продукт</a> : null}
       </div>
@@ -256,18 +268,22 @@ function AddPanel({ date: d, meal: m, ing }: { date: string; meal: Meal; ing?: I
     );
   } else {
     const list = dishes.data?.dishes.filter((x) => !x.meals || x.meals.includes(m));
+    // Dishes tagged for other meals stay findable below, with the meals they are for.
+    const other = dishes.data?.dishes.filter((x) => x.meals && !x.meals.includes(m)) ?? [];
     body = !list ? <Skeleton n={3} /> : (
       <div className="col" style={{ gap: 4 }}>
         <a className="btn ghost" href={`#/food/${d}/dish/${m}`} style={{ height: 48, borderRadius: 18, fontSize: 15, marginBottom: 6 }}>+ Новое блюдо</a>
         {list.map((it) => <ItemRow key={it.id} it={it} href={itemHref(it)} />)}
         {!list.length ? <span className="muted" style={{ padding: '12px 0' }}>Для {MEAL_GEN[m]} блюд пока нет</span> : null}
+        {other.length ? <span className="label" style={{ marginTop: 14 }}>Для других приёмов пищи</span> : null}
+        {other.map((it) => <ItemRow key={it.id} it={it} href={itemHref(it)} sub={`${MEALS.filter((x) => it.meals!.includes(x)).map((x) => MEAL_ACC[x]).join(', ')} · ${fmtKcal(kcal100(it), kcalTenths(it))} ккал на 100 г`} />)}
       </div>
     );
   }
 
   return (
     <div className="col" style={{ gap: 12 }}>
-      <div ref={searchRef}><SearchInput id="food-search" value={q} onChange={setQ} placeholder="Поиск по всем продуктам" onFocus={() => { clearTimeout(blurTimer.current); setFocused(true); }} onBlur={() => { clearTimeout(blurTimer.current); blurTimer.current = window.setTimeout(() => setFocused(false), 150); }} /></div>
+      <div ref={searchRef}><SearchInput id="food-search" value={q} onChange={setQ} placeholder={ing ? 'Поиск по всем продуктам' : 'Поиск по всем продуктам и блюдам'} onFocus={() => { clearTimeout(blurTimer.current); setFocused(true); }} onBlur={() => { clearTimeout(blurTimer.current); blurTimer.current = window.setTimeout(() => setFocused(false), 150); }} /></div>
       {!s && !showHistory ? (
         <>
           {/* Штрихкод left, new product right (desktop has the product form beside the list). Dishes live in the «Блюда» tab. */}
@@ -397,6 +413,11 @@ export function ItemScreen({ date, type, id, meal, ing }: { date?: string; type:
   const removeProduct = async () => {
     if (busy) return;
     setBusy(true);
+    if (type === 'dish') {
+      try { await api('DELETE', `/dishes/${id}`); forget(`/dishes/${id}`, `/food/last-grams?type=dish&id=${id}`); invalidate('/dishes', '/food/recent', '/diary'); toast('Блюдо удалено'); history.back(); }
+      catch (e) { toast(errText(e)); setBusy(false); setMenu(false); }
+      return;
+    }
     try { await api('DELETE', `/products/${id}`); forget(`/products/${id}`, `/food/last-grams?type=product&id=${id}`); invalidate('/products', '/food/recent', '/diary'); toast('Продукт удалён'); history.back(); }
     catch (e) { toast(e instanceof ApiError && e.code === 'product_in_dish' ? 'Продукт есть в блюде, сначала уберите его оттуда' : errText(e)); setBusy(false); setMenu(false); }
   };
@@ -419,7 +440,9 @@ export function ItemScreen({ date, type, id, meal, ing }: { date?: string; type:
   const ovChanged = !!ov && ovOk && (eff.protein !== it.protein || eff.fat !== it.fat || eff.carbs !== it.carbs || kcal100(eff) !== kcal100(it));
   const m100 = per100(eff).map((x) => (x * g) / 100) as [number, number, number];
   // an admin may change or delete any product of the shared library, like their own
-  const own = !ing && it.type === 'product' && (it.createdBy === me.user.id || me.user.role === 'admin');
+  // a dish is always the user's own: «⋯» changes or deletes it too
+  const own = !ing && (it.type === 'dish' || (it.createdBy === me.user.id || me.user.role === 'admin'));
+  const isDish = it.type === 'dish';
   const add = async () => {
     if (g < 1 || g > 5000 || busy || !ovOk) return;
     if (ing) { ing.onAdd(it, g); return; }
@@ -439,13 +462,13 @@ export function ItemScreen({ date, type, id, meal, ing }: { date?: string; type:
   const chips: [string, number][] = [['100 г', 100], ['150 г', 150], ['200 г', 200], ...(it.portionG ? [['порция', it.portionG] as [string, number]] : [])];
   return (
     <Screen className="modal fixed-cta">
-      <Sheet open={menu} onClose={() => setMenu(false)} label="Продукт">
+      <Sheet open={menu} onClose={() => setMenu(false)} label={isDish ? 'Блюдо' : 'Продукт'}>
         {!confirmDel ? (
           <>
-            <b style={{ fontSize: 18 }}>Продукт</b>
+            <b style={{ fontSize: 18 }}>{isDish ? 'Блюдо' : 'Продукт'}</b>
             <div className="col" style={{ gap: 0 }}>
-              <a href={`#/food/${d}/product-edit/${it.id}`} style={menuRow}>Изменить</a>
-              <button onClick={() => setConfirmDel(true)} style={{ ...menuRow, color: 'var(--warn)', borderBottom: 0 }}>Удалить продукт</button>
+              <a href={isDish ? `#/food/${d}/dish/${m}/edit/${it.id}` : `#/food/${d}/product-edit/${it.id}`} style={menuRow}>Изменить</a>
+              <button onClick={() => setConfirmDel(true)} style={{ ...menuRow, color: 'var(--warn)', borderBottom: 0 }}>{isDish ? 'Удалить блюдо' : 'Удалить продукт'}</button>
             </div>
           </>
         ) : (
@@ -744,11 +767,20 @@ type DishView = { at: 'form' } | { at: 'search' } | { at: 'item'; id: number };
  * New dish from scratch (all meals by default), or from a meal of the day ("from-meal": its food, tagged for that meal).
  * The «+» of the ingredients opens the add-food search in ingredient mode, then its weight screen; the draft stays here.
  */
-export function DishNewScreen({ date, meal, from }: { date?: string; meal?: string; from?: string }) {
+export function DishNewScreen({ date, meal, from, editId }: { date?: string; meal?: string; from?: string; editId?: number }) {
   const d = asDate(date), m = asMeal(meal);
   const fromMeal = from === 'from-meal';
+  const editing = from === 'edit' && !!editId;
   const day = useQuery<{ entries: Entry[] }>(fromMeal ? `/diary?from=${d}&to=${d}` : null);
-  const [draft, setDraft] = useState<DishDraft | null>(fromMeal ? null : { name: '', ings: [], meals: MEALS });
+  const [draft, setDraft] = useState<DishDraft | null>(fromMeal || editing ? null : { name: '', ings: [], meals: MEALS });
+  // «Изменить» on a dish: the form opens filled in with its name, ingredients (raw grams, own values) and meals.
+  const cur = useQuery<{ dish: FoodItem; ingredients: { product: FoodItem; grams: number; custom: Own | null }[] }>(editing ? `/dishes/${editId}/ingredients` : null);
+  useEffect(() => {
+    if (draft || !cur.data) return;
+    const { dish, ingredients } = cur.data;
+    setDraft({ name: dish.name, meals: dish.meals ?? MEALS,
+      ings: ingredients.map((x) => ({ product: x.product, grams: String(Math.round(x.grams * 10) / 10), ...(x.custom ? { own: x.custom } : {}) })) });
+  }, [draft, cur.data]);
   useEffect(() => {
     if (draft || !day.data) return;
     let off = false;
@@ -775,7 +807,10 @@ export function DishNewScreen({ date, meal, from }: { date?: string; meal?: stri
     setDraft((x) => x && { ...x, ings: [...x.ings, { product: it, grams: String(Math.round(g)) }] });
     setView({ at: 'form' });
   };
-  if (!draft) return <Screen className="modal">{day.error ? <ErrorBox error={day.error} retry={day.reload} /> : <Skeleton n={3} />}</Screen>;
+  if (!draft) {
+    const err = day.error ?? cur.error, retry = day.error ? day.reload : cur.reload;
+    return <Screen className="modal">{err ? <ErrorBox error={err} retry={retry} /> : <Skeleton n={3} />}</Screen>;
+  }
   if (view.at === 'item') {
     return <ItemScreen key={view.id} date={d} type="product" id={view.id} meal={m} ing={{ onAdd: addIng, onBack: () => setView({ at: 'search' }) }} />;
   }
@@ -783,8 +818,12 @@ export function DishNewScreen({ date, meal, from }: { date?: string; meal?: stri
     return <IngredientSearch date={d} meal={m} onBack={() => setView({ at: 'form' })} ing={{ onPick: (it) => setView({ at: 'item', id: it.id }), onAdd: addIng }} />;
   }
   return (
-    <DishForm title={fromMeal ? `Блюдо из ${MEAL_GEN[m]}` : 'Новое блюдо'} cancel={back} draft={draft} setDraft={setDraft} onAddIngredient={() => { panelState.delete(`${d}/${m}/ing`); setView({ at: 'search' }); }}
-      onSaved={(dish) => { if (fromMeal) { toast(`Блюдо «${dish.name}» сохранено`); go('food', d); } else go('food', d, 'item', 'dish', dish.id, m); }} />
+    <DishForm title={editing ? 'Изменить блюдо' : fromMeal ? `Блюдо из ${MEAL_GEN[m]}` : 'Новое блюдо'} cancel={editing ? `#/food/${d}/item/dish/${editId}/${m}` : back} draft={draft} setDraft={setDraft}
+      editId={editing ? editId : undefined} onAddIngredient={() => { panelState.delete(`${d}/${m}/ing`); setView({ at: 'search' }); }}
+      onSaved={(dish) => {
+        if (editing) { toast(`Блюдо «${dish.name}» сохранено`); history.back(); return; }
+        if (fromMeal) { toast(`Блюдо «${dish.name}» сохранено`); go('food', d); } else go('food', d, 'item', 'dish', dish.id, m);
+      }} />
   );
 }
 
@@ -808,8 +847,10 @@ const effOf = (i: Ing): Per100 => (i.own ? { ...i.product, ...i.own } : i.produc
  * The dish form: name, ingredients (raw weight; a tap opens the weight sheet), totals of the whole dish, meal tags.
  * The dish is stored per 100 g of the sum of the raw weights.
  */
-function DishForm({ title, cancel, draft, setDraft, onAddIngredient, onSaved }: {
+function DishForm({ title, cancel, draft, setDraft, onAddIngredient, onSaved, editId }: {
   title: string; cancel: string; draft: DishDraft; setDraft: (f: (d: DishDraft | null) => DishDraft | null) => void; onAddIngredient: () => void; onSaved: (d: FoodItem) => void;
+  /** Changing an existing dish (PUT) instead of making a new one. */
+  editId?: number;
 }) {
   const { wide } = useApp();
   const [busy, setBusy] = useState(false);
@@ -827,12 +868,15 @@ function DishForm({ title, cancel, draft, setDraft, onAddIngredient, onSaved }: 
     setBusy(true);
     try {
       // No cooked weight to type any more: the dish weighs what its raw ingredients weigh.
-      const { dish } = await api<{ dish: FoodItem }>('POST', '/dishes', {
+      const { dish } = await api<{ dish: FoodItem }>(editId ? 'PUT' : 'POST', editId ? `/dishes/${editId}` : '/dishes', {
         name: name.trim(), cookedWeight: totalW, meals,
         ingredients: ings.map((i) => (i.product.type === 'dish' ? { dishId: i.product.id, grams: gOf(i) }
           : { productId: i.product.id, grams: gOf(i), ...(i.own ? { custom: i.own } : {}) })),
       });
-      invalidate('/dishes', '/food/recent');
+      // a changed dish: its screen (back) must show the new numbers, so wait for them
+      if (editId) forget(`/dishes/${editId}/ingredients`);
+      const fresh = invalidate('/dishes', '/food/recent');
+      if (editId) await fresh;
       onSaved(dish);
     } catch (e) { toast(errText(e)); setBusy(false); }
   };

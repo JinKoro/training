@@ -85,6 +85,36 @@ describe('dishes', () => {
     expect((await c.post('/dishes', { name: 'Плохое', cookedWeight: 100, ingredients: [{ productId: 1, grams: 10 }, { productId: 99999999, grams: 10 }] })).status).toBe(400);
     expect((await c.get('/dishes')).body.dishes).toEqual([]);
   });
+
+  it('ingredients for the edit form; PUT changes everything; only the owner; a dish cannot hold itself', async () => {
+    const own = { protein: 30, fat: 5, carbs: 0, kcal: 165 };
+    const d = (await a.post('/dishes', { name: 'Правка', cookedWeight: 300, meals: ['lunch'], ingredients: [{ productId: prod.id, grams: 200, custom: own }, { productId: 1, grams: 100 }] })).body.dish;
+    const ing = (await a.get(`/dishes/${d.id}/ingredients`)).body;
+    expect(ing.dish).toMatchObject({ id: d.id, name: 'Правка', meals: ['lunch'] });
+    expect(ing.ingredients.map((x: any) => [x.product.id, x.grams, x.custom])).toEqual([[prod.id, 200, own], [1, 100, null]]);
+    expect((await b.get(`/dishes/${d.id}/ingredients`)).status).toBe(404);
+
+    const r = await a.put(`/dishes/${d.id}`, { name: 'Правка 2', cookedWeight: 100, meals: ['dinner', 'snack'], ingredients: [{ productId: prod.id, grams: 100 }] });
+    expect(r.status).toBe(200);
+    expect(r.body.dish).toMatchObject({ id: d.id, name: 'Правка 2', cookedWeight: 100, meals: ['dinner', 'snack'], protein: 20, kcal: 200 });
+    expect((await a.get(`/dishes/${d.id}/ingredients`)).body.ingredients.map((x: any) => [x.product.id, x.grams, x.custom])).toEqual([[prod.id, 100, null]]);
+    expect((await b.put(`/dishes/${d.id}`, { name: 'Чужое', cookedWeight: 100, ingredients: [{ productId: 1, grams: 100 }] })).status).toBe(404);
+    expect((await a.put(`/dishes/${d.id}`, { name: 'Сама в себе', cookedWeight: 100, ingredients: [{ dishId: d.id, grams: 100 }] })).status).toBe(400);
+    expect((await a.put(`/dishes/${d.id}`, { name: 'Пусто', cookedWeight: 100, ingredients: [] })).status).toBe(400);
+    expect((await a.get(`/dishes/${d.id}`)).body.dish.name).toBe('Правка 2'); // a rejected change changes nothing
+  });
+
+  it('delete: only the owner; diary entries keep their copy; gone from the list', async () => {
+    const d = (await a.post('/dishes', { name: 'Удаляемое', cookedWeight: 100, ingredients: [{ productId: prod.id, grams: 100 }] })).body.dish;
+    const e = (await a.post('/diary', { date: TODAY, meal: 'lunch', itemType: 'dish', itemId: d.id, grams: 150 })).body.entry;
+    expect((await b.del(`/dishes/${d.id}`)).status).toBe(404);
+    expect((await a.del(`/dishes/${d.id}`)).status).toBe(200);
+    expect((await a.get(`/dishes/${d.id}`)).status).toBe(404);
+    expect((await a.del(`/dishes/${d.id}`)).status).toBe(404);
+    expect((await a.get('/dishes')).body.dishes.some((x: any) => x.id === d.id)).toBe(false);
+    const entries = (await a.get(`/diary?from=${TODAY}&to=${TODAY}`)).body.entries;
+    expect(entries.find((x: any) => x.id === e.id)).toMatchObject({ dishId: null, name: 'Удаляемое', protein: 20, grams: 150 });
+  });
 });
 
 describe('diary entries', () => {

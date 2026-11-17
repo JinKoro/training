@@ -265,6 +265,46 @@ test.describe('Food diary', () => {
     expect(after.find((d: { name: string }) => d.name === 'Мой завтрак')).toMatchObject({ meals: ['breakfast'], cookedWeight: 270 });
   });
 
+  test('dishes of other meals are listed below; «⋯» on a dish changes it (form filled in) or deletes it', async ({ authed: page, user }) => {
+    const prods = (await call(user.token, 'GET', `/products?q=${encodeURIComponent('Гречка варёная')}`)).products;
+    const buck = prods.find((p: { name: string }) => p.name === 'Гречка варёная');
+    await call(user.token, 'POST', '/dishes', { name: 'Обеденная каша', cookedWeight: 200, meals: ['lunch', 'dinner'], ingredients: [{ productId: buck.id, grams: 200 }] });
+    await open(page, `food/${D}/add/breakfast`);
+    await page.getByRole('tab', { name: 'Блюда' }).click();
+    await expect(page.getByText('Для завтрака блюд пока нет')).toBeVisible();
+    await expect(page.getByText('Для других приёмов пищи')).toBeVisible();
+    const row = page.locator('a', { hasText: 'Обеденная каша' });
+    await expect(row).toContainText('обед, ужин · 109 ккал на 100 г');
+    // the search finds it too, its placeholder says so
+    await page.getByPlaceholder('Поиск по всем продуктам и блюдам').fill('обеденн');
+    await expect(page.locator('a', { hasText: 'Обеденная каша' })).toContainText('своё блюдо');
+    await page.locator('a', { hasText: 'Обеденная каша' }).click();
+
+    await expect(page.getByRole('heading', { name: 'Обеденная каша' })).toBeVisible();
+    await page.getByRole('button', { name: 'Меню' }).click();
+    await sheet(page, 'Блюдо').getByRole('link', { name: 'Изменить' }).click();
+    await expect(page.getByText('Изменить блюдо')).toBeVisible();
+    await expect(page.getByLabel('Название')).toHaveValue('Обеденная каша');
+    const ings = page.getByRole('region', { name: 'Ингредиенты' });
+    await expect(ings.locator('button.row', { hasText: 'Гречка варёная' })).toContainText('200 г');
+    await expect(page.getByRole('button', { name: 'Обед' })).toHaveAttribute('aria-pressed', 'true');
+    await expect(page.getByRole('button', { name: 'Завтрак' })).toHaveAttribute('aria-pressed', 'false');
+    await page.getByLabel('Название').fill('Каша на весь день');
+    await page.getByRole('button', { name: 'Завтрак' }).click();
+    await page.getByRole('button', { name: 'Готово' }).click();
+    await expect(toast(page)).toHaveText('Блюдо «Каша на весь день» сохранено');
+    await expect(page.getByRole('heading', { name: 'Каша на весь день' })).toBeVisible();
+    const after = (await call(user.token, 'GET', '/dishes')).dishes;
+    expect(after).toHaveLength(1);
+    expect(after[0]).toMatchObject({ name: 'Каша на весь день', meals: ['breakfast', 'lunch', 'dinner'], cookedWeight: 200 });
+
+    await page.getByRole('button', { name: 'Меню' }).click();
+    await sheet(page, 'Блюдо').getByRole('button', { name: 'Удалить блюдо' }).click();
+    await sheet(page, 'Блюдо').getByRole('button', { name: 'Да, удалить' }).click();
+    await expect(toast(page)).toHaveText('Блюдо удалено');
+    expect((await call(user.token, 'GET', '/dishes')).dishes).toEqual([]);
+  });
+
   test('own kcal and macros for a dish ingredient: the dish totals and the saved dish change, the product does not', async ({ authed: page, user }) => {
     await open(page, `food/${D}/add/lunch`);
     await page.getByRole('tab', { name: 'Блюда' }).click();

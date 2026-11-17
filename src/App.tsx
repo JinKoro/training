@@ -167,7 +167,7 @@ function Routes({ r }: { r: string[] }) {
       if (c === 'add') return <AddFoodScreen date={b} meal={d} />;
       if (c === 'item') return <ItemScreen date={b} type={d as 'product' | 'dish'} id={Number(e)} meal={r[5]} />;
       if (c === 'new-product') return <ProductNewScreen date={b} meal={d} barcode={e} />;
-      if (c === 'dish') return <DishNewScreen date={b} meal={d} from={e} />;
+      if (c === 'dish') return <DishNewScreen key={`${e ?? ''}${r[5] ?? ''}`} date={b} meal={d} from={e} editId={Number(r[5]) || undefined} />;
       if (c === 'scan') return <ScanScreen date={b} meal={d} />;
       if (c === 'product-edit') return <ProductEditScreen id={Number(d)} />;
       return <FoodScreen date={b} />;
