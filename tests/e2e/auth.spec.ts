@@ -88,13 +88,16 @@ test.describe('Registration wizard', () => {
     const input = { sex: 'f' as const, weight: 62.5, bodyFat: 27, steps: 9000, trainingMode: 'time' as const, trainingMin: 45, trainingKcal: 0 };
     const en = energy(input);
     const norms = suggestNorms(input, 'lose');
-    const card = page.locator('.card', { hasText: 'Расход в день' });
+    const card = page.locator('.card', { hasText: 'Тратите в день' });
     await expect(card.getByText(fmt(en.bmr), { exact: true })).toBeVisible();
     await expect(card.getByText(`+${fmt(en.training)}`, { exact: true })).toBeVisible();
-    const offer = page.locator('div', { hasText: /^Предлагаемые калории/ }).last();
+    await expect(card.getByText('Столько, чтобы вес не менялся')).toBeVisible();
+    // the plan says where it comes from: the day's spend minus 10 %
+    await expect(page.getByText('План калорий')).toBeVisible();
+    await expect(page.getByText(`расход ${fmt(en.train)} −10 %`, { exact: true })).toBeVisible();
+    await expect(page.getByText(`расход ${fmt(en.rest)} −10 %`, { exact: true })).toBeVisible();
     await expect(page.getByText(`${fmt(kcal(norms.training!))} ккал`, { exact: true })).toBeVisible();
     await expect(page.getByText(`${fmt(kcal(norms.rest))} ккал`, { exact: true })).toBeVisible();
-    void offer;
 
     await expect(page.getByText(/Расчёт примерный.*не медицинская рекомендация/)).toBeVisible();
 

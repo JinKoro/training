@@ -118,9 +118,11 @@ export function EnergyFlow({ mode, init, wide, busy, error, onBack, onDone, onSk
       n: 'Тренировка', sub: `${f.tmode === 'time' ? `0,07 × ${fmt1(input.weight)} кг × ${fmt(input.trainingMin)} мин · ` : ''}только в дни тренировок`, v: en.training, c: 'var(--warn)', plus: true,
     }]),
   ];
+  // each day's plan shows where it comes from: that day's spend, then the goal (−10 % / as is / +10 %)
   const days = norms.training
-    ? [{ n: 'День тренировки', m: norms.training }, { n: 'День отдыха', m: norms.rest }]
-    : [{ n: 'В день', m: norms.rest }];
+    ? [{ n: 'День тренировки', m: norms.training, spend: en.train }, { n: 'День отдыха', m: norms.rest, spend: en.rest }]
+    : [{ n: 'В день', m: norms.rest, spend: en.rest }];
+  const goalPart = GOALS.find((g) => g[0] === f.goal)![2];
 
   return (
     <div className="col" style={{ gap: 14, flex: 1, width: '100%', maxWidth: wide ? (step === 2 ? 880 : 560) : undefined, alignSelf: 'center' }}>
@@ -182,7 +184,7 @@ export function EnergyFlow({ mode, init, wide, busy, error, onBack, onDone, onSk
           </div>
           <div className="col" style={{ flex: '1 1 340px', minWidth: 0, gap: 12 }}>
             <div className="card col a-in" style={{ gap: 12, borderRadius: 22 }}>
-              <div className="between"><b style={{ fontSize: 17 }}>Расход в день</b><span className="muted" style={{ fontSize: 13, fontWeight: 700 }}>ккал</span></div>
+              <div className="between"><b style={{ fontSize: 17 }}>Тратите в день</b><span className="muted" style={{ fontSize: 13, fontWeight: 700 }}>ккал</span></div>
               <div style={{ display: 'flex', gap: 2, height: 12, borderRadius: 6, overflow: 'hidden' }}>
                 {parts.map((p) => <i key={p.n} className="a-fill" style={{ flex: `${Math.max(p.v, 1)} 1 0`, background: p.c }} />)}
               </div>
@@ -199,12 +201,17 @@ export function EnergyFlow({ mode, init, wide, busy, error, onBack, onDone, onSk
                   <div key={n} className="col" style={{ gap: 2 }}><span className="sub" style={{ fontSize: 13 }}>{n}</span><b className="display num" style={{ fontSize: 20 }}>{fmt(v as number)}</b></div>
                 ))}
               </div>
+              {/* people took this for the plan: it is what keeps the weight as it is */}
+              <span className="muted" style={{ fontSize: 13, fontWeight: 700 }}>Столько, чтобы вес не менялся</span>
             </div>
             <div className="col a-in" style={{ background: 'var(--hero)', color: '#fff', borderRadius: 22, padding: 16, gap: 12 }}>
-              <div className="between"><b style={{ fontSize: 17 }}>Предлагаемые калории</b><span style={{ fontSize: 13, fontWeight: 700, opacity: 0.85 }}>{GOALS.find((g) => g[0] === f.goal)![2]}</span></div>
+              <div className="between"><b style={{ fontSize: 17 }}>План калорий</b><span style={{ fontSize: 13, fontWeight: 700, opacity: 0.85 }}>{GOALS.find((g) => g[0] === f.goal)![1]}</span></div>
               {days.map((d) => (
                 <div key={d.n} className="col" style={{ gap: 6 }}>
-                  <div className="between"><span style={{ fontWeight: 700 }}>{d.n}</span><b className="display num" style={{ fontSize: 20 }}>{fmt(kcal(d.m))} ккал</b></div>
+                  <div className="between" style={{ alignItems: 'flex-end' }}>
+                    <span className="col" style={{ gap: 1 }}><span style={{ fontWeight: 700 }}>{d.n}</span><span style={{ fontSize: 13, fontWeight: 700, opacity: 0.85 }}>{goalPart ? `расход ${fmt(d.spend)} ${goalPart}` : `как расход ${fmt(d.spend)}`}</span></span>
+                    <b className="display num" style={{ fontSize: 20 }}>{fmt(kcal(d.m))} ккал</b>
+                  </div>
                   <div style={{ display: 'grid', gridTemplateColumns: 'repeat(3, 1fr)', gap: 6 }}>
                     {(['Б', 'Ж', 'У'] as const).map((l, i) => (
                       <span key={l} style={{ background: 'rgba(255,255,255,.12)', borderTop: `3px solid ${['rgba(255,255,255,.9)', '#1A1A1A', '#15803D'][i]}`, borderRadius: 8, padding: '6px 8px', fontWeight: 800, fontSize: 14 }}>{l} {d.m[i]}</span>
