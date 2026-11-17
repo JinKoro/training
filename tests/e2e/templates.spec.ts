@@ -38,7 +38,7 @@ test.describe('Ready-made programs', () => {
     await expect(page.getByText('любитель').first()).toBeVisible();
     await expect(page.locator('.card', { hasText: 'Нагрузка по неделям' })).toContainText('Адаптациянедели 1–2');
     await expect(page.locator('.card', { hasText: 'Нагрузка по неделям' })).toContainText('Разгрузканеделя 11');
-    await page.getByRole('button', { name: 'Неделя 12' }).click();
+    await page.getByRole('button', { name: 'Неделя 12', exact: true }).click();
     await expect(page.getByText('Пик', { exact: true }).last()).toBeVisible();
     const t = templateById('m1')!;
     const day = templateDay(t, 12, 0);
@@ -54,6 +54,7 @@ test.describe('Ready-made programs', () => {
     await open(page, 'template/m0');
     await page.getByRole('button', { name: 'Начать программу' }).click();
     await expect(page.getByRole('heading', { name: 'Старт программы' })).toBeVisible();
+    await expect(page.getByText('Первая неделя — калибровочная')).toBeVisible();
 
     // weekdays: today + two more, so the first workout is today
     const wd = weekdayIdx(today());
@@ -111,6 +112,11 @@ test.describe('Ready-made programs', () => {
     await mine.locator('a', { hasText: 'Fullbody' }).click();
     await expect(page.getByRole('heading', { name: 'Fullbody' })).toBeVisible();
     await expect(page.getByText('новичок')).toBeVisible();
+    // the load chart like the template's: deload week 11 is grey and named under it; a bar opens its week
+    await expect(page.getByText('Нагрузка по неделям')).toBeVisible();
+    await expect(page.getByText('Неделя 11 — разгрузка')).toBeVisible();
+    await page.getByRole('button', { name: 'Нагрузка: неделя 11' }).click();
+    await expect(page.getByText('Неделя 11', { exact: true })).toBeVisible();
     await page.getByRole('button', { name: 'Меню' }).click();
     await sheet(page, 'Программа').getByRole('link', { name: 'Изменить' }).click();
     await page.getByRole('button', { name: 'Неделя 1', exact: true }).click();
@@ -122,7 +128,7 @@ test.describe('Ready-made programs', () => {
     await expect(row('Сгибания рук с гантелями').getByLabel('Вес')).toHaveValue('');
     await expect(row('Жим штанги лёжа').getByLabel('Повторы')).toHaveValue('12');
     // deload week 11: 2×10 at 70 %
-    await page.getByRole('button', { name: 'Неделя 11' }).click();
+    await page.getByRole('button', { name: 'Неделя 11', exact: true }).click();
     await page.locator('.chips .chip', { hasText: WD_SHORT[want[0]] }).click();
     await expect(row('Жим штанги лёжа').getByLabel('Подходы')).toHaveValue('2');
     await expect(row('Жим штанги лёжа').getByLabel('Вес')).toHaveValue(kg(weightFor(60, 8, 10, t.load[10])));

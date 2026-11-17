@@ -74,7 +74,7 @@ test.describe('Own program editor', () => {
     await expect(bench.getByLabel('Подходы')).toHaveValue('5');
 
     // week 2: offered to copy week 1
-    await page.getByRole('button', { name: 'Неделя 2' }).click();
+    await page.getByRole('button', { name: 'Неделя 2', exact: true }).click();
     const copy = page.locator('.card', { hasText: 'Скопировать неделю' });
     await expect(copy).toBeVisible();
     await copy.getByRole('button', { name: '1', exact: true }).click();
@@ -82,7 +82,7 @@ test.describe('Own program editor', () => {
     await expect(row(page, 'Жим штанги лёжа').getByLabel('Вес')).toHaveValue('62,5');
     await expect(row(page, 'Жим штанги лёжа').getByLabel('Отдых')).toHaveValue('3:30');
     // week 3 stays empty -> «Заполнить с нуля» shows the editor
-    await page.getByRole('button', { name: 'Неделя 3' }).click();
+    await page.getByRole('button', { name: 'Неделя 3', exact: true }).click();
     await copy.getByRole('button', { name: 'Заполнить с нуля' }).click();
     await expect(page.getByRole('button', { name: '+ Упражнение' })).toBeVisible();
 
@@ -96,9 +96,9 @@ test.describe('Own program editor', () => {
     await expect(card.locator('.between', { hasText: 'Жим штанги лёжа' })).toContainText('5×8 · 3:30');
     await expect(card.locator('.between', { hasText: 'Тяга верхнего блока к груди' })).toContainText('4×10–12 · 3:00');
     await expect(page.locator('.card', { hasText: WD_CAP[other] })).toContainText('Пусто');
-    await page.getByRole('button', { name: 'Неделя 2' }).click();
+    await page.getByRole('button', { name: 'Неделя 2', exact: true }).click();
     await expect(page.locator('.card', { hasText: WD_CAP[wd] }).locator('.between', { hasText: 'Жим штанги лёжа' })).toContainText('5×8 · 3:30');
-    await page.getByRole('button', { name: 'Неделя 3' }).click();
+    await page.getByRole('button', { name: 'Неделя 3', exact: true }).click();
     await expect(page.locator('.card', { hasText: WD_CAP[wd] })).toContainText('Пусто');
 
     // Спорт lists it as current and under «Мои программы»
@@ -140,9 +140,9 @@ test.describe('Own program editor', () => {
   test('cancel in the editor keeps the program unchanged; fewer weeks clamps the selected week', async ({ authed: page, user }) => {
     const p = await createProgram(user.token, { name: 'Пять недель', weeks: 5, days: { 2: [{ name: 'Жим штанги лёжа', sets: 3, reps: '10' }] } });
     await open(page, `program/${p.id}/edit`);
-    await page.getByRole('button', { name: 'Неделя 5' }).click();
+    await page.getByRole('button', { name: 'Неделя 5', exact: true }).click();
     await page.getByRole('button', { name: 'Меньше недель' }).click();
-    await expect(page.getByRole('button', { name: 'Неделя 4' })).toHaveAttribute('aria-pressed', 'true');
+    await expect(page.getByRole('button', { name: 'Неделя 4', exact: true })).toHaveAttribute('aria-pressed', 'true');
     await expect(page.getByText('Неделя 4 · среда')).toBeVisible();
     await page.getByLabel('Название').fill('Не сохранять');
     await page.getByRole('link', { name: 'Отмена' }).click();
@@ -156,14 +156,14 @@ test.describe('Own program editor', () => {
       4: [{ name: 'Приседания со штангой', sets: 3, reps: '8' }],
     } });
     await open(page, `program/${p.id}/edit`);
-    await page.getByRole('button', { name: 'Неделя 1' }).click();
+    await page.getByRole('button', { name: 'Неделя 1', exact: true }).click();
     await page.locator('.chips .chip', { hasText: 'Пн' }).click();
     await row(page, 'Махи в стороны').getByRole('button', { name: 'Убрать упражнение' }).click();
     await expect(page.getByText('Махи в стороны')).toHaveCount(0);
     await page.locator('.field', { hasText: 'Дни тренировок' }).getByRole('button', { name: 'Пт', exact: true }).click();
     await page.getByRole('button', { name: 'Сохранить' }).click();
     await expect(page.getByRole('heading', { name: 'Чистка' })).toBeVisible();
-    await page.getByRole('button', { name: 'Неделя 1' }).click();
+    await page.getByRole('button', { name: 'Неделя 1', exact: true }).click();
     await expect(page.locator('.card', { hasText: 'Понедельник' })).toContainText('1 упр.');
     await expect(page.locator('.card', { hasText: 'Пятница' })).toHaveCount(0);
     await tab(page, 'Спорт').click();

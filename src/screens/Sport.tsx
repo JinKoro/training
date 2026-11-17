@@ -11,6 +11,7 @@ import { MoreButton, Screen, Sheet, errText, menuRow, toast } from '../ui';
 import { TodayWorkout } from './Week';
 import { LevelTag, TemplatesBlock } from './Templates';
 import type { Level } from '../lib/templates';
+import { barHeights, deloads, loadNote, weekLoads } from '../lib/load';
 
 export function programSubtitle(p: Program) {
   return `${weeksText(p.weeks)} · ${timesPerWeek(p.weekdays.length)}`;
@@ -100,6 +101,35 @@ export function SportScreen() {
 }
 
 /** `week` opens that week of the program (from a day card: the week the day belongs to). */
+/**
+ * «Нагрузка по неделям» of a program, like a ready-made one's: a bar a week (grey = deload, a dashed stub = no
+ * workouts). With `cur` the weeks after the current one are paler; with `onPick` a bar opens its week.
+ */
+export function LoadChart({ loads, cur, sel, onPick, height = 64 }: { loads: number[]; cur?: number; sel?: number; onPick?: (week: number) => void; height?: number }) {
+  const note = loadNote(loads), hs = barHeights(loads), dl = deloads(loads);
+  return (
+    <div className="card col a-in" style={{ borderRadius: 22, gap: 12 }}>
+      <b>Нагрузка по неделям</b>
+      <div style={{ display: 'flex', alignItems: 'flex-end', gap: loads.length > 20 ? 2 : 4, height }}>
+        {loads.map((v, i) => {
+          const n = i + 1, rest = v === 0;
+          const style: React.CSSProperties = {
+            flex: 1, minWidth: 0, padding: 0, borderRadius: 4, boxSizing: 'border-box',
+            height: rest ? 4 : Math.max(6, Math.round(hs[i] * height)),
+            background: rest ? 'transparent' : dl[i] ? 'var(--track)' : 'var(--chart)',
+            border: rest ? '2px dashed var(--track)' : n === sel ? '2px solid var(--ink)' : 0,
+            opacity: cur && n > cur ? 0.45 : 1,
+          };
+          return onPick
+            ? <button key={n} className="a-bar" aria-label={`Нагрузка: неделя ${n}${rest ? ', без тренировок' : ''}`} aria-pressed={n === sel} onClick={() => onPick(n)} style={style} />
+            : <span key={n} className="a-bar" aria-hidden="true" style={style} />;
+        })}
+      </div>
+      {note ? <span className="muted" style={{ fontSize: 13, fontWeight: 700 }}>{note}</span> : null}
+    </div>
+  );
+}
+
 export function ProgramScreen({ id, week: atWeek }: { id: number; week?: number }) {
   const { programs, exById, wide } = useApp();
   const p = programs.find((x) => x.id === id);
@@ -116,6 +146,12 @@ export function ProgramScreen({ id, week: atWeek }: { id: number; week?: number 
       <div className="between"><a className="link" href="#/sport">‹ Спорт</a><MoreButton onClick={() => setMenu(true)} /></div>
       <h1 className="display a-h" style={{ fontSize: 26 }}>{p.name}</h1>
       {p.level != null ? <span style={{ alignSelf: 'flex-start' }}><LevelTag level={p.level as Level} big /></span> : null}
+      <div style={{ display: 'grid', gridTemplateColumns: 'repeat(2, minmax(0, 1fr))', gap: 8 }}>
+        {[[String(p.weeks), plural(p.weeks, ['неделя', 'недели', 'недель'])], [String(p.weekdays.length), timesPerWeek(p.weekdays.length).replace(/^\S+\s/, '')]].map(([v, l]) => (
+          <div key={l} className="card col a-in" style={{ borderRadius: 20, padding: 12, gap: 2 }}><b className="display" style={{ fontSize: 18 }}>{v}</b><span className="muted" style={{ fontSize: 13, fontWeight: 700 }}>{l}</span></div>
+        ))}
+      </div>
+      <LoadChart loads={weekLoads(p.plan, p.weeks)} cur={cur || undefined} sel={sel} onPick={setSel} />
       <div style={p.weeks > 13 ? { display: 'flex', gap: 4, overflowX: 'auto' } : { display: 'grid', gridTemplateColumns: `repeat(${p.weeks}, minmax(0, 1fr))`, gap: 3 }}>
         {Array.from({ length: p.weeks }, (_, i) => i + 1).map((n) => {
           const isSel = n === sel;

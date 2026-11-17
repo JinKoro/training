@@ -8,7 +8,8 @@ import { go, back, onBackClick } from '../lib/router';
 import type { Plan, PlanRow, Program } from '../lib/types';
 import { Screen, errText, toast } from '../ui';
 import { ExercisePicker } from './ExercisePicker';
-import { DeleteProgram } from './Sport';
+import { DeleteProgram, LoadChart } from './Sport';
+import { weekLoads } from '../lib/load';
 
 /** Rest typed as 3:00, 3,30, 2 (minutes) or 130 (1:30); up to 10 minutes. Null when it doesn't parse. */
 const parseRest = (t: string): number | null => {
@@ -164,6 +165,8 @@ function Editor({ mode, program, week }: { mode: 'new' | 'edit'; program?: Progr
           <button className="icon-btn" style={{ background: 'var(--bg)' }} aria-label="Больше недель" onClick={() => setWeeks((w) => Math.min(52, w + 1))}>+</button>
         </div>
       </div>
+      {/* the load follows the plan as it is being written; a bar opens its week */}
+      <LoadChart loads={weekLoads(plan, weeks)} sel={sel} onPick={setSel} height={48} />
       {wide && mode === 'edit' ? <button className="btn danger" style={{ height: 48, borderRadius: 18, fontSize: 15, alignSelf: 'flex-start' }} onClick={() => setDel(true)}>Удалить программу</button> : null}
     </div>
   );

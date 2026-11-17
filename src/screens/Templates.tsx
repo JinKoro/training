@@ -182,6 +182,11 @@ export function TemplateStartScreen({ id }: { id: string }) {
             {first ? `Первая тренировка — ${WD_LONG[weekdayIdx(first)]}, ${dayMonth(first)}` : days.length < need ? `Выберите ещё ${need - days.length} ${need - days.length === 1 ? 'день' : 'дня'}` : `Нужно ${need} дня, уберите лишний`}
           </span>
         </div>
+        {/* weights not given are found on the first workout of each exercise and fill all later weeks (calibration) */}
+        <div className="card row a-in" style={{ borderRadius: 22, gap: 12, alignItems: 'flex-start', padding: '12px 14px' }}>
+          <svg width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="var(--acc)" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" aria-hidden="true" style={{ flex: 'none', marginTop: 1 }}><path d="M4 18h16M7 18V9M12 18V5M17 18v-6" /></svg>
+          <span className="col" style={{ gap: 2 }}><b>Первая неделя — калибровочная</b><span className="muted" style={{ fontSize: 14, fontWeight: 700, lineHeight: 1.35 }}>Где вес не указан, подберите его на тренировке. Дальше программа сама проставит веса на все недели.</span></span>
+        </div>
         <div className="col" style={{ gap: 4 }}>
           <b>Рабочие веса</b>
           <span className="muted" style={{ fontSize: 14, fontWeight: 700 }}>Сколько килограммов вы поднимаете на {t.askReps} повторов. Остальное программа посчитает сама.</span>
