@@ -149,7 +149,8 @@ function Flow({ workout }: { workout: Workout }) {
   const finish = (log: LogSet[][]) => {
     void pushStop();
     void remindStop();
-    const empty = EX.some((_, i) => log[i].length === 0);
+    // anything not fully done (skipped, or some sets left) is offered before the summary
+    const empty = EX.some((x, i) => log[i].length < x.w.length);
     goTo({ screen: empty ? 'left' : 'done', log, restEndsAt: null });
     if (!empty) complete();
   };
@@ -218,7 +219,17 @@ function Flow({ workout }: { workout: Workout }) {
 
   const back = () => {
     const st = sRef.current;
-    // «‹ Назад» steps through the sets already done (never the rest screens); a done set stays done, only its numbers change.
+    // «‹ Назад» steps back through the program order (never the rest screens). The exercise before, if it was skipped or
+    // has sets left, opens at its first undone set to be done now (a skip is undone); a done set opens to edit its numbers.
+    if (st.screen === 'set' || st.screen === 'edit') {
+      const pi = st.si > 0 ? -1 : st.ei - 1;
+      if (pi >= 0 && st.log[pi].length < EX[pi].w.length) {
+        const skipped = st.skipped.filter((k) => k !== pi);
+        if (skipped.length !== st.skipped.length) enqueue({ method: 'PATCH', path: path(pi), body: { skipped: false } });
+        setS({ ...st, ...at(pi, st.log[pi].length, st.log), screen: 'set', skipped, ret: null, menu: false, confirm: false, sheet: null });
+        return;
+      }
+    }
     if (st.screen === 'set' || st.screen === 'rest' || st.screen === 'edit') {
       const p = prevDone(st.log, st.ei, st.si);
       if (p) {
@@ -429,17 +440,17 @@ function Flow({ workout }: { workout: Workout }) {
       </>
     );
   } else {
-    const missing = EX.map((x, i) => ({ x, i })).filter((o) => s.log[o.i].length === 0);
+    const missing = EX.map((x, i) => ({ x, i })).filter((o) => s.log[o.i].length < o.x.w.length);
     body = (
       <>
         <h1 className="display" style={{ fontSize: 24 }}>Не все упражнения сделаны</h1>
         {missing.map(({ x, i }) => (
           <button key={i} className="row a-in" onClick={() => {
             enqueue({ method: 'PATCH', path: path(i), body: { skipped: false } });
-            goTo({ screen: 'set', skipped: s.skipped.filter((k) => k !== i), ...at(i, 0) });
+            goTo({ screen: 'set', skipped: s.skipped.filter((k) => k !== i), ...at(i, s.log[i].length, s.log) });
           }} style={{ background: '#fff', color: '#1A1A1A', borderRadius: 22, padding: 10, gap: 12, textAlign: 'left' }}>
             <ExerciseArt kind={x.kind} name={x.name} size={56} />
-            <div className="grow"><b>{x.name}</b><div style={{ color: '#6E6A64', fontSize: 13, fontWeight: 700 }}>{schemeText({ sets: x.w.length, reps: String(x.reps) }, x.type)}{x.w.some((v) => v != null) ? ` · ${[...new Set(x.w.filter((v) => v != null).map((v) => showKg(v)))].join(' → ')} кг` : ''}</div></div>
+            <div className="grow"><b>{x.name}</b><div style={{ color: '#6E6A64', fontSize: 13, fontWeight: 700 }}>{s.log[i].length ? `сделано ${s.log[i].length} из ${x.w.length}` : <>{schemeText({ sets: x.w.length, reps: String(x.reps) }, x.type)}{x.w.some((v) => v != null) ? ` · ${[...new Set(x.w.filter((v) => v != null).map((v) => showKg(v)))].join(' → ')} кг` : ''}</>}</div></div>
             <b style={{ color: 'var(--hero)' }}>Вернуться ›</b>
           </button>
         ))}

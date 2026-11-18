@@ -283,6 +283,45 @@ test.describe('Workout flow', () => {
     await expect(page.locator('a', { hasText: 'ИДЁТ СЕЙЧАС' })).toContainText('100%');
   });
 
+  test('«‹ Назад» returns to a skipped exercise to do it; at the end a partly done exercise is offered too', async ({ authed: page, user }) => {
+    const wd = weekdayIdx(today());
+    await createProgram(user.token, { name: 'Пропуски', weeks: 1, days: { [wd]: [
+      { name: 'Жим штанги лёжа', sets: 2, reps: '5', kg: '40', rest: 0 },
+      { name: 'Тяга штанги в наклоне', sets: 2, reps: '8', kg: '30', rest: 0 },
+      { name: 'Приседания со штангой', sets: 1, reps: '5', kg: '50', rest: 0 },
+    ] } });
+    await open(page, `day/${today()}`);
+    await page.locator('.fixed-bottom').getByRole('button', { name: 'Начать' }).click();
+    const where = page.locator('span.grow.ell');
+    // skip the bench press, then come back to it with «‹ Назад»: it opens to be done, not as a done set
+    await page.getByRole('button', { name: 'Пропустить упражнение' }).click();
+    await expect(where).toHaveText('Упражнение 2 из 3 · подход 1 из 2');
+    await page.getByRole('button', { name: '‹ Назад' }).click();
+    await expect(where).toHaveText('Упражнение 1 из 3 · подход 1 из 2');
+    await expect(page.getByText('✓ сделан')).toHaveCount(0);
+    await page.getByRole('button', { name: 'Сделал' }).click();
+    await page.getByRole('button', { name: 'Сделал' }).click();
+    // the row: one set, then skip the rest
+    await expect(where).toHaveText('Упражнение 2 из 3 · подход 1 из 2');
+    await page.getByRole('button', { name: 'Сделал' }).click();
+    await page.getByRole('button', { name: 'Пропустить упражнение' }).click();
+    await expect(where).toHaveText('Упражнение 3 из 3 · подход 1 из 1');
+    // back: the row's undone set opens to be done
+    await page.getByRole('button', { name: '‹ Назад' }).click();
+    await expect(where).toHaveText('Упражнение 2 из 3 · подход 2 из 2');
+    await page.getByRole('button', { name: 'Пропустить упражнение' }).click();
+    await page.getByRole('button', { name: 'Сделал' }).click();
+    // the end: the partly done row is offered
+    await expect(page.getByRole('heading', { name: 'Не все упражнения сделаны' })).toBeVisible();
+    const row = page.getByRole('button', { name: /Тяга штанги в наклоне/ });
+    await expect(row).toContainText('сделано 1 из 2');
+    await expect(page.getByRole('button', { name: /Жим штанги лёжа/ })).toHaveCount(0);
+    await row.click();
+    await expect(where).toHaveText('Упражнение 2 из 3 · подход 2 из 2');
+    await page.getByRole('button', { name: 'Сделал' }).click();
+    await expect(page.getByRole('heading', { name: 'Тренировка завершена' })).toBeVisible();
+  });
+
   test('deleting from the workout editor lands on the journal', async ({ authed: page, user }) => {
     const wd = weekdayIdx(today());
     const p = await createProgram(user.token, { name: 'Ред', weeks: 1, days: { [wd]: [{ name: 'Жим штанги лёжа', sets: 2, reps: '5', kg: '40' }] } });
