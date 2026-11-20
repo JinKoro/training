@@ -425,7 +425,9 @@ const todayOf = (request) => {
 // Login rate limit (failed tries): per e-mail and per IP address within a window.
 const LOGIN_WINDOW = 15 * 60_000, LOGIN_MAX_EMAIL = 10, LOGIN_MAX_IP = 30;
 
-const LABEL_MODEL = '@cf/meta/llama-4-scout-17b-16e-instruct';
+// Gemma 4 without its thinking pass: on 22 real Russian labels it read blurry photos better than llama-4-scout
+// (13 vs 10 of 22 fully right), answers in ~2.5 s instead of ~12 s and costs ~16 neurons a photo instead of ~86.
+const LABEL_MODEL = '@cf/google/gemma-4-26b-a4b-it';
 const LABEL_PROMPT = `This is a photo of a food package (front and/or the nutrition facts table). Read everything you can find and return only JSON:
 {"name": string|null, "brand": string|null, "barcode": string|null, "category": string|null, "kcal": number|null, "protein": number|null, "fat": number|null, "carbs": number|null}.
 - name: a SHORT Russian name, at most 5 words: what the product is (творог, йогурт, сырок, паста творожная, молоко…) plus what tells it apart (flavour, fat %, variety). Not the brand, not the weight, no quotes, no marketing words. Rephrase a long label name, keeping its meaning. Examples: «Паста творожная "Творожок" с вкусовым наполнителем "Груша-Банан"» → "Творожок груша-банан"; «Йогурт питьевой с наполнителем клубника-земляника 1,5%» → "Йогурт питьевой клубника 1,5%"; «Творог 5%» → "Творог 5%". null if not visible.
@@ -445,7 +447,7 @@ async function readLabelAI(env, image) {
   try {
     r = await env.AI.run(LABEL_MODEL, {
       messages: [{ role: 'user', content: [{ type: 'text', text: LABEL_PROMPT }, { type: 'image_url', image_url: { url: image } }] }],
-      max_tokens: 300, temperature: 0,
+      max_tokens: 400, temperature: 0, chat_template_kwargs: { enable_thinking: false },
       response_format: {
         type: 'json_schema',
         json_schema: { type: 'object', properties: { ...Object.fromEntries(['name', 'brand', 'barcode', 'category'].map((k) => [k, { type: ['string', 'null'] }])), ...Object.fromEntries(['kcal', 'protein', 'fat', 'carbs'].map((k) => [k, { type: ['number', 'null'] }])) }, required: ['name', 'brand', 'barcode', 'category', 'kcal', 'protein', 'fat', 'carbs'] },
@@ -453,9 +455,13 @@ async function readLabelAI(env, image) {
     });
   } catch (e) {
     console.warn('label AI failed', String(e));
+    // The free daily allocation is used up: say so, so the app doesn't pass off on-phone OCR guesses as a reading.
+    if (/4006|daily free allocation/i.test(String(e))) return { quota: true };
     return null;
   }
-  const raw = typeof r?.response === 'string' ? r.response : JSON.stringify(r?.response ?? '');
+  // Newer models answer in the OpenAI shape (choices[0].message.content), older ones in `response`.
+  const reply = r?.choices?.[0]?.message?.content ?? r?.response ?? '';
+  const raw = typeof reply === 'string' ? reply : JSON.stringify(reply);
   const m = raw.match(/\{[\s\S]*\}/);
   if (!m) return null;
   let j;
@@ -468,9 +474,30 @@ async function readLabelAI(env, image) {
     name: shortName(text(j.name, 120)), brand: text(j.brand, 40),
     barcode: /^(\d{8}|\d{12,14})$/.test(code) ? code : null,
     category: typeof j.category === 'string' && SUB_NAMES[j.category] ? j.category : null,
-    kcal: num(j.kcal, 900), protein: num(j.protein, 100), fat: num(j.fat, 100), carbs: num(j.carbs, 100),
+    ...fixLabelNumbers({ kcal: num(j.kcal, 4000), protein: num(j.protein, 100), fat: num(j.fat, 100), carbs: num(j.carbs, 100) }),
   };
   return Object.values(out).some((v) => v !== null) ? out : null;
+}
+
+/**
+ * Sanity checks on numbers read from a label, against energy = 4·P + 9·F + 4·C:
+ * - kcal far above that and kcal / 4.184 close to it → the model took the kJ figure ("450" for 110 kcal ketchup);
+ * - kcal still impossible (> 900) → dropped;
+ * - a nutrient left empty while kcal is already explained by the others → it is 0 (oil: only fat is printed).
+ * Exported for tests.
+ */
+export function fixLabelNumbers({ kcal, protein, fat, carbs }) {
+  const known = [protein, fat, carbs].filter((v) => v !== null);
+  const calc = 4 * (protein ?? 0) + 9 * (fat ?? 0) + 4 * (carbs ?? 0);
+  if (kcal !== null && known.length >= 2 && calc > 0) {
+    const kj = kcal / 4.184;
+    if (kcal > calc * 1.6 + 20 && Math.abs(kj - calc) <= Math.max(15, calc * 0.2)) kcal = Math.round(kj * 10) / 10;
+  }
+  if (kcal !== null && kcal > 900) kcal = null;
+  if (kcal !== null && known.length >= 1 && known.length < 3 && Math.abs(kcal - calc) <= Math.max(10, kcal * 0.05)) {
+    protein ??= 0; fat ??= 0; carbs ??= 0;
+  }
+  return { kcal, protein, fat, carbs };
 }
 
 // ---------- body measurements ----------
@@ -845,7 +872,8 @@ export async function handleApi(request, env, path) {
     if (seg[1] === 'label' && method === 'POST') {
       const image = String((await readJson(request)).image ?? '');
       if (!/^data:image\/(jpeg|png|webp);base64,/.test(image) || image.length > 2_500_000) fail(400, 'invalid_image', 'image');
-      return ok({ label: await readLabelAI(env, image) });
+      const label = await readLabelAI(env, image);
+      return label?.quota ? ok({ label: null, reason: 'quota' }) : ok({ label });
     }
     if (seg.length === 1 && method === 'GET') {
       const url = new URL(request.url);

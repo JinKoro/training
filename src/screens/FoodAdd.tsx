@@ -591,8 +591,12 @@ function ProductForm({ barcode: initialBarcode, name: initialName, onSaved, comp
     if (!file) return;
     setOcr(0); setSource(null);
     try {
-      const { readLabel } = await import('../lib/label');
-      const r = await readLabel(file, setOcr);
+      const { readLabel, LabelQuotaError } = await import('../lib/label');
+      let r;
+      try { r = await readLabel(file, setOcr); } catch (err) {
+        if (err instanceof LabelQuotaError) { setSource('Распознавание по фото на сегодня закончилось, попробуйте после 3:00'); return; }
+        throw err;
+      }
       const got = [r.name, r.protein, r.fat, r.carbs, r.kcal].filter((v) => v != null).length;
       if (!got) { setSource('Не получилось прочитать фото. Сфотографируйте упаковку ближе и ровнее, без бликов'); return; }
       fill(r);

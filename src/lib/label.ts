@@ -37,13 +37,20 @@ async function toDataUrl(file: File): Promise<string> {
   return c.toDataURL('image/jpeg', 0.85);
 }
 
+/** The server's free daily quota for reading photos is used up (resets at 00:00 UTC). */
+export class LabelQuotaError extends Error {}
+
 /** onProgress: -1 while the server reads the photo, then 0..100 if it falls back to on-phone OCR. */
 export async function readLabel(file: File, onProgress?: (pct: number) => void): Promise<LabelMacros> {
   onProgress?.(-1);
   try {
-    const { label } = await api<{ label: Omit<LabelMacros, 'text'> | null }>('POST', '/products/label', { image: await toDataUrl(file) });
+    const { label, reason } = await api<{ label: Omit<LabelMacros, 'text'> | null; reason?: 'quota' }>('POST', '/products/label', { image: await toDataUrl(file) });
+    if (reason === 'quota') throw new LabelQuotaError();
     if (label && [label.protein, label.fat, label.carbs, label.kcal, label.name].some((v) => v != null)) return { ...label, text: '' };
-  } catch { /* fall back to on-phone OCR */ }
+  } catch (e) {
+    // Daily limit used up: on-phone OCR reads labels too poorly to stand in for it, so tell the user instead.
+    if (e instanceof LabelQuotaError) throw e;
+  }
   onProgress?.(0);
   // On-phone OCR is the fallback only; if it can't run (memory, engine download), report "nothing read", not an error.
   try { return await readLabelOnPhone(file, onProgress); }
